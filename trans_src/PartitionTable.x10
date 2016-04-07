@@ -87,6 +87,12 @@ public class PartitionTable {
     	return obj;
     }
     
+    public def findReplacementPlace(partition:Long):Place {
+    	var replicaIndex:Long = 0;
+        
+		return Place(0);
+    }
+    
     public def printParitionTable() {
     	for (var p:Long = 0; p < partitionsCount; p++) {
     		var str:String = "";
