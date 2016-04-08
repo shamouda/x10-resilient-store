@@ -59,7 +59,7 @@ public class Tester {
 	
     public static def main(args:Rail[String]) {
     	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
-    /*	finish for (p in Place.places()) at (p) async {  		
+    	finish for (p in Place.places()) at (p) async {  		
     		try{
     			val x = hm.get("A");
     			
@@ -72,7 +72,7 @@ public class Tester {
     			ex.printStackTrace();
     		}
     	}
-   */ 	
+    	
     	//Console.OUT.println(hm.get("A") as Long);
     }
 }

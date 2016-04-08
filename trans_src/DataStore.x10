@@ -27,7 +27,7 @@ public class DataStore {
     
 	private var partitionTable:PartitionTable;
 	
-	private var replicationManager:ReplicationManager;
+	private var executor:ReplicationManager;
 	
 	//container for the data partitions, null for non-members
 	private var container:Replica;
@@ -78,7 +78,7 @@ public class DataStore {
 			
 				container = new Replica(partitionTable.getPlacePartitions(here.id));
 				
-				replicationManager = new ReplicationManager(partitionTable);
+				executor = new ReplicationManager(partitionTable);
 		
 				initialized = true;
 		
@@ -91,6 +91,8 @@ public class DataStore {
 	
 	
 	public def getReplica() = container;
+	
+	public def executor() = executor;
 	
 	private static def createTopology():Topology {
 		if (here.id == 0) {
@@ -124,7 +126,7 @@ public class DataStore {
 					DataStore.getInstance().lock.lock();
 					var resilientMap:ResilientMap = DataStore.getInstance().userMaps.getOrElse(name,null);
 					if (resilientMap == null){
-						resilientMap = new ResilientMapImpl(name, timeoutMillis, replicationManager);
+						resilientMap = new ResilientMapImpl(name, timeoutMillis);
 						DataStore.getInstance().userMaps.put(name, resilientMap);
 					}
 				}finally {

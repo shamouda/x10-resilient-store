@@ -15,11 +15,14 @@ public class ReplicationManager {
     public def this(partitionTable:PartitionTable) {
     	this.partitionTable = partitionTable;
     	pendingRequests = new ArrayList[MapRequest]();
-    	lock = new SimpleLatch();
+    	lock = new SimpleLatch(); 
     }
 
 	public def asyncExecuteRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());
+		request.success = true;
+		addRequest(request);
+		async checkPendingTransactions();
 	}
 	
 	public def updatePartitionTable(PartitionTable) {
@@ -41,15 +44,20 @@ public class ReplicationManager {
 	}
 	
 	private def checkPendingTransactions() {
-		try{
-			lock.lock();
-			for (p in pendingRequests){
-				p.lock.release();
-			}
 		
-		}
-		finally{
-			lock.unlock();
+		while (true) 
+		{
+			System.threadSleep(10);
+			try{
+				lock.lock();
+				for (p in pendingRequests){
+					p.lock.release();
+				}
+		
+			}
+			finally{
+				lock.unlock();
+			}
 		}
 	}
 }

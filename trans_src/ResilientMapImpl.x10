@@ -3,7 +3,10 @@ import x10.util.ArrayList;
 import x10.compiler.NoInline;
 import x10.util.HashSet;
 
-
+/***
+ * This class should not contain heavy objects because it is transferable between places
+ * Place specific data should be obtained from the DataStore class
+ * */
 public class ResilientMapImpl implements ResilientMap {
 	private val moduleName = "ResilientMapImpl";
 	public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1;
@@ -11,14 +14,10 @@ public class ResilientMapImpl implements ResilientMap {
 	
 	private val name:String;
     private val timeoutMillis:Long;
-    private val pendingRequests:ArrayList[MapRequest];
-    private val executor:ReplicationManager;
 
-    def this(name:String, timeoutMillis:Long, replicationManager:ReplicationManager) {
+    def this(name:String, timeoutMillis:Long) {
     	this.name = name;
-    	this.timeoutMillis = timeoutMillis;
-    	this.executor = replicationManager;
-    	this.pendingRequests = new ArrayList[MapRequest]();
+    	this.timeoutMillis = timeoutMillis;    	
     }
     
     /**
@@ -101,7 +100,7 @@ public class ResilientMapImpl implements ResilientMap {
      */
     public def commitTransaction(transId:Long) {
     	val request = new MapRequest(transId, MapRequest.REQ_COMMIT);
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);   
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);   
     	if (VERBOSE) Utils.console(moduleName, "commitTransaction  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "commitTransaction  ... released } ");
@@ -112,7 +111,7 @@ public class ResilientMapImpl implements ResilientMap {
      */
     public def abortTransaction(transId:Long) {
     	val request = new MapRequest(transId, MapRequest.REQ_ABORT);
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);    	
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
     	if (VERBOSE) Utils.console(moduleName, "abortTransaction  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "abortTransaction  ... released } ");
@@ -126,7 +125,7 @@ public class ResilientMapImpl implements ResilientMap {
     public def get(transId:Long, key:Any):Any {
     	val request = new MapRequest(transId, MapRequest.REQ_GET);
     	request.inKey = key;
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);    	
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
     	if (VERBOSE) Utils.console(moduleName, "get  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "get  ... released } ");
@@ -144,7 +143,7 @@ public class ResilientMapImpl implements ResilientMap {
     	val request = new MapRequest(transId, MapRequest.REQ_PUT);
     	request.inKey = key;
     	request.inValue = value;
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);    	
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
     	if (VERBOSE) Utils.console(moduleName, "put  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "put  ... released } ");
@@ -161,7 +160,7 @@ public class ResilientMapImpl implements ResilientMap {
     public def delete(transId:Long,key:Any):Any {
     	val request = new MapRequest(transId, MapRequest.REQ_DELETE);
     	request.inKey = key;    	
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);    	
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
     	if (VERBOSE) Utils.console(moduleName, "delete  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "delete  ... released } ");
@@ -178,7 +177,7 @@ public class ResilientMapImpl implements ResilientMap {
      **/
     public def keySet(transId:Long):HashSet[Any] {
     	val request = new MapRequest(transId, MapRequest.REQ_KEY_SET);    	
-    	executor.asyncExecuteRequest(name, request, timeoutMillis);    	
+    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
     	if (VERBOSE) Utils.console(moduleName, "keySet  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "keySet  ... released } ");
