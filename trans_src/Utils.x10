@@ -1,4 +1,8 @@
+import x10.util.concurrent.AtomicLong;
+
 public class Utils {
+	private static val sequence:AtomicLong = new AtomicLong();
+	
     public static def getEnvLong(name:String, defaultVal:Long) {
         val env = System.getenv(name);
         val v = (env!=null) ? Long.parseLong(env) : defaultVal;
@@ -12,6 +16,10 @@ public class Utils {
 		}
 	}
     
+    public static def getNextTransactionId() {
+    	val id = sequence.incrementAndGet();
+    	return (here.id+1)*100000+id;
+    }
     
     public static def console(moduleName:String, msg:String) {
     	Console.OUT.println(here + " ["+moduleName+"] " + msg);

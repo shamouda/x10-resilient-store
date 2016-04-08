@@ -44,7 +44,7 @@ public interface ResilientMap {
     /***
      * throws an exception if rollback failed  (this should not fail)
      */
-    public def rollbackTransaction(transId:Long):void;
+    public def abortTransaction(transId:Long):void;
     
     /**
      * 

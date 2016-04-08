@@ -2,6 +2,7 @@ import x10.util.*;
 import x10.util.concurrent.SimpleLatch;
 import x10.compiler.Inline;
 import x10.xrx.Runtime;
+import x10.util.concurrent.AtomicLong;
 
 
 //creates the local datastore instance  (one per place)
@@ -26,6 +27,8 @@ public class DataStore {
     
 	private var partitionTable:PartitionTable;
 	
+	private var replicationManager:ReplicationManager;
+	
 	//container for the data partitions, null for non-members
 	private var container:Replica;
 	
@@ -36,14 +39,15 @@ public class DataStore {
 	
     private static val instance = new DataStore();
     
-    private static val lock = new SimpleLatch();
+    private static val lock:SimpleLatch = new SimpleLatch();
     
     private static val cachedTopologyPlaceZero:Topology = createTopology();
-    
+        
     private var initialized:Boolean = false;
-    private val initLock = new SimpleLatch();
     
-	private def this() {		
+    private val initLock:SimpleLatch = new SimpleLatch();
+    
+	private def this() {
 		userMaps = new HashMap[String,ResilientMap]();
 	}
 	
@@ -73,6 +77,8 @@ public class DataStore {
 				partitionTable = new PartitionTable(topology,REPLICATION_FACTOR);
 			
 				container = new Replica(partitionTable.getPlacePartitions(here.id));
+				
+				replicationManager = new ReplicationManager(partitionTable);
 		
 				initialized = true;
 		
@@ -86,7 +92,7 @@ public class DataStore {
 	
 	public def getReplica() = container;
 	
-	private static def createTopology():Topology {		
+	private static def createTopology():Topology {
 		if (here.id == 0) {
 			val topology = new Topology();
 			val gr = GlobalRef[Topology](topology);
@@ -111,23 +117,24 @@ public class DataStore {
 	public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
 		var mapObj:ResilientMap = userMaps.getOrElse(name,null);
 		if (mapObj == null) {
-			Place.places().broadcastFlat(()=>{
+			//TODO: could not use broadcastFlat because of this exception: "Cannot create shifted activity under a SPMD Finish"
+			//shifted activity is required for copying the topology
+			finish for (p in Place.places()) at (p) async {
 				try{
 					DataStore.getInstance().lock.lock();
 					var resilientMap:ResilientMap = DataStore.getInstance().userMaps.getOrElse(name,null);
 					if (resilientMap == null){
-						resilientMap = new ResilientMapImpl(name, timeoutMillis);
+						resilientMap = new ResilientMapImpl(name, timeoutMillis, replicationManager);
 						DataStore.getInstance().userMaps.put(name, resilientMap);
 					}
 				}finally {
 					DataStore.getInstance().lock.unlock();
 				}
-			}, (Place)=>true);
+			}
 		}
 		return userMaps.getOrElse(name,null);
 	}
 /*	
-    
 	public def getPrimaryPlace(partitionId:Long):Long {
 	    val record = partitionTable.get(partitionId);
 	    if (record == null)
@@ -159,6 +166,5 @@ public class DataStore {
 	
 	public def printTopology(){
 		topology.printTopology();
-	}
-		
+	}		
 }

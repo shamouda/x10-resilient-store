@@ -26,9 +26,53 @@ public class Tester {
     	partitionTable.printParitionTable();
 	}
 	
-    public static def main(args:Rail[String]) {
-    	for (p in Place.places()) at (p) async {
+	public static def test02() {
+		for (p in Place.places()) at (p) async {
     		DataStore.getInstance().printTopology();
     	}
+	}
+	
+	public static def test03() {
+    	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+    	finish for (p in Place.places()) at (p) async {
+    		val txId = hm.startTransaction();   		
+    		try{
+    			val x = hm.get(txId, "A");
+    			
+    			if (x == null)
+    				hm.put(txId, "A", 0);
+    			else
+    				hm.put(txId, "A", (x as Long)+1);
+    		
+    			hm.commitTransaction(txId);
+    		}
+    		catch (ex:TransactionAbortedException) {
+    			ex.printStackTrace();
+    		}
+    		catch (ex:Exception) {
+    			hm.abortTransaction(txId);
+    		}
+    	}
+    	
+    	//Console.OUT.println(hm.get("A") as Long);	
+	}
+	
+    public static def main(args:Rail[String]) {
+    	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+    /*	finish for (p in Place.places()) at (p) async {  		
+    		try{
+    			val x = hm.get("A");
+    			
+    			if (x == null)
+    				hm.put("A", 0);
+    			else
+    				hm.put("A", (x as Long)+1);
+    		}    		
+    		catch (ex:Exception) {
+    			ex.printStackTrace();
+    		}
+    	}
+   */ 	
+    	//Console.OUT.println(hm.get("A") as Long);
     }
 }
