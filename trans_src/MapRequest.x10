@@ -16,7 +16,7 @@ public class MapRequest {
     public var inKey:Any;
 	public var inValue:Any;
     
-    public var success:Boolean;
+    public var completed:Boolean;
     public var outValue:Any;
     public var outKeySet:HashSet[Any];
     public var outException:Exception;
@@ -29,6 +29,7 @@ public class MapRequest {
     	this.lock = new SimpleLatch();
     }
     
+    public def isSuccessful() = completed && outException == null;
     
     public def toString():String {
     	var str:String = "";

@@ -129,7 +129,7 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "get  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "get  ... released } ");
-    	if (request.success)
+    	if (request.isSuccessful())
     		return request.outValue;
     	else
     		throw request.outException;
@@ -147,7 +147,7 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "put  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "put  ... released } ");
-    	if (request.success)
+    	if (request.isSuccessful())
     		return request.outValue;
     	else
     		throw request.outException;
@@ -164,7 +164,7 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "delete  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "delete  ... released } ");
-    	if (request.success)
+    	if (request.isSuccessful())
     		return request.outValue;
     	else
     		throw request.outException;
@@ -181,7 +181,7 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "keySet  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "keySet  ... released } ");
-    	if (request.success)
+    	if (request.isSuccessful())
     		return request.outKeySet;
     	else
     		throw request.outException;
