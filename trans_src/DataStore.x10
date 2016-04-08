@@ -1,0 +1,164 @@
+import x10.util.*;
+import x10.util.concurrent.SimpleLatch;
+import x10.compiler.Inline;
+import x10.xrx.Runtime;
+
+
+//creates the local datastore instance  (one per place)
+public class DataStore {
+	private val moduleName = "DataStore";
+	public static val VERBOSE = Utils.getEnvLong("DATA_STORE_VERBOSE", 0) == 1;
+	public static val REPLICATION_FACTOR = Utils.getEnvLong("DATA_STORE_VERBOSE", 2);
+	public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
+	
+	/*the data store will be invalid if some partitions are permanantly lost due to loss 
+	of both their primary and secondary partitions*/
+	private var valid:Boolean = true;
+	
+    //TODO: currently all places are members. Next, we should allow having some places are spare
+	private val isMember:Boolean = true;
+
+    //takes over migration tasks
+	private var leaderPlace:Place;
+
+    //takes over migration tasks when the leader dies
+	private var deputyLeaderPlace:Place;
+    
+	private var partitionTable:PartitionTable;
+	
+	//container for the data partitions, null for non-members
+	private var container:Replica;
+	
+	//pointers to the different application maps
+    private var userMaps:HashMap[String,ResilientMap];
+
+    private var topology:Topology = null;
+	
+    private static val instance = new DataStore();
+    
+    private static val lock = new SimpleLatch();
+    
+    private static val cachedTopologyPlaceZero:Topology = createTopology();
+    
+    private var initialized:Boolean = false;
+    private val initLock = new SimpleLatch();
+    
+	private def this() {		
+		userMaps = new HashMap[String,ResilientMap]();
+	}
+	
+	public static def getInstance() : DataStore {
+		if (!instance.initialized)
+			instance.init();
+		return instance;
+	}
+	
+	public def init() {
+		try{
+			initLock.lock();
+			if (!initialized) { // initialize once per place
+				if (here.id == 0) // create the topology at place 0, and copy it to other places
+					topology = cachedTopologyPlaceZero;
+				else
+					topology = at (Place(0)) { cachedTopologyPlaceZero } ;
+			
+				if (topology == null)
+					throw new TopologyCreationFailedException();
+				
+				val masterNodeIndex = 0;
+				val placeIndex = 0;
+				leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
+				deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
+		
+				partitionTable = new PartitionTable(topology,REPLICATION_FACTOR);
+			
+				container = new Replica(partitionTable.getPlacePartitions(here.id));
+		
+				initialized = true;
+		
+				Utils.console(moduleName, "Initialization done successfully ...");
+			}
+		}finally {
+			initLock.unlock();
+		}
+	}
+	
+	
+	public def getReplica() = container;
+	
+	private static def createTopology():Topology {		
+		if (here.id == 0) {
+			val topology = new Topology();
+			val gr = GlobalRef[Topology](topology);
+			finish for (p in Place.places()) at (p) async {
+				val placeId = here.id;
+				var name:String = "";
+				if (FORCE_ONE_PLACE_PER_NODE)
+					name = Runtime.getName();
+				else
+					name = Runtime.getName().split("@")(1);
+				val nodeName = name;
+				at (gr.home) {
+					atomic gr().addMainPlace(nodeName, placeId);
+				}
+			}
+			return topology;
+		}
+		return null;
+	}
+	
+	//should be called by one place
+	public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
+		var mapObj:ResilientMap = userMaps.getOrElse(name,null);
+		if (mapObj == null) {
+			Place.places().broadcastFlat(()=>{
+				try{
+					DataStore.getInstance().lock.lock();
+					var resilientMap:ResilientMap = DataStore.getInstance().userMaps.getOrElse(name,null);
+					if (resilientMap == null){
+						resilientMap = new ResilientMapImpl(name, timeoutMillis);
+						DataStore.getInstance().userMaps.put(name, resilientMap);
+					}
+				}finally {
+					DataStore.getInstance().lock.unlock();
+				}
+			}, (Place)=>true);
+		}
+		return userMaps.getOrElse(name,null);
+	}
+/*	
+    
+	public def getPrimaryPlace(partitionId:Long):Long {
+	    val record = partitionTable.get(partitionId);
+	    if (record == null)
+		    return -1;
+	    else 
+		    return record.getPrimaryPlace();
+    }
+   
+    public def getPartitionMapping(partitionId:Long):PartitionRecord {
+ 	    return partitionTable.get(partitionId);
+    }
+    
+    
+	public def toString():String {
+		var str:String = "["+here+"] isMember? " + isMember + "  \n";
+	    str += partitionTable.toString() + "\n";
+	    if (container != null)
+	    	str += container.toString() + "\n"; 
+	    str += "UserMaps [";
+	    val iter = userMaps.keySet().iterator();
+	    while (iter.hasNext()){
+	    	val key = iter.next();	
+	    	str += key + ",";
+	    }
+	    str += "]";
+	    return str;
+	}
+  */
+	
+	public def printTopology(){
+		topology.printTopology();
+	}
+		
+}

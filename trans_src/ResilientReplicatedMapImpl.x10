@@ -4,21 +4,13 @@ import x10.compiler.NoInline;
 import x10.util.HashSet;
 
 
-//Object can only be created by the DataStore class
-public class ResilientMapImpl implements ResilientMap {
-	private val name:String;
-    private val timeoutMillis:Long;
-
-    def this(name:String, timeoutMillis:Long) {
-    	this.name = name;
-    	this.timeoutMillis = timeoutMillis;
-    }
+public class ResilientReplicatedMapImpl {
     
     /**
      * Get value associated with a key
      * returns the current value
      **/
-    public def get(key:Any):Any {
+    public def getInternal(key:Any):Any {
     	return null;
     }
     
@@ -26,7 +18,7 @@ public class ResilientMapImpl implements ResilientMap {
      * Adds/updates value of given key
      * returns the old value
      **/
-    public def put(key:Any, value:Any):Any {
+    public def putInternal(key:Any, value:Any):Any {
         return null;
     }
     
@@ -34,7 +26,7 @@ public class ResilientMapImpl implements ResilientMap {
      * Deletes the value of the given key
      * returns the old value
      **/
-    public def delete(key:Any):Any {
+    public def deleteInternal(key:Any):Any {
     	return null;
     }
     
@@ -42,28 +34,28 @@ public class ResilientMapImpl implements ResilientMap {
     /**
      * returns all keys
      **/
-    public def keySet():HashSet[Any] {
+    public def keySetInternal():HashSet[Any] {
     	return null;
     }
     
     /***
      * returns the transactoin id
      */
-    public def startTransaction():Long {
+    public def startTransactionInternal():Long {
     	return -1;
     }
     
     /***
      * throws an exception if commit failed
      */
-    public def commitTransaction(transId:Long) {
+    public def commitTransactionInternal(transId:Long) {
     	
     }
     
     /***
      * throws an exception if rollback failed  (this should not fail)
      */
-    public def rollbackTransaction(transId:Long) {
+    public def rollbackTransactionInternal(transId:Long) {
     	
     }
     
@@ -72,7 +64,7 @@ public class ResilientMapImpl implements ResilientMap {
      * [Transaction] Get value associated with a key
      * returns the current value
      **/
-    public def get(transId:Long, key:Any):Any {
+    public def getInternal(transId:Long, key:Any):Any {
     	return null;
     }
     
@@ -80,7 +72,7 @@ public class ResilientMapImpl implements ResilientMap {
      * [Transaction] Adds/updates value of given key
      * returns the old value
      **/
-    public def put(transId:Long, key:Any, value:Any):Any {
+    public def putInternal(transId:Long, key:Any, value:Any):Any {
         return null;
     }
     
@@ -88,7 +80,7 @@ public class ResilientMapImpl implements ResilientMap {
      * [Transaction] Deletes the value of the given key
      * returns the old value
      **/
-    public def delete(transId:Long,key:Any):Any {
+    public def deleteInternal(transId:Long,key:Any):Any {
     	return null;
     }
     
@@ -97,7 +89,7 @@ public class ResilientMapImpl implements ResilientMap {
      * [Transaction] 
      * returns all keys
      **/
-    public def keySet(transId:Long):HashSet[Any] {
+    public def keySetInternal(transId:Long):HashSet[Any] {
     	return null;
     }
 

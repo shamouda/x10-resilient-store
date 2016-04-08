@@ -10,11 +10,10 @@ public class Partition {
 
     private val lock:SimpleLatch;
 
-    public def this(id:Long, isPrimary:Boolean) {
+    public def this(id:Long) {
     	this.id = id;
     	maps = new HashMap[String, HashMap[Any,Any]]();
     	lock = new SimpleLatch();
-    	
     }
     
     //We might not need this one, because put makes the same logic

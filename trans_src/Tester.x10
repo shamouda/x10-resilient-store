@@ -3,7 +3,7 @@ import x10.io.File;
 import x10.io.EOFException;
 
 public class Tester {
-    public static def main(args:Rail[String]) {
+	public static def test01() {
     	val topology = new Topology();
     	val file = new FileReader(new File("topology.txt"));
     	var line:String = file.readLine();
@@ -24,5 +24,11 @@ public class Tester {
     	val partitionTable = new PartitionTable(topology, 3);
     	partitionTable.createParitionTable();
     	partitionTable.printParitionTable();
+	}
+	
+    public static def main(args:Rail[String]) {
+    	for (p in Place.places()) at (p) async {
+    		DataStore.getInstance().printTopology();
+    	}
     }
 }

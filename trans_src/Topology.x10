@@ -20,6 +20,10 @@ public class Topology {
     	}
     	return count;
     }
+    
+    public def addMainPlace (nodeName:String, placeId:Long) {
+    	addMainPlace(nodeName, Place(placeId));
+    }
  
     public def addMainPlace (nodeName:String, place:Place) {
     	var node:TopologyNode = getNode(nodeName);
@@ -40,6 +44,16 @@ public class Topology {
     	val node = new TopologyNode(sequence.getAndIncrement(),name);
     	mainNodes.add(node);
     	return node;
+    }
+    
+    public def getPlaceByIndex(nodeIndex:Long, placeIndexInsideNode:Long):Place {
+    	if (nodeIndex < mainNodes.size()) {
+    		val node = mainNodes.get(nodeIndex);
+    		if (placeIndexInsideNode < node.places.size()){
+    			return node.places.get(placeIndexInsideNode);
+    		}
+    	}
+    	return Place(-1);
     }
     
     public def printTopology(){
@@ -64,7 +78,8 @@ class TopologyNode {
     public def getName() = name;
     
     public def addPlace(x10Place:Place) {
-    	places.add(x10Place);
+    	if (!places.contains(x10Place))
+    		places.add(x10Place);
     }
     
     public def toString():String {
@@ -76,5 +91,4 @@ class TopologyNode {
         str += "</node>\n";
         return str;
     }
-    
 }
