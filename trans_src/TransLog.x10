@@ -5,15 +5,20 @@ import x10.util.ArrayList;
  * Used to log the changes in key values by a single transaction
  * The object is expected to be used by only one thread
  * */
+//transaction status: started - ready to commit - commited - aborted
 public class TransLog {
 	private val moduleName = "TransLog";
 	public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1;
 	
 	private val transId:Long;
+	//the used keys
     private val cache:HashMap[Any,TransCachedRecord] = new HashMap[Any,TransCachedRecord]();
 
-	public def this(transId:Long){
+	private val startTimeMillis:Long;
+	
+	public def this(transId:Long, startTimeMillis:Long){
 		this.transId = transId;
+		this.startTimeMillis = startTimeMillis;
 	}
 	
 	//must be called before update to store the initial value

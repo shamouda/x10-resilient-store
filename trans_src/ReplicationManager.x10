@@ -24,10 +24,63 @@ public class ReplicationManager {
 	public def asyncExecuteRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());
 		addRequest(request, timeoutMillis);
+		
+		switch(request.requestType) {
+			case MapRequest.REQ_GET: asyncExecuteGet(mapName, request, timeoutMillis);
+			case MapRequest.REQ_PUT: asyncExecutePut(mapName, request, timeoutMillis);
+			case MapRequest.REQ_DELETE: asyncExecuteDelete(mapName, request, timeoutMillis);
+			case MapRequest.REQ_KEY_SET: asyncExecuteKeySet(mapName, request, timeoutMillis);
+			case MapRequest.REQ_COMMIT: asyncExecuteCommit(mapName, request, timeoutMillis);
+			case MapRequest.REQ_ABORT: asyncExecuteAbort(mapName, request, timeoutMillis);
+		}
+		
+		
 	}
 	
-	public def updatePartitionTable(p:PartitionTable) {
+	private def asyncExecuteGet(mapName:String, request:MapRequest, timeoutMillis:Long) {
+		val key = request.inKey;
+		val replicas = partitionTable.getKeyReplicas(key);
+		finish {
+			for (placeId in replicas) {
+				at (Place(placeId)) async {
+					DataStore.getInstance().getReplica().
+				}
+			}
+		}
+	}
+	
+	private def asyncExecutePut(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		
+	}
+	
+	private def asyncExecuteKeySet(mapName:String, request:MapRequest, timeoutMillis:Long) {
+		
+	}
+	
+	private def asyncExecuteDelete(mapName:String, request:MapRequest, timeoutMillis:Long) {
+		
+	}
+
+	private def asyncExecuteCommit(mapName:String, request:MapRequest, timeoutMillis:Long) {
+		
+	}
+	
+	private def asyncExecuteAbort(mapName:String, request:MapRequest, timeoutMillis:Long) {
+		
+	}
+
+	
+
+
+	
+	public def updatePartitionTable(p:PartitionTable) {
+		try{
+			lock.lock();
+			partitionTable = p;
+		}
+		finally {
+			lock.unlock();
+		}
 	}
 	
 	public def setMigrationStatus(migrating:Boolean) {

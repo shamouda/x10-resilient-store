@@ -100,21 +100,62 @@ public class PartitionTable {
     }
     
     public def getNodePartitions(nodeId:Long):HashSet[Long] {
-    	var obj:HashSet[Long] = nodePartitions.getOrElse(nodeId,null);
-    	if (obj == null){
-    		obj = new HashSet[Long]();
-    		nodePartitions.put(nodeId, obj);
+    	var obj:HashSet[Long] = null;
+    	try{
+    		lock.lock();
+    		obj = nodePartitions.getOrElse(nodeId,null);
+    		if (obj == null){
+    			obj = new HashSet[Long]();
+    			nodePartitions.put(nodeId, obj);
+    		}
+    	}
+    	finally {
+    		lock.unlock();
     	}
     	return obj;
     }
     
     public def getPlacePartitions(placeId:Long):HashSet[Long] {
-    	var obj:HashSet[Long] = placePartitions.getOrElse(placeId,null);
-    	if (obj == null){
-    		obj = new HashSet[Long]();
-    		placePartitions.put(placeId, obj);
+    	var obj:HashSet[Long] = null;
+    	try {
+    		lock.lock();
+    		var obj:HashSet[Long] = placePartitions.getOrElse(placeId,null);
+    		if (obj == null){
+    			obj = new HashSet[Long]();
+    			placePartitions.put(placeId, obj);
+    		}
+    	}finally {
+    		lock.unlock();
     	}
     	return obj;
+    }
+    
+    
+    public def getKeyReplicas(key:Any):HashSet[Long] {
+    	val result = new HashSet[Long]();
+    	try{
+    		lock.lock();
+    		val partitionId = key.hashCode() as Long % partitionsCount;
+    		for (replica in replicas){
+    			result.add(replica(partitionId));
+    		}
+    	}finally {
+    		lock.unlock();
+    	}
+    	return result;
+    }
+    
+     
+    private def getPartitionId(key:Any) : Long {
+    	var result:Long = -1;
+        try {
+        	lock.lock();
+        	result = key.hashCode() as Long % partitionsCount;
+        }
+        finally {
+        	lock.unlock();
+        }
+    	return result;
     }
     
     public def findReplacementPlace(partition:Long):Place {

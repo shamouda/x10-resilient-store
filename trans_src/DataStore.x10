@@ -122,20 +122,26 @@ public class DataStore {
 			//TODO: could not use broadcastFlat because of this exception: "Cannot create shifted activity under a SPMD Finish"
 			//shifted activity is required for copying the topology
 			finish for (p in Place.places()) at (p) async {
-				try{
-					DataStore.getInstance().lock.lock();
-					var resilientMap:ResilientMap = DataStore.getInstance().userMaps.getOrElse(name,null);
-					if (resilientMap == null){
-						resilientMap = new ResilientMapImpl(name, timeoutMillis);
-						DataStore.getInstance().userMaps.put(name, resilientMap);
-					}
-				}finally {
-					DataStore.getInstance().lock.unlock();
-				}
+				DataStore.getInstance().addApplicationMap(name);
 			}
 		}
-		return userMaps.getOrElse(name,null);
+		return userMaps.getOrThrow(name);
 	}
+	
+    private def addApplicationMap(mapName:String) {
+    	try{
+			lock.lock();
+			var resilientMap:ResilientMap = userMaps.getOrElse(name,null);
+			if (resilientMap == null){
+				container.addMap(mapName);
+				resilientMap = new ResilientMapImpl(name, timeoutMillis);
+				userMaps.put(name, resilientMap);
+			}
+		}finally {
+			lock.unlock();
+		}
+    }
+    
 /*	
 	public def getPrimaryPlace(partitionId:Long):Long {
 	    val record = partitionTable.get(partitionId);

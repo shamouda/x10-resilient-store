@@ -3,6 +3,7 @@ import x10.util.ArrayList;
 import x10.util.RailUtils;
 import x10.util.HashMap;
 import x10.util.HashSet;
+import x10.util.Timer;
 
 //Concurrency:  multiple threads
 public class Replica {
@@ -29,25 +30,68 @@ public class Replica {
     	}
     }
     
-   
-   /*
-    public def putPrimaryLocal(mapName:String, partitionId:Long, key:Any, value:Any):Boolean {
-    	val partition = primaryPartitions.getOrElse(partitionId, null);
-    	if (partition == null)
-    		return false;
+    public def get(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long)): Any {
+    	val key = request.inKey;
+    	val transId = request.transactionId;
+    	val transLog = getTransactionLog(transId);
+
+    	val parition = paritions.getOrThrow(paritionId);
+    	val value = parition.get(mapName, key);
+    	transLog.addLog(key, value);
     	
-    	partition.put(mapName, key, value);
-    	return true;
-    }  
-    
-    public def getPrimaryLocal(mapName:String, partitionId:Long, key:Any):Any {
-    	val partition = primaryPartitions.getOrElse(partitionId, null);
-    	if (partition == null)
-    		return null;
-    	
-    	return partition.get(mapName, key);
+    	return value;
     }
-    */
+    
+    public def put(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long)): Any {
+    	val key = request.inKey;
+    	val value = request.inValue;
+    	val transId = request.transactionId;
+    	val transLog = getTransactionLog(transId);
+
+    	val parition = paritions.getOrThrow(paritionId);
+    	val oldValue = parition.get(mapName, key);
+    	transLog.addLog(key, oldValue);
+    	
+    	
+    	return oldValue;
+    }
+    
+    private def getTransactionLog(transId:Long):TransLog {
+    	var result:TransLog = null;
+    	try{
+    		//TODO: do I need to lock here????
+    		transactionsLock.lock();
+    		result = transactions.getOrElse(transId,null);
+    		if (result == null) {
+    			result = new TransLog(transId,Timer.milliTime());
+    			transactions.put(result);
+    		}
+    	}
+    	finally {
+    		transactionsLock.unlock();
+    	}
+    	return result;
+    }
+
+    public def addMap(mapName:String) {
+    	try{
+    		partitionsLock.lock();
+    		val iter = paritions.keySet().iterator();
+    		while (iter.hasNext()) {
+    			val partId = iter.next();
+    			val part = paritions.getOrThrow(partId);
+    			part.addMap(mapName);
+    		}	
+    	}
+    	finally{
+    		partitionsLock.unlock();
+    	}
+    	
+    }
+    
+    public def checkPendingTransactions () {
+    	
+    }
     
     public def toString():String {
     	var str:String = "Primary [";
