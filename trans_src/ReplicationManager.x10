@@ -110,22 +110,21 @@ public class ReplicationManager {
 
 	
 	private def checkPendingTransactions() {
-		
-		while (timerOn) 
-		{
+		while (timerOn) {
 			System.threadSleep(10);
 			try{
 				lock.lock();
 				var i:Long;
 				for (i = 0; i< pendingRequests.size(); i++){
 					val curReq = pendingRequests.get(i);
+					
 					val mapReq = curReq.req;
 					if (mapReq.completed) {
 						mapReq.lock.release();
 						pendingRequests.removeAt(i);
 						i--;
 					}
-					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {						
+					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {	
 						mapReq.completeFailedRequest(new RequestTimeoutException());
 						mapReq.lock.release();
 						pendingRequests.removeAt(i);

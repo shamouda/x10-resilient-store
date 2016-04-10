@@ -73,10 +73,12 @@ public class MapRequest {
     	var result:Long = -1;
     	try {
     		responseLock.lock();
-    		for (pId in lateReplicas){
-    			if (Place(pId).isDead()) {
-    				result = pId;
-    				break;
+    		if (lateReplicas != null) {
+    			for (pId in lateReplicas){
+    				if (Place(pId).isDead()) {
+    					result = pId;
+    					break;
+    				}
     			}
     		}
     	}

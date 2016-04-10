@@ -1,6 +1,8 @@
 import x10.util.concurrent.AtomicLong;
 
 public class Utils {
+	public static val VERBOSE_PLACE = Utils.getEnvLong("VERBOSE_PLACE", -1);
+	
 	private static val sequence:AtomicLong = new AtomicLong();
 	
     public static def getEnvLong(name:String, defaultVal:Long) {
@@ -22,6 +24,7 @@ public class Utils {
     }
     
     public static def console(moduleName:String, msg:String) {
-    	Console.OUT.println(here + " ["+moduleName+"] " + msg);
+    	if (VERBOSE_PLACE == -1 || here.id == VERBOSE_PLACE)
+    		Console.OUT.println(here + " ["+moduleName+"] " + msg);
     }
 }

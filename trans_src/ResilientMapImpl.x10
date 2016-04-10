@@ -30,7 +30,12 @@ public class ResilientMapImpl implements ResilientMap {
     	try{
     		result = get(txId, key);
     		commitTransaction(txId);
-    	}catch(ex:Exception) {
+    	}
+    	catch (ex:TransactionAbortedException) {
+    		ex.printStackTrace();
+    		throw ex;
+    	}
+    	catch(ex:Exception) {
     		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
@@ -48,7 +53,12 @@ public class ResilientMapImpl implements ResilientMap {
     	try{
     		oldValue = put(txId, key, value);
     		commitTransaction(txId);
-    	}catch(ex:Exception) {
+    	}
+    	catch (ex:TransactionAbortedException) {
+    		ex.printStackTrace();
+    		throw ex;
+    	}
+    	catch(ex:Exception) {
     		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
@@ -66,7 +76,12 @@ public class ResilientMapImpl implements ResilientMap {
     	try{
     		oldValue = delete(txId, key);
     		commitTransaction(txId);
-    	}catch(ex:Exception) {
+    	}
+    	catch (ex:TransactionAbortedException) {
+    		ex.printStackTrace();
+    		throw ex;
+    	}
+    	catch(ex:Exception) {
     		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
@@ -84,7 +99,12 @@ public class ResilientMapImpl implements ResilientMap {
     	try{
     		result = keySet(txId);
     		commitTransaction(txId);
-    	}catch(ex:Exception) {
+    	}
+    	catch (ex:TransactionAbortedException) {
+    		ex.printStackTrace();
+    		throw ex;
+    	}
+    	catch(ex:Exception) {
     		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
@@ -108,6 +128,8 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "commitTransaction  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "commitTransaction  ... released } ");
+    	if (!request.isSuccessful())
+    		throw request.outException;
     }
     
     /***
@@ -119,6 +141,8 @@ public class ResilientMapImpl implements ResilientMap {
     	if (VERBOSE) Utils.console(moduleName, "abortTransaction  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "abortTransaction  ... released } ");
+    	if (!request.isSuccessful())
+    		throw request.outException;
     }
     
     /**
