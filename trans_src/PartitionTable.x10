@@ -5,7 +5,7 @@ import x10.util.HashSet;
 
 public class PartitionTable {
 	private val moduleName = "PartitionTable";
-	public static val VERBOSE = Utils.getEnvLong("PART_TABLE_VERBOSE", 0) == 1;
+	public static val VERBOSE = Utils.getEnvLong("PART_TABLE_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
 	private var partitionsCount:Long; //a partition for each main place
     private val replicationFactor:Long;
@@ -21,15 +21,14 @@ public class PartitionTable {
     private val nodePartitions= new HashMap[Long,HashSet[Long]](); // nodeId::partitions
     private val placePartitions= new HashMap[Long,HashSet[Long]](); // placeId::partitions
     
-    public def this(topology:Topology, replicationFactor:Long) {    	
+    public def this(topology:Topology, partitionsCount:Long, replicationFactor:Long) {    	
     	this.lock = new SimpleLatch();
     	this.replicationFactor = replicationFactor;
     	this.topology = topology;
+    	this.partitionsCount = partitionsCount;
     }
     
     public def createParitionTable() {
-    	partitionsCount = topology.getMainPlacesCount();
-    	
     	for (i in 0..(replicationFactor-1)){
     		replicas.add(new Rail[Long](partitionsCount));
     	}
@@ -119,7 +118,7 @@ public class PartitionTable {
     	var obj:HashSet[Long] = null;
     	try {
     		lock.lock();
-    		var obj:HashSet[Long] = placePartitions.getOrElse(placeId,null);
+    		obj = placePartitions.getOrElse(placeId,null);
     		if (obj == null){
     			obj = new HashSet[Long]();
     			placePartitions.put(placeId, obj);
@@ -135,15 +134,20 @@ public class PartitionTable {
     	var result:ReplicationInfo = null;
     	try{
     		lock.lock();
-    		val partitionId = key.hashCode() as Long % partitionsCount;
+    		Console.OUT.println("getting lock completed (("+partitionsCount+"))....");
+    		var partitionId:Long = key.hashCode() as Long;
+    		partitionId = partitionId % partitionsCount ;
+    		Console.OUT.println("partition Id is ["+partitionId+"] ....");
     		val keyReplicas = new HashSet[Long]();
     		for (replica in replicas){
     			keyReplicas.add(replica(partitionId));
+    			Console.OUT.println("partition Id is ["+partitionId+"]   << adding Replica ["+(replica(partitionId))+"] ....");
     		}
     		result = new ReplicationInfo(partitionId, keyReplicas);
     	}finally {
     		lock.unlock();
     	}
+    	Console.OUT.println("getKeyReplicas completed!!!! ...");
     	return result;
     }
     
@@ -158,12 +162,6 @@ public class PartitionTable {
         	lock.unlock();
         }
     	return result;
-    }
-    
-    public def findReplacementPlace(partition:Long):Place {
-    	var replicaIndex:Long = 0;
-        //TODO: implement this function
-		return Place(0);
     }
     
     public def printParitionTable() {
@@ -184,5 +182,14 @@ class ReplicationInfo {
     public def this (partId:Long, replicas:HashSet[Long]) {
     	this.partitionId = partId;
     	this.replicas = replicas;
+    }
+    
+    public def toString():String {
+    	var str:String = "";
+        str += "ParitionId: " + partitionId + " [";
+        for (x in replicas)
+        	str += x + "  ";
+        str += " ]";
+    	return str;
     }
 }

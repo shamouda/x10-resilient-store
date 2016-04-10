@@ -9,7 +9,7 @@ import x10.util.HashSet;
  * */
 public class ResilientMapImpl implements ResilientMap {
 	private val moduleName = "ResilientMapImpl";
-	public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1;
+	public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
 	
 	private val name:String;
@@ -31,6 +31,7 @@ public class ResilientMapImpl implements ResilientMap {
     		result = get(txId, key);
     		commitTransaction(txId);
     	}catch(ex:Exception) {
+    		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
     	}
@@ -48,6 +49,7 @@ public class ResilientMapImpl implements ResilientMap {
     		oldValue = put(txId, key, value);
     		commitTransaction(txId);
     	}catch(ex:Exception) {
+    		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
     	}
@@ -65,6 +67,7 @@ public class ResilientMapImpl implements ResilientMap {
     		oldValue = delete(txId, key);
     		commitTransaction(txId);
     	}catch(ex:Exception) {
+    		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
     	}
@@ -82,6 +85,7 @@ public class ResilientMapImpl implements ResilientMap {
     		result = keySet(txId);
     		commitTransaction(txId);
     	}catch(ex:Exception) {
+    		ex.printStackTrace();
     		abortTransaction(txId);
     		throw new TransactionAbortedException();
     	}
@@ -125,7 +129,9 @@ public class ResilientMapImpl implements ResilientMap {
     public def get(transId:Long, key:Any):Any {
     	val request = new MapRequest(transId, MapRequest.REQ_GET);
     	request.inKey = key;
-    	DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);    	
+    	
+    	async DataStore.getInstance().executor().asyncExecuteRequest(name, request, timeoutMillis);
+    	
     	if (VERBOSE) Utils.console(moduleName, "get  { await ... ");
     	request.lock.await();
     	if (VERBOSE) Utils.console(moduleName, "get  ... released } ");

@@ -1,7 +1,12 @@
 import x10.util.HashSet;
+import x10.util.ArrayList;
 import x10.util.concurrent.SimpleLatch;
 
 public class MapRequest {
+	
+	private val moduleName = "MapRequest";
+	public static val VERBOSE = Utils.getEnvLong("MAP_REQ_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+	
 	
 	public static val REQ_COMMIT:Int = 1n;
 	public static val REQ_ABORT:Int = 2n;
@@ -43,7 +48,8 @@ public class MapRequest {
     	this.lateReplicas = replicas.clone();
     }
     
-    public def addReplicaResponse(output:Any, replicaPlaceId:Long) {    	
+    public def addReplicaResponse(output:Any, replicaPlaceId:Long) {
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response ...");
     	try {
     		responseLock.lock();
     		
@@ -60,6 +66,7 @@ public class MapRequest {
     	finally {
     		responseLock.unlock();
     	}
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response completed ...");
     }
     
     public def findDeadReplica():Long {    	

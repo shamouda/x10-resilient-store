@@ -4,7 +4,7 @@ import x10.util.HashMap;
 //contains a HashMap object for each application map
 public class Partition {
 	private val moduleName = "Partition";
-	public static val VERBOSE = Utils.getEnvLong("PARTITION_VERBOSE", 0) == 1;
+	public static val VERBOSE = Utils.getEnvLong("PARTITION_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
 	
 	public val id:Long;
@@ -36,7 +36,7 @@ public class Partition {
     
     public def put(mapName:String, key:Any, value:Any):Any {
     	Utils.console(moduleName, "Partition ["+id+"]  PUT ("+key+","+value+") ...");
-    	val result:HashMap[Any,Any] = maps.getOrThrow(mapName).put(key,value);
+    	val result = maps.getOrThrow(mapName).put(key,value);
     	return result;
     }
 

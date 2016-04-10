@@ -4,7 +4,7 @@ import x10.util.Timer;
 
 public class ReplicationManager {
 	private val moduleName = "ReplicationManager";
-	public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1;
+	public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
     //this is the class that communicates with the replicas
     private var partitionTable:PartitionTable;
@@ -35,15 +35,36 @@ public class ReplicationManager {
 		}		
 	}
 	
+	private def addRequest(req:MapRequest, timeoutMillis:Long) {
+		try{
+			lock.lock();
+			pendingRequests.add(new RequestState(req, timeoutMillis, Timer.milliTime()));
+			if (!timerOn){
+				timerOn = true;
+				async checkPendingTransactions();
+			}
+		}
+		finally{
+			lock.unlock();
+		}
+		if (VERBOSE) Utils.console(moduleName, "Added Pending Request " + req.toString());
+	}
+	
 	private def asyncExecuteSingleKeyRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		val key = request.inKey;
+		val value = request.inValue;
+		val requestType = request.requestType;
+		val transId = request.transactionId;
+		
+		if (VERBOSE) Utils.console(moduleName, "Reading the replicas ...");
 		val repInfo = partitionTable.getKeyReplicas(key);
+		if (VERBOSE) Utils.console(moduleName, repInfo.toString());
 		request.setResponseReplicas(repInfo.replicas);
 		val gr = GlobalRef[MapRequest](request);
 		for (placeId in repInfo.replicas) {
 			try{
 				at (Place(placeId)) async {
-					DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, repInfo.paritionId, request, timeoutMillis, gr);
+					DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, timeoutMillis, gr);
 				}
 			}
 			catch (ex:Exception) {

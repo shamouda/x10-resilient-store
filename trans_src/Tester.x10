@@ -21,7 +21,7 @@ public class Tester {
     	
     	topology.printTopology();
     	
-    	val partitionTable = new PartitionTable(topology, 3);
+    	val partitionTable = new PartitionTable(topology, topology.getMainPlacesCount(), 3);
     	partitionTable.createParitionTable();
     	partitionTable.printParitionTable();
 	}
@@ -61,12 +61,19 @@ public class Tester {
     	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
     	finish for (p in Place.places()) at (p) async {  		
     		try{
+    			Console.OUT.println("=========1");
     			val x = hm.get("A");
+    			Console.OUT.println("=========2");
     			
-    			if (x == null)
+    			/*
+    			if (x == null) {
     				hm.put("A", 0);
-    			else
+    				Console.OUT.println("=========3");
+    			}
+    			else {
     				hm.put("A", (x as Long)+1);
+    				Console.OUT.println("=========4");
+    			}*/
     		}    		
     		catch (ex:Exception) {
     			ex.printStackTrace();

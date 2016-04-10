@@ -8,7 +8,7 @@ import x10.util.ArrayList;
 //transaction status: started - ready to commit - commited - aborted
 public class TransLog {
 	private val moduleName = "TransLog";
-	public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1;
+	public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
 	private val transId:Long;
 	//the used keys

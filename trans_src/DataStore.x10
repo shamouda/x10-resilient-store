@@ -8,8 +8,8 @@ import x10.util.concurrent.AtomicLong;
 //creates the local datastore instance  (one per place)
 public class DataStore {
 	private val moduleName = "DataStore";
-	public static val VERBOSE = Utils.getEnvLong("DATA_STORE_VERBOSE", 0) == 1;
-	public static val REPLICATION_FACTOR = Utils.getEnvLong("DATA_STORE_VERBOSE", 2);
+	public static val VERBOSE = Utils.getEnvLong("DATA_STORE_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+	public static val REPLICATION_FACTOR = Utils.getEnvLong("REPLICATION_FACTOR", 2);
 	public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
 	
 	/*the data store will be invalid if some partitions are permanantly lost due to loss 
@@ -69,13 +69,17 @@ public class DataStore {
 				if (topology == null)
 					throw new TopologyCreationFailedException();
 				
+		    	val partitionsCount = topology.getMainPlacesCount();
+
+		    	
 				val masterNodeIndex = 0;
 				val placeIndex = 0;
 				leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
 				deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
 		
-				partitionTable = new PartitionTable(topology,REPLICATION_FACTOR);
-			
+				partitionTable = new PartitionTable(topology, partitionsCount, REPLICATION_FACTOR);
+				partitionTable.createParitionTable();
+				
 				container = new Replica(partitionTable.getPlacePartitions(here.id));
 				
 				executor = new ReplicationManager(partitionTable);
@@ -122,20 +126,20 @@ public class DataStore {
 			//TODO: could not use broadcastFlat because of this exception: "Cannot create shifted activity under a SPMD Finish"
 			//shifted activity is required for copying the topology
 			finish for (p in Place.places()) at (p) async {
-				DataStore.getInstance().addApplicationMap(name);
+				DataStore.getInstance().addApplicationMap(name, timeoutMillis);
 			}
 		}
 		return userMaps.getOrThrow(name);
 	}
 	
-    private def addApplicationMap(mapName:String) {
+    private def addApplicationMap(mapName:String, timeoutMillis:Long) {
     	try{
 			lock.lock();
-			var resilientMap:ResilientMap = userMaps.getOrElse(name,null);
+			var resilientMap:ResilientMap = userMaps.getOrElse(mapName,null);
 			if (resilientMap == null){
 				container.addMap(mapName);
-				resilientMap = new ResilientMapImpl(name, timeoutMillis);
-				userMaps.put(name, resilientMap);
+				resilientMap = new ResilientMapImpl(mapName, timeoutMillis);
+				userMaps.put(mapName, resilientMap);
 			}
 		}finally {
 			lock.unlock();
