@@ -26,40 +26,39 @@ public class ReplicationManager {
 		addRequest(request, timeoutMillis);
 		
 		switch(request.requestType) {
-			case MapRequest.REQ_GET: asyncExecuteGet(mapName, request, timeoutMillis);
-			case MapRequest.REQ_PUT: asyncExecutePut(mapName, request, timeoutMillis);
-			case MapRequest.REQ_DELETE: asyncExecuteDelete(mapName, request, timeoutMillis);
+			case MapRequest.REQ_GET: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
+			case MapRequest.REQ_PUT: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
+			case MapRequest.REQ_DELETE: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
 			case MapRequest.REQ_KEY_SET: asyncExecuteKeySet(mapName, request, timeoutMillis);
 			case MapRequest.REQ_COMMIT: asyncExecuteCommit(mapName, request, timeoutMillis);
 			case MapRequest.REQ_ABORT: asyncExecuteAbort(mapName, request, timeoutMillis);
-		}
-		
-		
+		}		
 	}
 	
-	private def asyncExecuteGet(mapName:String, request:MapRequest, timeoutMillis:Long) {
+	private def asyncExecuteSingleKeyRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		val key = request.inKey;
-		val replicas = partitionTable.getKeyReplicas(key);
-		finish {
-			for (placeId in replicas) {
+		val repInfo = partitionTable.getKeyReplicas(key);
+		request.setResponseReplicas(repInfo.replicas);
+		val gr = GlobalRef[MapRequest](request);
+		for (placeId in repInfo.replicas) {
+			try{
 				at (Place(placeId)) async {
-					DataStore.getInstance().getReplica().
+					DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, repInfo.paritionId, request, timeoutMillis, gr);
 				}
+			}
+			catch (ex:Exception) {
+				request.completeFailedRequest(ex);
+				break;
 			}
 		}
 	}
 	
-	private def asyncExecutePut(mapName:String, request:MapRequest, timeoutMillis:Long) {
-		
-	}
+
 	
 	private def asyncExecuteKeySet(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		
 	}
 	
-	private def asyncExecuteDelete(mapName:String, request:MapRequest, timeoutMillis:Long) {
-		
-	}
 
 	private def asyncExecuteCommit(mapName:String, request:MapRequest, timeoutMillis:Long) {
 		
@@ -87,19 +86,7 @@ public class ReplicationManager {
 		migrationStarted = migrating;
 	}
 	
-	private def addRequest(req:MapRequest, timeoutMillis:Long) {
-		try{
-			lock.lock();
-			pendingRequests.add(new RequestState(req, timeoutMillis, Timer.milliTime()));
-			if (!timerOn){
-				timerOn = true;
-				async checkPendingTransactions();
-			}
-		}
-		finally{
-			lock.unlock();
-		}
-	}
+
 	
 	private def checkPendingTransactions() {
 		
@@ -117,19 +104,25 @@ public class ReplicationManager {
 						pendingRequests.removeAt(i);
 						i--;
 					}
-					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {
-						mapReq.completed = true;
-						mapReq.outException = new RequestTimeoutException();
+					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {						
+						mapReq.completeFailedRequest(new RequestTimeoutException());
 						mapReq.lock.release();
 						pendingRequests.removeAt(i);
 						i--;
+					} else {
+						val pId = mapReq.findDeadReplica();
+						if (pId != -1) {
+							mapReq.completeFailedRequest(new DeadPlaceException(Place(pId)));							
+							mapReq.lock.release();
+							pendingRequests.removeAt(i);
+							i--;
+						}
 					}
 				}
 				
 				if (pendingRequests.size() == 0){
 					timerOn = false;
 				}
-		
 			}
 			finally{
 				lock.unlock();

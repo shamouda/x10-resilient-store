@@ -30,7 +30,15 @@ public class Replica {
     	}
     }
     
-    public def get(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long)): Any {
+    public def submitSingleKeyRequest(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
+    	switch(request.requestType) {
+			case MapRequest.REQ_GET: get(mapName, paritionId, request, timeoutMillis, responseGR);
+			case MapRequest.REQ_PUT: put(mapName, paritionId, request, timeoutMillis, responseGR);
+			case MapRequest.REQ_DELETE: delete(mapName, paritionId, request, timeoutMillis, responseGR);
+    	}
+    }
+    
+    public def get(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
     	val key = request.inKey;
     	val transId = request.transactionId;
     	val transLog = getTransactionLog(transId);
@@ -39,10 +47,12 @@ public class Replica {
     	val value = parition.get(mapName, key);
     	transLog.addLog(key, value);
     	
-    	return value;
+    	at (responseGR.home) async {
+    		responseGR().addReplicaResponse(value, here.id);
+    	}
     }
     
-    public def put(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long)): Any {
+    public def put(mapName:String, paritionId:Long, request:MapRequest, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
     	val key = request.inKey;
     	val value = request.inValue;
     	val transId = request.transactionId;
@@ -51,9 +61,11 @@ public class Replica {
     	val parition = paritions.getOrThrow(paritionId);
     	val oldValue = parition.get(mapName, key);
     	transLog.addLog(key, oldValue);
+    	transLog.updateLog(key, value);
     	
-    	
-    	return oldValue;
+    	at (responseGR.home) async {
+    		responseGR().addReplicaResponse(oldValue. here.id);
+    	}
     }
     
     private def getTransactionLog(transId:Long):TransLog {

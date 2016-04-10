@@ -21,13 +21,74 @@ public class MapRequest {
     public var outKeySet:HashSet[Any];
     public var outException:Exception;
     
+
+    public val replicaResponse:ArrayList[Any];
+    public var replicas:HashSet[Long];
+    public var lateReplicas:HashSet[Long];
+    public val responseLock:SimpleLatch;
+    
     public val lock:SimpleLatch;
+    
     
     public def this(transId:Long, reqType:Int) {
     	this.transactionId = transId;
     	this.requestType = reqType;
     	this.lock = new SimpleLatch();
+    	this.responseLock = new SimpleLatch();
+    	this.replicaResponse = new ArrayList[Any]();
     }
+    
+    public def setResponseReplicas(replicas:HashSet[Long]) {
+    	this.replicas = replicas;
+    	this.lateReplicas = replicas.clone();
+    }
+    
+    public def addReplicaResponse(output:Any, replicaPlaceId:Long) {    	
+    	try {
+    		responseLock.lock();
+    		
+    		if (completed)
+        		return;
+    		
+    		replicaResponse.add(output);
+    		lateReplicas.remove(replicaPlaceId);
+    		if (lateReplicas.size() == 0) {
+    			completed = true;
+    			outValue = replicaResponse.get(0);
+    		}
+    	}
+    	finally {
+    		responseLock.unlock();
+    	}
+    }
+    
+    public def findDeadReplica():Long {    	
+    	var result:Long = -1;
+    	try {
+    		responseLock.lock();
+    		for (pId in lateReplicas){
+    			if (Place(pId).isDead()) {
+    				result = pId;
+    				break;
+    			}
+    		}
+    	}
+    	finally{
+    		responseLock.unlock();
+    	}
+    	return result;
+    }
+    
+    public def completeFailedRequest(outputException:Exception) {
+    	try{
+    		responseLock.lock();
+    		completed = true;
+    		outException = outputException;
+    	}finally {
+    		responseLock.unlock();
+    	}
+    }
+    
     
     public def isSuccessful() = completed && outException == null;
     

@@ -131,14 +131,16 @@ public class PartitionTable {
     }
     
     
-    public def getKeyReplicas(key:Any):HashSet[Long] {
-    	val result = new HashSet[Long]();
+    public def getKeyReplicas(key:Any):ReplicationInfo {
+    	var result:ReplicationInfo = null;
     	try{
     		lock.lock();
     		val partitionId = key.hashCode() as Long % partitionsCount;
+    		val keyReplicas = new HashSet[Long]();
     		for (replica in replicas){
-    			result.add(replica(partitionId));
+    			keyReplicas.add(replica(partitionId));
     		}
+    		result = new ReplicationInfo(partitionId, keyReplicas);
     	}finally {
     		lock.unlock();
     	}
@@ -173,5 +175,14 @@ public class PartitionTable {
     	    }
     	    Console.OUT.println(p + " => " + str);
     	}
+    }
+}
+
+class ReplicationInfo {
+	public val partitionId:Long;
+	public val replicas:HashSet[Long];
+    public def this (partId:Long, replicas:HashSet[Long]) {
+    	this.partitionId = partId;
+    	this.replicas = replicas;
     }
 }
