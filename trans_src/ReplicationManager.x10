@@ -75,10 +75,7 @@ public class ReplicationManager {
 			}
 		}
 	}
-	
 
-
-	
 	private def asyncExecuteKeySet(request:MapRequest) {
 		
 	}
@@ -97,12 +94,13 @@ public class ReplicationManager {
 		for (placeId in replicas) {
 			try{
 				at (Place(placeId)) async {
-	//				DataStore.getInstance().getReplica().submitCommitVote(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, gr);
+					DataStore.getInstance().getReplica().submitReadyToCommit(transId, gr);
 				}
 			}
 			catch (ex:Exception) {
-				request.completeFailedRequest(ex);
-				break;
+				//TODO: what to do?
+				//request.completeFailedRequest(ex);
+				//break;
 			}
 		}	
 	}
@@ -120,21 +118,39 @@ public class ReplicationManager {
 		for (placeId in replicas) {
 			try{
 				at (Place(placeId)) async {
-//					DataStore.getInstance().getReplica().submitConfirmCommit(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, gr);
+                    DataStore.getInstance().getReplica().submitConfirmCommit(transId, gr);
 				}
 			}
 			catch (ex:Exception) {
-				request.completeFailedRequest(ex);
-				break;
+				//TODO: what to do here?
+				//request.completeFailedRequest(ex);
+				//break;
 			}
 		}	
 	}
 	
 	private def asyncExecuteAbort(request:MapRequest) {
+		val transId = request.transactionId;
 		
-	}
+		var targetReplicas:HashSet[Long] = request.replicasVotedToCommit;
+	    if (targetReplicas == null)
+	    	targetReplicas = request.replicas;
 
-	
+	    val gr = GlobalRef[MapRequest](request);
+	    
+		for (placeId in targetReplicas) {
+			try{
+				at (Place(placeId)) async {
+					DataStore.getInstance().getReplica().submitAbort(transId, gr);
+				}
+			}
+			catch (ex:Exception) {
+				//TODO: what to do here
+				//request.completeFailedRequest(ex);
+				//break;
+			}
+		}
+	}
 
 	public def getTransactionReplicas(transactionId:Long):HashSet[Long] {
 		val result = new HashSet[Long]();
@@ -170,8 +186,6 @@ public class ReplicationManager {
 		migrationStarted = migrating;
 	}
 	
-
-	
 	private def checkPendingTransactions() {
 		while (timerOn) {
 			System.threadSleep(10);
@@ -192,7 +206,7 @@ public class ReplicationManager {
 							asyncExecuteConfirmCommit(mapReq);
 						}
 						else if (mapReq.commitStatus == MapRequest.CANCELL_COMMIT) {
-							
+							asyncExecuteAbort(mapReq);
 						}
 					}
 					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {	

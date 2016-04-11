@@ -1,4 +1,5 @@
 import x10.util.concurrent.SimpleLatch;
+import x10.util.concurrent.AtomicInteger;
 import x10.util.HashMap;
 
 //contains a HashMap object for each application map
@@ -6,27 +7,25 @@ public class Partition {
 	private val moduleName = "Partition";
 	public static val VERBOSE = Utils.getEnvLong("PARTITION_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
-	
 	public val id:Long;
 	
-	//application_map_Id:HashMap container
-	private val maps:HashMap[String, HashMap[Any,Any]];
+	//application_map_Id::HashMap container
+	private val maps:HashMap[String, HashMap[Any,VersionValue]];
 
     private val mapsLock:SimpleLatch;
 
     public def this(id:Long) {
     	this.id = id;
-    	maps = new HashMap[String, HashMap[Any,Any]]();
+    	maps = new HashMap[String, HashMap[Any,VersionValue]]();
     	mapsLock = new SimpleLatch();
     }
     
     public def addMap(mapName:String) {
     	mapsLock.lock();
     	try{
-    	    var appMap:HashMap[Any,Any] = maps.getOrElse(mapName,null);
-    	    if (appMap == null){
-    		    appMap = new HashMap[Any,Any]();
-    	    }
+    	    var appMap:HashMap[Any,VersionValue] = maps.getOrElse(mapName,null);
+    	    if (appMap == null)
+    		    appMap = new HashMap[Any,VersionValue]();
     	    maps.put(mapName,appMap);
     	}
     	finally{
@@ -36,14 +35,36 @@ public class Partition {
     
     public def put(mapName:String, key:Any, value:Any):Any {
     	Utils.console(moduleName, "Partition ["+id+"]  PUT ("+key+","+value+") ...");
-    	val result = maps.getOrThrow(mapName).put(key,value);
-    	return result;
+    	var verValue:VersionValue = maps.getOrThrow(mapName).getOrElse(key,null);
+    	if (verValue == null)
+    		verValue = new VersionValue();
+    	verValue.updateValue(value);
+    	return maps.getOrThrow(mapName).put(key,verValue);
     }
 
-    public def get(mapName:String, key:Any) : Any {
+    public def get(mapName:String, key:Any):Any {
     	Utils.console(moduleName, "Partition ["+id+"]  GET ("+key+") ...");
-    	val result = maps.getOrThrow(mapName).getOrElse(key,null);
-    	return result;
+    	val verValue = maps.getOrThrow(mapName).getOrElse(key,null);
+    	return (verValue == null)? null:verValue.getValue();
+    }    
+
+    public def getV(mapName:String, key:Any):VersionValue {
+    	Utils.console(moduleName, "Partition ["+id+"]  GET_V ("+key+") ...");
+    	return maps.getOrThrow(mapName).getOrElse(key,null);
     }
+    
+}
+
+class VersionValue {
+	private val version:AtomicInteger = new AtomicInteger(-1n);
+	private var value:Any;
+   
+    public def updateValue(newValue:Any):Int {
+    	val newVersion = version.incrementAndGet();
+    	value = newValue;
+    	return newVersion;
+    }
+    public def getVersion() = version.get();
+    public def getValue() = value;
     
 }

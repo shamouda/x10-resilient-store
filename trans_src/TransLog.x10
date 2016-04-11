@@ -16,20 +16,42 @@ public class TransLog {
 
 	private val startTimeMillis:Long;
 	
-	public def this(transId:Long, startTimeMillis:Long){
+	public val clientPlaceId:Long;
+	
+	public def this(transId:Long, startTimeMillis:Long, clientPlaceId:Long){
 		this.transId = transId;
 		this.startTimeMillis = startTimeMillis;
+		this.clientPlaceId = clientPlaceId;
 	}
 	
 	//must be called before update to store the initial value
-	public def addLog (key:Any, initValue:Any) {
-		val cacheRec = new TransCachedRecord(initValue);
+	public def logGet (key:Any, initVersion:Int, initValue:Any) {
+		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		if (cacheRec == null) {
+			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cache.put(key, cacheRec);
+		}
 		cache.put(key,cacheRec);
 	}
 	
-	public def updateLog(key:Any, value:Any) {
-		cache.getOrThrow(key).update(value);		
+	public def logUpdate(key:Any, initVersion:Int, initValue:Any, newValue:Any) {
+		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		if (cacheRec == null) {
+			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cache.put(key, cacheRec);
+		}
+		cacheRec.update(newValue);
 	}
+	
+	public def logDelete(key:Any, initVersion:Int, initValue:Any) {
+		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		if (cacheRec == null) {
+			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cache.put(key, cacheRec);
+		}
+		cacheRec.delete();
+	}
+	
 	
 	public def isConflicting (other:TransLog):Boolean {
 		var result:Boolean = false;

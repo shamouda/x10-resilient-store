@@ -36,6 +36,7 @@ public class MapRequest {
 
     public val replicaResponse:ArrayList[Any];
     public var replicas:HashSet[Long];
+	public var replicasVotedToCommit:HashSet[Long];
     public var lateReplicas:HashSet[Long];
     public val responseLock:SimpleLatch;
     
@@ -86,17 +87,23 @@ public class MapRequest {
     		if (completed)
         		return;
     		
+    		if (vote == 1){
+    			if (replicasVotedToCommit == null)
+    				replicasVotedToCommit = new HashSet[Long]();
+    			replicasVotedToCommit.add(replicaPlaceId);
+    		}
+    		
     		replicaResponse.add(vote);
     		lateReplicas.remove(replicaPlaceId);
     		if (lateReplicas.size() == 0) {
-    			
     			commitStatus = CONFIRM_COMMIT;
+    			    					
     			for (resp in replicaResponse) {
     				if (resp == 0) {
     					commitStatus = CANCELL_COMMIT;
     					break;
     				}
-    			}    			
+    			}
     		}
     	}
     	finally {

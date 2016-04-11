@@ -1,21 +1,30 @@
 import x10.util.HashMap;
 
 public class TransCachedRecord {
-    private val oldValue:Any;
-    private var newValue:Any;
+	private val initVersion:Int;
+    private var value:Any;
 	private var readOnly:Boolean = true;
+	private var deleted:Boolean = false;
 
-    public def this(oldValue:Any) {
-    	this.oldValue = oldValue;
-    	this.newValue = oldValue;
+    public def this(initVersion:Int, initValue:Any) {
+    	this.initVersion = initVersion;
+    	this.value = initValue;
     }
     
     public def update(n:Any) {
-    	newValue = n;
+    	value = n;
     	readOnly = false;
+    	if (deleted)
+    		deleted = false;
     }
     
-    public def getOldValue() = oldValue;
-    public def getNewValue() = newValue;
+    public def delete() {
+    	readOnly = false;
+    	deleted = true;
+    }
+    
+    public def getInitialVersion() = initVersion;
+    public def getNewValue() = value;
     public def readOnly() = readOnly;
+    public def isDeleted() = deleted;
 }
