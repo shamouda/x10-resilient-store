@@ -15,12 +15,19 @@ public class MapRequest {
     public static val REQ_DELETE:Int = 5n;
     public static val REQ_KEY_SET:Int = 6n;
     
+    
+    public static val COMMIT_VOTE:Int = 1n;
+	public static val CONFIRM_COMMIT:Int = 2n;
+	public static val CANCELL_COMMIT:Int = 3n;
+    
+    public val mapName:String;
 	public val transactionId:Long;
     public val requestType:Int;
 
     public var inKey:Any;
 	public var inValue:Any;
     
+    public var commitStatus:Int;
     public var completed:Boolean;
     public var outValue:Any;
     public var outKeySet:HashSet[Any];
@@ -35,9 +42,10 @@ public class MapRequest {
     public val lock:SimpleLatch;
     
     
-    public def this(transId:Long, reqType:Int) {
+    public def this(transId:Long, reqType:Int, mapName:String) {
     	this.transactionId = transId;
     	this.requestType = reqType;
+    	this.mapName = mapName;
     	this.lock = new SimpleLatch();
     	this.responseLock = new SimpleLatch();
     	this.replicaResponse = new ArrayList[Any]();
@@ -67,6 +75,34 @@ public class MapRequest {
     		responseLock.unlock();
     	}
     	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response completed ...");
+    }
+    
+    
+    public def commitVote(vote:Long, replicaPlaceId:Long) {
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response ["+vote+"] ...");
+    	try {
+    		responseLock.lock();
+    		
+    		if (completed)
+        		return;
+    		
+    		replicaResponse.add(vote);
+    		lateReplicas.remove(replicaPlaceId);
+    		if (lateReplicas.size() == 0) {
+    			
+    			commitStatus = CONFIRM_COMMIT;
+    			for (resp in replicaResponse) {
+    				if (resp == 0) {
+    					commitStatus = CANCELL_COMMIT;
+    					break;
+    				}
+    			}    			
+    		}
+    	}
+    	finally {
+    		responseLock.unlock();
+    	}
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response completed ...");
     }
     
     public def findDeadReplica():Long {    	
@@ -116,7 +152,7 @@ public class MapRequest {
     	return str;
     }
     
-    private def typeDesc(typeId:Int):String {
+    public static def typeDesc(typeId:Int):String {
     	switch(typeId){
     		case REQ_COMMIT: return "Commit";
     		case REQ_ABORT: return "Abort";

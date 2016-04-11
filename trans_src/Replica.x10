@@ -16,6 +16,7 @@ public class Replica {
 	
 	
 	private val transactions:HashMap[Long,TransLog] = new HashMap[Long,TransLog]();
+	private val conflictKeys:HashSet[Any] = new HashSet[Any]();
 	private val transactionsLock:SimpleLatch;
 
     public def this(partitionIds:HashSet[Long]) {	       
@@ -32,16 +33,19 @@ public class Replica {
     	}
     }
     
-    public def submitSingleKeyRequest(mapName:String, clientId:Long, paritionId:Long, transId:Long, requestType:Int, key:Any, value:Any, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
+    private def initialValidation(){
+    	
+    }
+    
+    public def submitSingleKeyRequest(mapName:String, clientId:Long, paritionId:Long, transId:Long, requestType:Int, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
     	switch(requestType) {
-			case MapRequest.REQ_GET: get(mapName, clientId, paritionId, transId, key, value, timeoutMillis, responseGR);
-			case MapRequest.REQ_PUT: put(mapName, clientId, paritionId, transId, key, value, timeoutMillis, responseGR);
-			case MapRequest.REQ_DELETE: delete(mapName, clientId, paritionId, transId, key, value, timeoutMillis, responseGR);
+			case MapRequest.REQ_GET: get(mapName, clientId, paritionId, transId, key, value, responseGR);
+			case MapRequest.REQ_PUT: put(mapName, clientId, paritionId, transId, key, value, responseGR);
+			case MapRequest.REQ_DELETE: delete(mapName, clientId, paritionId, transId, key, value, responseGR);
     	}
     }
     
-    public def get(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
-    	Utils.console(moduleName, "Received Get Request ...");    	
+    public def get(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
     	val transLog = getTransactionLog(transId);
 
     	val parition = paritions.getOrThrow(paritionId);
@@ -53,7 +57,7 @@ public class Replica {
     	}
     }
     
-    public def put(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {    	
+    public def put(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {    	
     	val transLog = getTransactionLog(transId);
 
     	val parition = paritions.getOrThrow(paritionId);
@@ -67,11 +71,33 @@ public class Replica {
     	}
     }
     
-    public def delete(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, timeoutMillis:Long, responseGR:GlobalRef[MapRequest]) {
+    public def delete(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
     
     }
         
+    public def commitVote(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {    	
+    	val hasConflict = checkConflict(transId);
+    	val vote = hasConflict? 0 : 1;
+    	val replicaId = here.id;
+    	at (responseGR) async {
+    		responseGR().commitVote(vote, replicaId);
+    	}
+    }	
+    
+    public def commit(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {    	
+    	val transLog = getTransactionLog(transId);
+
+    	val parition = paritions.getOrThrow(paritionId);
+    	val oldValue = parition.get(mapName, key);
+    	transLog.addLog(key, oldValue);
+    	transLog.updateLog(key, value);
     	
+    	val replicaId = here.id;
+    	at (responseGR) async {
+    		responseGR().addReplicaResponse(oldValue, replicaId);
+    	}
+    }
+    
     
     private def getTransactionLog(transId:Long):TransLog {
     	var result:TransLog = null;
@@ -90,6 +116,27 @@ public class Replica {
     	return result;
     }
 
+    private def checkConflict(transId:Long):Boolean {
+    	var conflictFound:Boolean = false;
+    	try{
+    		transactionsLock.lock();
+    		val curTrans = transactions.getOrThrow(transId);
+    		val iter = transactions.keySet().iterator();
+    		while (iter.hasNext()){
+    			val tempId = iter.next();
+    			val tempTrans = transactions.getOrThrow(tempId);
+    			if (tempTrans.transId != transId && curTrans.isConflicting(tempTrans)) {
+    				conflictFound = true;
+    				break;
+    			}
+    		}
+    	}
+    	finally {
+    		transactionsLock.unlock();
+    	}
+    	return conflictFound;
+    }
+    
     public def addMap(mapName:String) {
     	try{
     		partitionsLock.lock();

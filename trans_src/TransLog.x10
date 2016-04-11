@@ -10,7 +10,7 @@ public class TransLog {
 	private val moduleName = "TransLog";
 	public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
-	private val transId:Long;
+	public val transId:Long;
 	//the used keys
     private val cache:HashMap[Any,TransCachedRecord] = new HashMap[Any,TransCachedRecord]();
 

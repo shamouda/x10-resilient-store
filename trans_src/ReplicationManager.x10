@@ -1,4 +1,5 @@
 import x10.util.ArrayList;
+import x10.util.HashSet;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.Timer;
 
@@ -21,17 +22,17 @@ public class ReplicationManager {
     	lock = new SimpleLatch(); 
     }
 
-	public def asyncExecuteRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
+	public def asyncExecuteRequest(request:MapRequest, timeoutMillis:Long) {
 		if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());
 		addRequest(request, timeoutMillis);
 		
 		switch(request.requestType) {
-			case MapRequest.REQ_GET: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
-			case MapRequest.REQ_PUT: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
-			case MapRequest.REQ_DELETE: asyncExecuteSingleKeyRequest(mapName, request, timeoutMillis);
-			case MapRequest.REQ_KEY_SET: asyncExecuteKeySet(mapName, request, timeoutMillis);
-			case MapRequest.REQ_COMMIT: asyncExecuteCommit(mapName, request, timeoutMillis);
-			case MapRequest.REQ_ABORT: asyncExecuteAbort(mapName, request, timeoutMillis);
+			case MapRequest.REQ_GET: asyncExecuteSingleKeyRequest(request);
+			case MapRequest.REQ_PUT: asyncExecuteSingleKeyRequest(request);
+			case MapRequest.REQ_DELETE: asyncExecuteSingleKeyRequest(request);
+			case MapRequest.REQ_KEY_SET: asyncExecuteKeySet(request);
+			case MapRequest.REQ_COMMIT: asyncExecuteCommit(request);
+			case MapRequest.REQ_ABORT: asyncExecuteAbort(request);
 		}		
 	}
 	
@@ -50,21 +51,22 @@ public class ReplicationManager {
 		if (VERBOSE) Utils.console(moduleName, "Added Pending Request " + req.toString());
 	}
 	
-	private def asyncExecuteSingleKeyRequest(mapName:String, request:MapRequest, timeoutMillis:Long) {
+	private def asyncExecuteSingleKeyRequest(request:MapRequest) {
 		val key = request.inKey;
 		val value = request.inValue;
+		val mapName = request.mapName;
 		val requestType = request.requestType;
 		val transId = request.transactionId;
 		
-		if (VERBOSE) Utils.console(moduleName, "Reading the replicas ...");
 		val repInfo = partitionTable.getKeyReplicas(key);
-		if (VERBOSE) Utils.console(moduleName, repInfo.toString());
 		request.setResponseReplicas(repInfo.replicas);
+
 		val gr = GlobalRef[MapRequest](request);
+		
 		for (placeId in repInfo.replicas) {
 			try{
 				at (Place(placeId)) async {
-					DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, timeoutMillis, gr);
+					DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, gr);
 				}
 			}
 			catch (ex:Exception) {
@@ -75,22 +77,83 @@ public class ReplicationManager {
 	}
 	
 
+
 	
-	private def asyncExecuteKeySet(mapName:String, request:MapRequest, timeoutMillis:Long) {
+	private def asyncExecuteKeySet(request:MapRequest) {
 		
 	}
 	
 
-	private def asyncExecuteCommit(mapName:String, request:MapRequest, timeoutMillis:Long) {
+	private def asyncExecuteCommit(request:MapRequest) {
+		val requestType = request.requestType;
+		val transId = request.transactionId;
+		val mapName = request.mapName;
 		
+		val replicas = getTransactionReplicas(transId);
+		request.setResponseReplicas(replicas);
+
+		val gr = GlobalRef[MapRequest](request);
+		
+		for (placeId in replicas) {
+			try{
+				at (Place(placeId)) async {
+	//				DataStore.getInstance().getReplica().submitCommitVote(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, gr);
+				}
+			}
+			catch (ex:Exception) {
+				request.completeFailedRequest(ex);
+				break;
+			}
+		}	
 	}
 	
-	private def asyncExecuteAbort(mapName:String, request:MapRequest, timeoutMillis:Long) {
+
+	private def asyncExecuteConfirmCommit(request:MapRequest) {
+		val requestType = request.requestType;
+		val transId = request.transactionId;
+		val mapName = request.mapName;
+		val replicas = getTransactionReplicas(transId);
+		request.setResponseReplicas(replicas);
+
+		val gr = GlobalRef[MapRequest](request);
+		
+		for (placeId in replicas) {
+			try{
+				at (Place(placeId)) async {
+//					DataStore.getInstance().getReplica().submitConfirmCommit(mapName, here.id, repInfo.partitionId, transId, requestType, key, value, gr);
+				}
+			}
+			catch (ex:Exception) {
+				request.completeFailedRequest(ex);
+				break;
+			}
+		}	
+	}
+	
+	private def asyncExecuteAbort(request:MapRequest) {
 		
 	}
 
 	
 
+	public def getTransactionReplicas(transactionId:Long):HashSet[Long] {
+		val result = new HashSet[Long]();
+		try{
+			lock.lock();
+			
+			for (var i:Long = 0; i < pendingRequests.size(); i++){
+				val curReq = pendingRequests.get(i);
+				if (curReq.req.transactionId == transactionId)
+					result.addAll(curReq.req.replicas);
+			}
+		}
+		finally{
+			lock.unlock();
+		}
+		return result;
+	}
+	
+	
 
 	
 	public def updatePartitionTable(p:PartitionTable) {
@@ -123,6 +186,14 @@ public class ReplicationManager {
 						mapReq.lock.release();
 						pendingRequests.removeAt(i);
 						i--;
+					}
+					else if (mapReq.requestType == MapRequest.REQ_COMMIT) {
+						if (mapReq.commitStatus == MapRequest.CONFIRM_COMMIT) {
+							asyncExecuteConfirmCommit(mapReq);
+						}
+						else if (mapReq.commitStatus == MapRequest.CANCELL_COMMIT) {
+							
+						}
 					}
 					else if (Timer.milliTime() - curReq.startTimeMillis > curReq.timeoutMillis) {	
 						mapReq.completeFailedRequest(new RequestTimeoutException());
