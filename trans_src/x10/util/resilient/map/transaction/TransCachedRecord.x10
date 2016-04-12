@@ -6,12 +6,14 @@ import x10.util.resilient.map.common.Utils;
 public class TransCachedRecord {
 	private val initVersion:Int;
     private var value:Any;
+    private val partitionId:Long;
 	private var readOnly:Boolean = true;
 	private var deleted:Boolean = false;
 
-    public def this(initVersion:Int, initValue:Any) {
+    public def this(initVersion:Int, initValue:Any, partitionId:Long) {
     	this.initVersion = initVersion;
     	this.value = initValue;
+    	this.partitionId = partitionId;
     }
     
     public def update(n:Any) {

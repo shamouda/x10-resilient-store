@@ -27,28 +27,28 @@ public class TransLog {
 		this.clientPlaceId = clientPlaceId;
 	}
 	
-	public def logGet (key:Any, initVersion:Int, initValue:Any) {
+	public def logGet (key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
 		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cache.put(key,cacheRec);
 	}
 	
-	public def logUpdate(key:Any, initVersion:Int, initValue:Any, newValue:Any) {
+	public def logUpdate(key:Any, initVersion:Int, initValue:Any, newValue:Any, partitionId:Long) {
 		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cacheRec.update(newValue);
 	}
 	
-	public def logDelete(key:Any, initVersion:Int, initValue:Any) {
+	public def logDelete(key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
 		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue);
+			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cacheRec.delete();

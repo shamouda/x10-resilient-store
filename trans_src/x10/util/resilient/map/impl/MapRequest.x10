@@ -65,7 +65,7 @@ public class MapRequest {
     	this.lateReplicas = replicas.clone();
     }
     
-    public def addReplicaResponse(output:Any, replicaPlaceId:Long) {
+    public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
     	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response for request === " + this.toString());
     	try {
     		responseLock.lock();
@@ -75,11 +75,14 @@ public class MapRequest {
         		return;
     		}
     		
-    		replicaResponse.add(output);
+    		outException = exception;
+    		if (exception != null)
+    			replicaResponse.add(output);
     		lateReplicas.remove(replicaPlaceId);
     		if (lateReplicas.size() == 0) {
     			completed = true;
-    			outValue = replicaResponse.get(0);
+    			if (outException == null)
+    				outValue = replicaResponse.get(0);
     		}
     	}
     	finally {
