@@ -3,7 +3,7 @@ package x10.util.resilient.map.transaction;
 import x10.util.HashMap;
 import x10.util.resilient.map.common.Utils;
 
-public class TransCachedRecord {
+public class TransKeyLog {
 	private val initVersion:Int;
     private var value:Any;
     private val partitionId:Long;
@@ -29,7 +29,8 @@ public class TransCachedRecord {
     }
     
     public def getInitialVersion() = initVersion;
-    public def getNewValue() = value;
+    public def getValue() = value;
     public def readOnly() = readOnly;
     public def isDeleted() = deleted;
+    public def getPartitionId() = partitionId;
 }

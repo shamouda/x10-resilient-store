@@ -15,7 +15,7 @@ public class TransLog {
 	public val transId:Long;
 	
 	//the used keys in the transaction
-    private val cache:HashMap[Any,TransCachedRecord] = new HashMap[Any,TransCachedRecord]();
+    private val cache:HashMap[Any,TransKeyLog] = new HashMap[Any,TransKeyLog]();
 
 	private val startTimeMillis:Long;
 	
@@ -28,32 +28,42 @@ public class TransLog {
 	}
 	
 	public def logGet (key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
-		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		var cacheRec:TransKeyLog = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
+			cacheRec = new TransKeyLog(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cache.put(key,cacheRec);
 	}
 	
 	public def logUpdate(key:Any, initVersion:Int, initValue:Any, newValue:Any, partitionId:Long) {
-		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		var cacheRec:TransKeyLog = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
+			cacheRec = new TransKeyLog(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cacheRec.update(newValue);
 	}
 	
+	public def logUpdate(key:Any, newValue:Any) {
+		val cacheRec = cache.getOrThrow(key);
+		cacheRec.update(newValue);
+	}
+	
+	
 	public def logDelete(key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
-		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
+		var cacheRec:TransKeyLog = cache.getOrElse(key,null);
 		if (cacheRec == null) {
-			cacheRec = new TransCachedRecord(initVersion, initValue, partitionId);
+			cacheRec = new TransKeyLog(initVersion, initValue, partitionId);
 			cache.put(key, cacheRec);
 		}
 		cacheRec.delete();
 	}
 	
+	public def logDelete(key:Any) {
+		val cacheRec = cache.getOrThrow(key);
+		cacheRec.delete();
+	}
 	
 	public def isConflicting (other:TransLog):Boolean {
 		var result:Boolean = false;
@@ -92,5 +102,8 @@ public class TransLog {
 		}
 		return list;
 	}
+	
+	public def getKeysCache() = cache;
+	
 
 }

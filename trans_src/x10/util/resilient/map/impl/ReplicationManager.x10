@@ -160,7 +160,7 @@ public class ReplicationManager {
 		for (placeId in replicas) {
 			try{
 				at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().submitConfirmCommit(transId, gr);
+                    DataStore.getInstance().getReplica().submitConfirmCommit(mapName, transId, gr);
 				}
 			}
 			catch (ex:Exception) {

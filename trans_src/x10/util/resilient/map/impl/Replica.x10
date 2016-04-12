@@ -11,6 +11,7 @@ import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.transaction.TransLog;
 import x10.util.resilient.map.exception.CommitedTransactionCanNotBeAbortedException;
 import x10.util.resilient.map.exception.TransactionNotFoundException;
+import x10.util.resilient.map.exception.TransactionAbortedException;
 import x10.util.resilient.map.partition.Partition;
 import x10.util.resilient.map.partition.VersionValue;
 
@@ -67,24 +68,31 @@ public class Replica {
     
     public def get(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
     	val transLog = getOrAddActiveTransaction(transId, clientId);
+    	val replicaId = here.id;
     	if (transLog == null) {
     		at (responseGR.home) async {
-        		responseGR().addReplicaResponse(returnValue, new TransactionAbortedException(), replicaId);
+        		responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
         	}
     		return;
     	}
-
-    	val partition = partitions.getOrThrow(paritionId);
-    	var verValue:VersionValue = partition.getV(mapName, key);
+    	
     	var oldValue:Any = null;
-    	if (verValue == null)
-    		transLog.logGet (key, -1n, null, paritionId);
+    	val cache = transLog.getKeysCache();
+    	val keyLog = cache.getOrElse(key,null);
+    	if (keyLog != null) { // key used before in the transaction
+    		oldValue = keyLog.getValue();
+    	}
     	else {
-    		transLog.logGet (key, verValue.getVersion(), verValue.getValue(), paritionId);
-    		oldValue = verValue.getValue();
+    		val partition = partitions.getOrThrow(paritionId);
+    		val verValue = partition.getV(mapName, key);
+    		if (verValue == null)
+    			transLog.logGet (key, -1n, null, paritionId);
+    		else {
+    			transLog.logGet (key, verValue.getVersion(), verValue.getValue(), paritionId);
+    			oldValue = verValue.getValue();
+    		}
     	}
     	
-    	val replicaId = here.id;
     	val returnValue = oldValue;
     	at (responseGR.home) async {
     		responseGR().addReplicaResponse(returnValue, null, replicaId);
@@ -93,24 +101,32 @@ public class Replica {
     
     public def put(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {    	
     	val transLog = getOrAddActiveTransaction(transId, clientId);
+    	val replicaId = here.id;
     	if (transLog == null) {
     		at (responseGR.home) async {
-        		responseGR().addReplicaResponse(returnValue, new TransactionAbortedException(), replicaId);
+        		responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
         	}
     		return;
     	}
 
-    	val partition = partitions.getOrThrow(paritionId);
-    	var verValue:VersionValue = partition.getV(mapName, key);
     	var oldValue:Any = null;
-    	if (verValue == null)
-    		transLog.logUpdate(key, -1n, null, value, paritionId);
-    	else {
-    		transLog.logUpdate(key, verValue.getVersion(), verValue.getValue(), value, paritionId);
-    		oldValue = verValue.getValue();
+    	
+    	val cache = transLog.getKeysCache();
+    	val keyLog = cache.getOrElse(key,null);
+    	if (keyLog != null) { // key used in the transaction before
+    		oldValue = keyLog.getValue();
+    		transLog.logUpdate(key, value);
     	}
-   	
-    	val replicaId = here.id;
+    	else {// first time to access this key
+    		val partition = partitions.getOrThrow(paritionId);
+    		var verValue:VersionValue = partition.getV(mapName, key);
+    		if (verValue == null)
+    			transLog.logUpdate(key, -1n, null, value, paritionId);
+    		else {
+    			oldValue = verValue.getValue();
+    			transLog.logUpdate(key, verValue.getVersion(), verValue.getValue(), value, paritionId);
+    		}
+    	}
     	val returnValue = oldValue;
     	at (responseGR) async {
     		responseGR().addReplicaResponse(returnValue, null, replicaId);
@@ -119,24 +135,32 @@ public class Replica {
     
     public def delete(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, responseGR:GlobalRef[MapRequest]) {
        	val transLog = getOrAddActiveTransaction(transId, clientId);
-    	if (transLog == null) {
+       	val replicaId = here.id;
+       	if (transLog == null) {
     		at (responseGR.home) async {
-        		responseGR().addReplicaResponse(returnValue, new TransactionAbortedException(), replicaId);
+        		responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
         	}
     		return;
     	}
 
-    	val partition = partitions.getOrThrow(paritionId);
-    	var verValue:VersionValue = partition.getV(mapName, key);
-    	var oldValue:Any = null;
-    	if (verValue == null)
-    		transLog.logDelete(key, -1n, null, paritionId);
-    	else {
-    		transLog.logDelete(key, verValue.getVersion(), verValue.getValue(), paritionId);
-    		oldValue = verValue.getValue();
+       	var oldValue:Any = null;
+       	val cache = transLog.getKeysCache();
+    	val keyLog = cache.getOrElse(key,null);
+    	if (keyLog != null) { // key used in the transaction before
+    		oldValue = keyLog.getValue();
+    		transLog.logDelete(key);
+    	}
+    	else {// first time to access this key
+    		val partition = partitions.getOrThrow(paritionId);
+    		var verValue:VersionValue = partition.getV(mapName, key);
+    		if (verValue == null)
+    			transLog.logDelete(key, -1n, null, paritionId);
+    		else {
+    			oldValue = verValue.getValue();
+    			transLog.logDelete(key, verValue.getVersion(), verValue.getValue(), paritionId);
+    		}
     	}
    	
-    	val replicaId = here.id;
     	val returnValue = oldValue;
     	at (responseGR) async {
     		responseGR().addReplicaResponse(returnValue, null, replicaId);
@@ -154,9 +178,22 @@ public class Replica {
     }	
     
     //no exception is expected from this method
-    public def submitConfirmCommit(transId:Long, responseGR:GlobalRef[MapRequest]) {    
+    public def submitConfirmCommit(mapName:String, transId:Long, responseGR:GlobalRef[MapRequest]) {   
     	val transLog = getTransactionLog(TRANS_READY_TO_COMMIT, transId);
-    	
+    	val cache = transLog.getKeysCache();
+    	val keysIter = cache.keySet().iterator();
+
+    	while (keysIter.hasNext()) {
+    		val key = keysIter.next();
+    		val log = cache.getOrThrow(key);
+    		val partition = partitions.getOrThrow(log.getPartitionId());
+    		if (log.isDeleted()) {
+    			partition.delete(mapName, key);
+    		}
+    		else if (!log.readOnly()) {
+    			partition.put(mapName, key, log.getValue());
+    		}
+    	}
     	val replicaId = here.id;
     	at (responseGR) async {
     		responseGR().addReplicaResponse(null, null, replicaId);
@@ -263,10 +300,13 @@ public class Replica {
 						transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
     				}
     			}
-    		} 
-    		
-    		if (ready && !timerOn)
-    			async checkDeadClientForReadyTransactions();
+    		}
+    		if (ready){
+    			val myTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
+				transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.put(transId, myTrans);
+				if (!timerOn)
+					async checkDeadClientForReadyTransactions();
+    		}
     	}finally {
     		transactionsLock.unlock();
     	}
@@ -288,7 +328,7 @@ public class Replica {
     //TODO: should also check active transactions
     public def checkDeadClientForReadyTransactions () {
     	while (timerOn) {
-    		System.threadSleep(10);
+    		System.threadSleep(100);
     		try{
     			transactionsLock.lock();
     			val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;

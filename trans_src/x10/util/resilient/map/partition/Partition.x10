@@ -50,6 +50,11 @@ public class Partition {
     	val verValue = maps.getOrThrow(mapName).getOrElse(key,null);
     	return (verValue == null)? null:verValue.getValue();
     }    
+    
+    public def delete(mapName:String, key:Any):Any {
+    	Utils.console(moduleName, "Partition ["+id+"]  DELETE ("+key+") ...");
+    	return maps.getOrThrow(mapName).put(key, new VersionValue());//put value=null version=-1
+    }
 
     public def getV(mapName:String, key:Any):VersionValue {
     	Utils.console(moduleName, "Partition ["+id+"]  GET_V ("+key+") ...");

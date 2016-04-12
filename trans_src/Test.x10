@@ -59,26 +59,23 @@ public class Test {
 	
 	
 	public static def test04() {
-		Console.OUT.println("=========00000");
     	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
-		Console.OUT.println("=========11111");
     	
 		try{
 			finish for (p in Place.places()) at (p) async {
 				try{
-					Console.OUT.println("=========22222");
 					val x = hm.get("A");
-					Console.OUT.println("=========33333");
     			
 					
     				if (x == null) {
-    					hm.put("A", 0);
-    					Console.OUT.println("=========444444");
+    					hm.put("A", here.id);
     				}
     				else {
-    					hm.put("A", (x as Long)+1);
-    					Console.OUT.println("=========55555");
+    					hm.put("A", -1);
     				}
+    				
+    				val x2 = hm.get("A");
+    				Console.OUT.println("######## " + here + "  x2= " + x2 );  
 				}    		
 				catch (ex:Exception) {
 					Console.OUT.println("######## " + here + "   " + ex.getMessage());    			
@@ -88,10 +85,32 @@ public class Test {
 			Console.OUT.println("@@@@@@@@@@@@@@@@@@@@@@@@@@ " + here + "   " + ex.getMessage());
 			ex.printStackTrace();
 		}
-    	Console.OUT.println(hm.get("A") as Long);
+	}
+	
+	public static def test05() {
+    	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+    	
+		try{
+			hm.put("A", 100);
+
+			Console.OUT.println("=================== (1-after put)");
+		    val x = hm.get("A");
+		    Console.OUT.println("=================== (2-after get)");
+		    
+			if (x == null || x == 100) {
+				Console.OUT.println("Test failed  ["+x+"]...");
+			}
+			else {
+				Console.OUT.println("Test succeeded ["+x+"] ...");
+			}
+			
+		}    		
+		catch (ex:Exception) {
+			Console.OUT.println("######## " + here + "   " + ex.getMessage());    			
+		}
 	}
 	
     public static def main(args:Rail[String]) {
-    	test03();
+    	test05();
     }
 }
