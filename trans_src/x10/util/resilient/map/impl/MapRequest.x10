@@ -1,11 +1,18 @@
+package x10.util.resilient.map.impl;
+
 import x10.util.HashSet;
 import x10.util.ArrayList;
 import x10.util.concurrent.SimpleLatch;
+import x10.util.concurrent.AtomicLong;
+import x10.util.resilient.map.common.Utils;
 
 public class MapRequest {
 	
 	private val moduleName = "MapRequest";
 	public static val VERBOSE = Utils.getEnvLong("MAP_REQ_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+	
+	public val id:Long;
+	private static val idSequence = new AtomicLong();
 	
 	
 	public static val REQ_COMMIT:Int = 1n;
@@ -13,14 +20,13 @@ public class MapRequest {
 	public static val REQ_GET:Int = 3n;
     public static val REQ_PUT:Int = 4n;
     public static val REQ_DELETE:Int = 5n;
-    public static val REQ_KEY_SET:Int = 6n;
     
-    
-    public static val COMMIT_VOTE:Int = 1n;
-	public static val CONFIRM_COMMIT:Int = 2n;
-	public static val CANCELL_COMMIT:Int = 3n;
+	public static val CONFIRM_COMMIT:Int = 1n;
+	public static val CANCELL_COMMIT:Int = 2n;
+	public static val CONFIRMATION_SENT:Int = 3n;
     
     public val mapName:String;
+	public val timeoutMillis:Long;
 	public val transactionId:Long;
     public val requestType:Int;
 
@@ -28,7 +34,7 @@ public class MapRequest {
 	public var inValue:Any;
     
     public var commitStatus:Int;
-    public var completed:Boolean;
+    public var completed:Boolean = false;
     public var outValue:Any;
     public var outKeySet:HashSet[Any];
     public var outException:Exception;
@@ -36,17 +42,19 @@ public class MapRequest {
 
     public val replicaResponse:ArrayList[Any];
     public var replicas:HashSet[Long];
-	public var replicasVotedToCommit:HashSet[Long];
-    public var lateReplicas:HashSet[Long];
+	//public var replicasVotedToCommit:HashSet[Long];
+    private var lateReplicas:HashSet[Long];
     public val responseLock:SimpleLatch;
     
     public val lock:SimpleLatch;
     
     
-    public def this(transId:Long, reqType:Int, mapName:String) {
+    public def this(transId:Long, reqType:Int, mapName:String, timeoutMillis:Long) {
+    	this.id = idSequence.incrementAndGet();
     	this.transactionId = transId;
     	this.requestType = reqType;
     	this.mapName = mapName;
+    	this.timeoutMillis = timeoutMillis;
     	this.lock = new SimpleLatch();
     	this.responseLock = new SimpleLatch();
     	this.replicaResponse = new ArrayList[Any]();
@@ -58,12 +66,14 @@ public class MapRequest {
     }
     
     public def addReplicaResponse(output:Any, replicaPlaceId:Long) {
-    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response ...");
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response for request === " + this.toString());
     	try {
     		responseLock.lock();
     		
-    		if (completed)
+    		if (completed) { //ignore late responses
+    			if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] RESPONSE IGNORED  for request ==== " + this.toString());
         		return;
+    		}
     		
     		replicaResponse.add(output);
     		lateReplicas.remove(replicaPlaceId);
@@ -84,13 +94,9 @@ public class MapRequest {
     	try {
     		responseLock.lock();
     		
-    		if (completed)
+    		if (completed) {
+    			if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] VOTE IGNORED ...");
         		return;
-    		
-    		if (vote == 1){
-    			if (replicasVotedToCommit == null)
-    				replicasVotedToCommit = new HashSet[Long]();
-    			replicasVotedToCommit.add(replicaPlaceId);
     		}
     		
     		replicaResponse.add(vote);
@@ -104,6 +110,20 @@ public class MapRequest {
     					break;
     				}
     			}
+    			Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is "+commitStatus+" ...");
+				
+    			if (VERBOSE) {
+    				if (commitStatus == CONFIRM_COMMIT)
+    					Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is COMMIT ...");
+    				else
+    					Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is ABORT ...");
+    			}
+    		}
+    		else {
+    			var str:String = "";
+    		    for (x in lateReplicas)
+    		    	str += x + ",";
+    			if (VERBOSE) Utils.console(moduleName, "waiting for votes from places ["+str+"] ");
     		}
     	}
     	finally {
@@ -133,6 +153,7 @@ public class MapRequest {
     
     public def completeFailedRequest(outputException:Exception) {
     	try{
+    		if (VERBOSE) Utils.console(moduleName, "Completing failed request: " + this.toString() + "  Reason: " + outputException);
     		responseLock.lock();
     		completed = true;
     		outException = outputException;
@@ -141,33 +162,33 @@ public class MapRequest {
     	}
     }
     
-    
     public def isSuccessful() = completed && outException == null;
     
     public def toString():String {
     	var str:String = "";
-        str += "<request  transactionId="+transactionId+"  type="+typeDesc(requestType)+">\n";        
-        str += "     <input  key="+(inKey)+"/>\n";
-        str += "     <input  value="+(inValue)+"/>\n";
+    	str += "<request Id["+id+"] type["+typeDesc(requestType)+ "]>\n";
+        /*
+        str += "<request  transactionId="+transactionId+"  type="+typeDesc(requestType)+ "  key=" + inKey + " \\>\n";
         if (outValue != null)
         	str += "     <output  oldValue="+(outValue)+"/>\n";
         if (outKeySet != null)
         	str += "     <output  keySet="+(outKeySet)+"/>\n";
         if (outException != null)
         	str += "     <output  exception="+(outException)+"/>\n";
-        str += "</request>\n";		
+        	
+        str += "</request>\n";
+        */		
     	return str;
     }
     
     public static def typeDesc(typeId:Int):String {
     	switch(typeId){
-    		case REQ_COMMIT: return "Commit";
-    		case REQ_ABORT: return "Abort";
-    		case REQ_GET: return "Get";
-    		case REQ_PUT: return "Put";
-    		case REQ_DELETE: return "Delete";
-    		case REQ_KEY_SET: return "KeySet";
+    		case REQ_COMMIT: return "Commit-"+typeId;
+    		case REQ_ABORT: return "Abort-"+typeId;
+    		case REQ_GET: return "Get-"+typeId;
+    		case REQ_PUT: return "Put-"+typeId;
+    		case REQ_DELETE: return "Delete-"+typeId;
     	}
-    	return null;
+    	return "UnknowReqType-"+typeId;
     }
 }

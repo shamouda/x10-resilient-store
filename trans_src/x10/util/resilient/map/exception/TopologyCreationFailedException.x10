@@ -1,4 +1,5 @@
-//who will throw this? only the master?
+package x10.util.resilient.map.exception;
+
 public class TopologyCreationFailedException extends Exception {
 	
 }

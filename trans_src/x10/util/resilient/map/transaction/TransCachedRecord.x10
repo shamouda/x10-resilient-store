@@ -1,4 +1,7 @@
+package x10.util.resilient.map.transaction;
+
 import x10.util.HashMap;
+import x10.util.resilient.map.common.Utils;
 
 public class TransCachedRecord {
 	private val initVersion:Int;

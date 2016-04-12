@@ -1,17 +1,20 @@
+package x10.util.resilient.map.transaction;
+
 import x10.util.HashMap;
 import x10.util.ArrayList;
+import x10.util.resilient.map.common.Utils;
 
 /*
  * Used to log the changes in key values by a single transaction
  * The object is expected to be used by only one thread
  * */
-//transaction status: started - ready to commit - commited - aborted
 public class TransLog {
 	private val moduleName = "TransLog";
 	public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
 	public val transId:Long;
-	//the used keys
+	
+	//the used keys in the transaction
     private val cache:HashMap[Any,TransCachedRecord] = new HashMap[Any,TransCachedRecord]();
 
 	private val startTimeMillis:Long;
@@ -24,7 +27,6 @@ public class TransLog {
 		this.clientPlaceId = clientPlaceId;
 	}
 	
-	//must be called before update to store the initial value
 	public def logGet (key:Any, initVersion:Int, initValue:Any) {
 		var cacheRec:TransCachedRecord = cache.getOrElse(key,null);
 		if (cacheRec == null) {

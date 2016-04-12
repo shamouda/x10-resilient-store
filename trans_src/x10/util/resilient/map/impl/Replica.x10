@@ -1,3 +1,5 @@
+package x10.util.resilient.map.impl;
+
 import x10.util.concurrent.SimpleLatch;
 import x10.util.concurrent.AtomicInteger;
 import x10.util.ArrayList;
@@ -5,6 +7,13 @@ import x10.util.RailUtils;
 import x10.util.HashMap;
 import x10.util.HashSet;
 import x10.util.Timer;
+import x10.util.resilient.map.common.Utils;
+import x10.util.resilient.map.transaction.TransLog;
+import x10.util.resilient.map.exception.TransactionTerminatedException;
+import x10.util.resilient.map.exception.CommitedTransactionCanNotBeAbortedException;
+import x10.util.resilient.map.exception.TransactionNotFoundException;
+import x10.util.resilient.map.partition.Partition;
+import x10.util.resilient.map.partition.VersionValue;
 
 //Concurrency:  multiple threads
 public class Replica {
@@ -17,6 +26,7 @@ public class Replica {
 	public static val TRANS_COMMITED:Int = 2n;
 	public static val TRANS_ABORTED:Int = 3n;
 	
+	private static val DUMMY_TRANSACTION = new TransLog(-1, -1, -1); // used to replace aborted transactions
 	
 	//transaction_status::transactions
 	private val transactions:HashMap[Int,TransactionsMap];
@@ -49,9 +59,9 @@ public class Replica {
     
     public def submitSingleKeyRequest(mapName:String, clientId:Long, paritionId:Long, transId:Long, requestType:Int, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
     	switch(requestType) {
-			case MapRequest.REQ_GET: get(mapName, clientId, paritionId, transId, key, value, responseGR);
-			case MapRequest.REQ_PUT: put(mapName, clientId, paritionId, transId, key, value, responseGR);
-			case MapRequest.REQ_DELETE: delete(mapName, clientId, paritionId, transId, key, responseGR);
+			case MapRequest.REQ_GET: get(mapName, clientId, paritionId, transId, key, value, responseGR); break;
+			case MapRequest.REQ_PUT: put(mapName, clientId, paritionId, transId, key, value, responseGR); break;
+			case MapRequest.REQ_DELETE: delete(mapName, clientId, paritionId, transId, key, responseGR); break;
     	}
     }
     
@@ -131,12 +141,37 @@ public class Replica {
     	}
     }	
     
-    public def submitConfirmCommit(transId:Long, responseGR:GlobalRef[MapRequest]) {    	
-
+    public def submitConfirmCommit(transId:Long, responseGR:GlobalRef[MapRequest]) {
+    	val replicaId = here.id;
+    	at (responseGR) async {
+    		responseGR().addReplicaResponse(null, replicaId);
+    	}
     }
     
-    public def submitAbort(transId:Long, responseGR:GlobalRef[MapRequest]) {    	
-
+    public def submitAbort(transId:Long, responseGR:GlobalRef[MapRequest]) {
+    	try{
+			transactionsLock.lock();
+			var transLog:TransLog = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
+			if (transLog == null) {
+				transLog = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+				if (transLog == null) {
+					transLog = transactions.getOrThrow(TRANS_ABORTED).transMap.remove(transId);
+					if (transLog == null) {
+						transLog = transactions.getOrThrow(TRANS_COMMITED).transMap.remove(transId);
+						if (transLog != null)
+							throw new CommitedTransactionCanNotBeAbortedException();
+						else
+							throw new TransactionNotFoundException();
+					}
+				}
+			}
+			
+			if (transLog != null)
+				transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
+    	}
+		finally {
+			transactionsLock.unlock();
+		}
     }
     
     
@@ -198,20 +233,25 @@ public class Replica {
     		if (!conflictingWithReadyTransaction(transId)
     			&& sameInitialVersions(transId)) {
     			val conflictReport = getConflictingActiveTransactions(transId);
-    			if (conflictReport.maxTransId == transId) {
-    				//abort others
-    				for (otherTransId in conflictReport.otherTransactions) {
-    					val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(otherTransId.transId);
-    					transactions.getOrThrow(TRANS_ABORTED).transMap.put(otherTransId.transId, curTrans);
+    			if (conflictReport != null) {
+    				if (conflictReport.maxTransId == transId) {
+    				//	abort others
+    					for (otherTransId in conflictReport.otherTransactions) {
+    						val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(otherTransId.transId);
+    						transactions.getOrThrow(TRANS_ABORTED).transMap.put(otherTransId.transId, DUMMY_TRANSACTION);
+    					}
+    				}
+    				else {
+    					// abort my self
+    					ready = false;
+    					val curTrans = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+						transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
     				}
     			}
-    			else {
-    				// abort my self
-    				ready = false;
-    				val curTrans = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
-					transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, curTrans);
-    			}
-    		}    		
+    		} 
+    		
+    		if (ready && !timerOn)
+    			async checkDeadClientForReadyTransactions();
     	}finally {
     		transactionsLock.unlock();
     	}
@@ -223,13 +263,14 @@ public class Replica {
     }
     
     private def sameInitialVersions(transId:Long):Boolean {
-    	return false;
+    	return true;
     }
     
     private def getConflictingActiveTransactions(transId:Long):ConflictReport {
     	return null;
     }
     
+    //TODO: should also check active transactions
     public def checkDeadClientForReadyTransactions () {
     	while (timerOn) {
     		System.threadSleep(10);
@@ -237,13 +278,12 @@ public class Replica {
     			transactionsLock.lock();
     			val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
     			val iter = readyTransMap.keySet().iterator();
-    			
     			while (iter.hasNext()) {
     				val transId = iter.next();
     				val curTrans = readyTransMap.getOrThrow(transId);
     				if (Place(curTrans.clientPlaceId).isDead()) {
     					readyTransMap.remove(transId);
-    					transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, curTrans);
+    					transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
     				}
     			}
     			

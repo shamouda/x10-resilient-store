@@ -1,6 +1,9 @@
+package x10.util.resilient.map.partition;
+
 import x10.util.concurrent.SimpleLatch;
 import x10.util.concurrent.AtomicInteger;
 import x10.util.HashMap;
+import x10.util.resilient.map.common.Utils;
 
 //contains a HashMap object for each application map
 public class Partition {
@@ -51,20 +54,5 @@ public class Partition {
     public def getV(mapName:String, key:Any):VersionValue {
     	Utils.console(moduleName, "Partition ["+id+"]  GET_V ("+key+") ...");
     	return maps.getOrThrow(mapName).getOrElse(key,null);
-    }
-    
-}
-
-class VersionValue {
-	private val version:AtomicInteger = new AtomicInteger(-1n);
-	private var value:Any;
-   
-    public def updateValue(newValue:Any):Int {
-    	val newVersion = version.incrementAndGet();
-    	value = newValue;
-    	return newVersion;
-    }
-    public def getVersion() = version.get();
-    public def getValue() = value;
-    
+    }   
 }

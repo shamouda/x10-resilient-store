@@ -1,8 +1,11 @@
 import x10.io.FileReader;
 import x10.io.File;
 import x10.io.EOFException;
+import x10.util.resilient.map.*;
+import x10.util.resilient.map.partition.*;
+import x10.util.resilient.map.exception.TransactionAbortedException;
 
-public class Tester {
+public class Test {
 	public static def test01() {
     	val topology = new Topology();
     	val file = new FileReader(new File("topology.txt"));
@@ -46,9 +49,6 @@ public class Tester {
     		
     			hm.commitTransaction(txId);
     		}
-    		catch (ex:TransactionAbortedException) {
-    			ex.printStackTrace();
-    		}
     		catch (ex:Exception) {
     			hm.abortTransaction(txId);
     		}
@@ -57,29 +57,41 @@ public class Tester {
     	//Console.OUT.println(hm.get("A") as Long);	
 	}
 	
-    public static def main(args:Rail[String]) {
+	
+	public static def test04() {
+		Console.OUT.println("=========00000");
     	val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
-    	finish for (p in Place.places()) at (p) async {  		
-    		try{
-    			Console.OUT.println("=========1");
-    			val x = hm.get("A");
-    			Console.OUT.println("=========2");
-    			
-    			/*
-    			if (x == null) {
-    				hm.put("A", 0);
-    				Console.OUT.println("=========3");
-    			}
-    			else {
-    				hm.put("A", (x as Long)+1);
-    				Console.OUT.println("=========4");
-    			}*/
-    		}    		
-    		catch (ex:Exception) {
-    			ex.printStackTrace();
-    		}
-    	}
+		Console.OUT.println("=========11111");
     	
-    	//Console.OUT.println(hm.get("A") as Long);
+		try{
+			finish for (p in Place.places()) at (p) async {
+				try{
+					Console.OUT.println("=========22222");
+					val x = hm.get("A");
+					Console.OUT.println("=========33333");
+    			
+					
+    				if (x == null) {
+    					hm.put("A", 0);
+    					Console.OUT.println("=========444444");
+    				}
+    				else {
+    					hm.put("A", (x as Long)+1);
+    					Console.OUT.println("=========55555");
+    				}
+				}    		
+				catch (ex:Exception) {
+					Console.OUT.println("######## " + here + "   " + ex.getMessage());    			
+				}
+			}
+		}catch(ex:Exception) {
+			Console.OUT.println("@@@@@@@@@@@@@@@@@@@@@@@@@@ " + here + "   " + ex.getMessage());
+			ex.printStackTrace();
+		}
+    	Console.OUT.println(hm.get("A") as Long);
+	}
+	
+    public static def main(args:Rail[String]) {
+    	test03();
     }
 }

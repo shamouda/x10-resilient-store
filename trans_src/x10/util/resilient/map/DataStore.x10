@@ -1,9 +1,17 @@
+package x10.util.resilient.map;
+
 import x10.util.*;
 import x10.util.concurrent.SimpleLatch;
 import x10.compiler.Inline;
 import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
-
+import x10.util.resilient.map.common.Utils;
+import x10.util.resilient.map.impl.ResilientMapImpl;
+import x10.util.resilient.map.partition.PartitionTable;
+import x10.util.resilient.map.partition.Topology;
+import x10.util.resilient.map.impl.Replica;
+import x10.util.resilient.map.impl.ReplicationManager;
+import x10.util.resilient.map.exception.TopologyCreationFailedException;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {

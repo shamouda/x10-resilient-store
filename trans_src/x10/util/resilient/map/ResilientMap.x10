@@ -1,7 +1,10 @@
+package x10.util.resilient.map;
+
 import x10.xrx.Runtime;
 import x10.util.ArrayList;
 import x10.compiler.NoInline;
 import x10.util.HashSet;
+import x10.util.resilient.map.common.Utils;
 
 //The interface for the application usage
 //Object can only be created by the DataStore class
@@ -24,12 +27,6 @@ public interface ResilientMap {
      * returns the old value
      **/
     public def delete(key:Any):Any;
-    
-    
-    /**
-     * returns all keys
-     **/
-    public def keySet():HashSet[Any];
     
     /***
      * returns the transactoin id
@@ -64,14 +61,5 @@ public interface ResilientMap {
      * returns the old value
      **/
     public def delete(transId:Long,key:Any):Any;
-    
-    
-    /**
-     * [Transaction] 
-     * returns all keys
-     **/
-    public def keySet(transId:Long):HashSet[Any];
-
-
-    
+        
 }

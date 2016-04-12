@@ -1,4 +1,8 @@
+package x10.util.resilient.map.transaction;
+
 import x10.util.HashMap;
+import x10.util.resilient.map.common.Utils;
+
 public class TransOperation {
 	public static val GET:Long = 0;
 	

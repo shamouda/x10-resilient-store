@@ -1,7 +1,11 @@
+package x10.util.resilient.map.partition;
+
 import x10.util.HashMap;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.ArrayList;
 import x10.util.HashSet;
+import x10.util.resilient.map.common.Utils;
+import x10.util.resilient.map.exception.ReplicationFailureException;
 
 public class PartitionTable {
 	private val moduleName = "PartitionTable";
@@ -130,24 +134,20 @@ public class PartitionTable {
     }
     
     
-    public def getKeyReplicas(key:Any):ReplicationInfo {
-    	var result:ReplicationInfo = null;
+    public def getKeyReplicas(key:Any):PartitionReplicationInfo {
+    	var result:PartitionReplicationInfo = null;
     	try{
     		lock.lock();
-    		Console.OUT.println("getting lock completed (("+partitionsCount+"))....");
     		var partitionId:Long = key.hashCode() as Long;
     		partitionId = partitionId % partitionsCount ;
-    		Console.OUT.println("partition Id is ["+partitionId+"] ....");
     		val keyReplicas = new HashSet[Long]();
     		for (replica in replicas){
     			keyReplicas.add(replica(partitionId));
-    			Console.OUT.println("partition Id is ["+partitionId+"]   << adding Replica ["+(replica(partitionId))+"] ....");
     		}
-    		result = new ReplicationInfo(partitionId, keyReplicas);
+    		result = new PartitionReplicationInfo(partitionId, keyReplicas);
     	}finally {
     		lock.unlock();
     	}
-    	Console.OUT.println("getKeyReplicas completed!!!! ...");
     	return result;
     }
     
@@ -176,20 +176,4 @@ public class PartitionTable {
     }
 }
 
-class ReplicationInfo {
-	public val partitionId:Long;
-	public val replicas:HashSet[Long];
-    public def this (partId:Long, replicas:HashSet[Long]) {
-    	this.partitionId = partId;
-    	this.replicas = replicas;
-    }
-    
-    public def toString():String {
-    	var str:String = "";
-        str += "ParitionId: " + partitionId + " [";
-        for (x in replicas)
-        	str += x + "  ";
-        str += " ]";
-    	return str;
-    }
-}
+

@@ -1,3 +1,5 @@
+package x10.util.resilient.map.common;
+
 import x10.util.concurrent.AtomicLong;
 
 public class Utils {

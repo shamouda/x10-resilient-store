@@ -1,6 +1,10 @@
+package x10.util.resilient.map.partition;
+
 import x10.util.ArrayList;
 import x10.util.HashSet;
 import x10.util.concurrent.AtomicLong;
+import x10.util.resilient.map.common.Utils;
+import x10.util.resilient.map.impl.ResilientMapImpl;
 
 /*
  * The mapping between nodes, places and partitions
