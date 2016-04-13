@@ -33,4 +33,7 @@ public class TransKeyLog {
     public def readOnly() = readOnly;
     public def isDeleted() = deleted;
     public def getPartitionId() = partitionId;
+    
+    public def toString() = "InitVersion["+initVersion+"] value["+value
+    		+"] partitionId["+partitionId+"] readOnly["+readOnly+"] deleted["+deleted+"]\n";
 }
