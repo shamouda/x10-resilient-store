@@ -13,4 +13,7 @@ public class VersionValue {
     }
     public def getVersion() = version.get();
     public def getValue() = value;
+    public def toString() {
+    	return "{ver="+getVersion() +":val="+getValue()+"}";
+    }
 }
