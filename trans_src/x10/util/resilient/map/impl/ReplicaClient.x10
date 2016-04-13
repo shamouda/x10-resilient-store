@@ -13,8 +13,8 @@ import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
 
 
-public class ReplicationManager {
-	private val moduleName = "ReplicationManager";
+public class ReplicaClient {
+	private val moduleName = "ReplicaClient";
 	public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 	
     //this is the class that communicates with the replicas

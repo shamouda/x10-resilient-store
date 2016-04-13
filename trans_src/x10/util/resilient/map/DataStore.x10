@@ -10,7 +10,7 @@ import x10.util.resilient.map.impl.ResilientMapImpl;
 import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.partition.Topology;
 import x10.util.resilient.map.impl.Replica;
-import x10.util.resilient.map.impl.ReplicationManager;
+import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
 
 //creates the local datastore instance  (one per place)
@@ -35,7 +35,7 @@ public class DataStore {
     
 	private var partitionTable:PartitionTable;
 	
-	private var executor:ReplicationManager;
+	private var executor:ReplicaClient;
 	
 	//container for the data partitions, null for non-members
 	private var container:Replica;
@@ -90,7 +90,7 @@ public class DataStore {
 				
 				container = new Replica(partitionTable.getPlacePartitions(here.id));
 				
-				executor = new ReplicationManager(partitionTable);
+				executor = new ReplicaClient(partitionTable);
 		
 				initialized = true;
 		
