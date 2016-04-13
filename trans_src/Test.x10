@@ -82,7 +82,7 @@ public class Test {
 				}
 			}
 		}catch(ex:Exception) {
-			Console.OUT.println("@@@@@@@@@@@@@@@@@@@@@@@@@@ " + here + "   " + ex.getMessage());
+			Console.OUT.println("@@@@@@@@ " + here + "   " + ex.getMessage());
 			ex.printStackTrace();
 		}
 	}
@@ -92,25 +92,20 @@ public class Test {
     	
 		try{
 			hm.put("A", 100);
-
-			Console.OUT.println("=================== (1-after put)");
 		    val x = hm.get("A");
-		    Console.OUT.println("=================== (2-after get)");
-		    
-			if (x == null || x == 100) {
-				Console.OUT.println("Test failed  ["+x+"]...");
-			}
-			else {
+			if (x == 100) {
 				Console.OUT.println("Test succeeded ["+x+"] ...");
 			}
-			
+			else {
+				Console.OUT.println("Test failed  ["+x+"]...");				
+			}
 		}    		
 		catch (ex:Exception) {
-			Console.OUT.println("######## " + here + "   " + ex.getMessage());    			
+			ex.printStackTrace();    			
 		}
 	}
 	
     public static def main(args:Rail[String]) {
-    	test05();
+    	test04();
     }
 }

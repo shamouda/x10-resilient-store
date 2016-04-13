@@ -62,7 +62,7 @@ public class Replica {
     }
     
     public def submitSingleKeyRequest(mapName:String, clientId:Long, paritionId:Long, transId:Long, requestType:Int, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
-    	switch(requestType) {
+    	 switch(requestType) {
 			case MapRequest.REQ_GET: get(mapName, clientId, paritionId, transId, key, value, responseGR); break;
 			case MapRequest.REQ_PUT: put(mapName, clientId, paritionId, transId, key, value, responseGR); break;
 			case MapRequest.REQ_DELETE: delete(mapName, clientId, paritionId, transId, key, responseGR); break;
@@ -198,6 +198,7 @@ public class Replica {
     		val key = keysIter.next();
     		val log = cache.getOrThrow(key);
     		val partition = partitions.getOrThrow(log.getPartitionId());
+    		if (VERBOSE) Utils.console(moduleName, "Applying commit changes:=> " + log.toString());
     		if (log.isDeleted()) {
     			partition.delete(mapName, key);
     		}

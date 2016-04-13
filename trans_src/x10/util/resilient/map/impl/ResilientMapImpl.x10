@@ -41,6 +41,7 @@ public class ResilientMapImpl implements ResilientMap {
         		} else if (requestType == MapRequest.REQ_DELETE) {
         			result = delete(txId, key);
         		}
+        		if (VERBOSE) Utils.console(moduleName, "Result = " + result);
         		commitTransaction(txId);
         		break;
         	} catch(ex:Exception) {
