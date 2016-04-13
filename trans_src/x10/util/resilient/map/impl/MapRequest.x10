@@ -75,10 +75,13 @@ public class MapRequest {
         		return;
     		}
     		
+    		lateReplicas.remove(replicaPlaceId);
+    		
     		outException = exception;
+    		
     		if (exception != null)
     			replicaResponse.add(output);
-    		lateReplicas.remove(replicaPlaceId);
+    		
     		if (lateReplicas.size() == 0) {
     			completed = true;
     			if (outException == null)
@@ -113,8 +116,7 @@ public class MapRequest {
     					break;
     				}
     			}
-    			Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is "+commitStatus+" ...");
-				
+    			
     			if (VERBOSE) {
     				if (commitStatus == CONFIRM_COMMIT)
     					Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is COMMIT ...");
@@ -122,11 +124,11 @@ public class MapRequest {
     					Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is ABORT ...");
     			}
     		}
-    		else {
+    		else if (VERBOSE) {
     			var str:String = "";
-    		    for (x in lateReplicas)
-    		    	str += x + ",";
-    			if (VERBOSE) Utils.console(moduleName, "waiting for votes from places ["+str+"] ");
+		    	for (x in lateReplicas)
+		    		str += x + ",";
+    			Utils.console(moduleName, "waiting for votes from places ["+str+"] ");
     		}
     	}
     	finally {

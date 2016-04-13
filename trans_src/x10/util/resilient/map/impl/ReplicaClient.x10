@@ -122,7 +122,7 @@ public class ReplicaClient {
 	}
 	
 	private def asyncExecuteCommit(request:MapRequest) {
-		if (VERBOSE) Utils.console(moduleName, "Submitting READY for request: " + request.toString());	
+		if (VERBOSE) Utils.console(moduleName, "Submitting ReadyToCommit?  for request: " + request.toString());	
 		val requestType = request.requestType;
 		val transId = request.transactionId;
 		val mapName = request.mapName;
@@ -136,7 +136,7 @@ public class ReplicaClient {
 		for (placeId in replicas) {
 			try{
 				at (Place(placeId)) async {
-					DataStore.getInstance().getReplica().submitReadyToCommit(transId, gr);
+					DataStore.getInstance().getReplica().submitReadyToCommit(mapName, transId, gr);
 				}
 			}
 			catch (ex:Exception) {
@@ -148,7 +148,7 @@ public class ReplicaClient {
 	
 
 	private def asyncExecuteConfirmCommit(request:MapRequest) {
-		if (VERBOSE) Utils.console(moduleName, "Submitting CONFIRM COMMIT for request: " + request.toString());	
+		if (VERBOSE) Utils.console(moduleName, "Submitting ConfirmCommit for request: " + request.toString());	
 		val requestType = request.requestType;
 		val transId = request.transactionId;
 		val mapName = request.mapName;

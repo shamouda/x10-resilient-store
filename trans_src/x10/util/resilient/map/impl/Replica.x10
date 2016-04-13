@@ -26,7 +26,10 @@ public class Replica {
 	public static val TRANS_COMMITED:Int = 2n;
 	public static val TRANS_ABORTED:Int = 3n;
 	
-	// Dummy transaction log used to replace aborted transactions
+	public static val READY_YES:Long = 1;
+	public static val READY_NO:Long = 0;
+	
+	// Dummy transaction log used to replace aborted/commited transactions
 	private static val DUMMY_TRANSACTION = new TransLog(-1, -1, -1); 
 	
 	//transaction_status::transactions
@@ -167,11 +170,19 @@ public class Replica {
     	}
     }
     
-    //TODO: can we allow commit for multiple Maps???
-    public def submitReadyToCommit(transId:Long, responseGR:GlobalRef[MapRequest]) {    	
-    	val ready = readyToCommit(transId);
-    	val vote = ready? 1 : 0;
+    public def submitReadyToCommit(mapName:String, transId:Long, responseGR:GlobalRef[MapRequest]) { 
     	val replicaId = here.id;
+    	val transLog = getTransactionLog(TRANS_ACTIVE, transId);
+    	if (transLog == null) {
+    		at (responseGR) async {
+        		responseGR().commitVote(READY_NO, replicaId);
+        	}
+    		return;
+    	}
+    	
+    	val ready = readyToCommit(mapName, transLog);
+    	val vote = ready? READY_YES : READY_NO;
+    	
     	at (responseGR) async {
     		responseGR().commitVote(vote, replicaId);
     	}
@@ -194,6 +205,15 @@ public class Replica {
     			partition.put(mapName, key, log.getValue());
     		}
     	}
+    	
+    	try{
+			transactionsLock.lock();
+			transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+			transactions.getOrThrow(TRANS_COMMITED).transMap.put(transId, DUMMY_TRANSACTION);
+    	}finally {
+    		transactionsLock.unlock();
+    	}
+    	
     	val replicaId = here.id;
     	at (responseGR) async {
     		responseGR().addReplicaResponse(null, null, replicaId);
@@ -277,33 +297,39 @@ public class Replica {
     }
     
     //assumes the current transaction is Active
-    private def readyToCommit(transId:Long):Boolean {
+    private def readyToCommit(mapName:String, transLog:TransLog):Boolean {
     	var ready:Boolean = true;
     	try{
     		transactionsLock.lock();
     		
-    		if (!conflictingWithReadyTransaction(transId)
-    			&& sameInitialVersions(transId)) {
-    			val conflictReport = getConflictingActiveTransactions(transId);
+    		if (!conflictingWithReadyTransaction(transLog)
+    			&& sameInitialVersions(mapName, transLog)) {
+    			val conflictReport = getConflictingActiveTransactions(transLog);
     			if (conflictReport != null) {
-    				if (conflictReport.maxTransId == transId) {
-    				//	abort others
+    				if (conflictReport.maxTransId == transLog.transId) {
+    					if (VERBOSE) Utils.console(moduleName, "Abort other transaction and become ready to commit ...");
+    				    //	abort other transactions
     					for (otherTransId in conflictReport.otherTransactions) {
     						val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(otherTransId.transId);
     						transactions.getOrThrow(TRANS_ABORTED).transMap.put(otherTransId.transId, DUMMY_TRANSACTION);
     					}
     				}
     				else {
+    					if (VERBOSE) Utils.console(moduleName, "Abort my self, NOT ready to commit ...");
     					// abort my self
     					ready = false;
-    					val curTrans = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
-						transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
+    					val curTrans = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transLog.transId);
+						transactions.getOrThrow(TRANS_ABORTED).transMap.put(transLog.transId, DUMMY_TRANSACTION);
     				}
     			}
     		}
+    		else{
+    			ready = false;
+    		}
+    		
     		if (ready){
-    			val myTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
-				transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.put(transId, myTrans);
+    			val myTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transLog.transId);
+				transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.put(transLog.transId, myTrans);
 				if (!timerOn)
 					async checkDeadClientForReadyTransactions();
     		}
@@ -313,16 +339,77 @@ public class Replica {
     	return ready;
     }
     
-    private def conflictingWithReadyTransaction(transId:Long):Boolean {
-    	return false;
+    private def conflictingWithReadyTransaction(transLog:TransLog):Boolean {
+    	var result:Boolean = false;
+    	val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
+    	val iter = readyTransMap.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val otherTransId = iter.next();
+    		val otherTrans = readyTransMap.getOrThrow(otherTransId);
+    		if (transLog.isConflicting(otherTrans)) {
+    			if (VERBOSE) Utils.console(moduleName, "Found conflict between transaction["+transLog.transId+"]  and ["+otherTrans.transId+"] ...");
+    			result = true;
+    			break;
+    		}
+    	}
+    	return result;
     }
     
-    private def sameInitialVersions(transId:Long):Boolean {
-    	return true;
+    /* 
+     * This function checks for conflicts with COMMITED transactions
+     * If another transaction commited after my transaction started, 
+     * the current values can be different from the values read by my transaction.
+     * */
+    private def sameInitialVersions(mapName:String, transLog:TransLog):Boolean {
+    	var result:Boolean = true;
+    	val map = transLog.getKeysCache();
+    	val iter = map.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val key = iter.next();
+    		val log = map.get(key);
+    		val oldVersion = log.getInitialVersion();
+    		
+    		//get current version
+    		val partition = partitions.getOrThrow(log.getPartitionId());
+    		val verValue = partition.getV(mapName, key);
+    		var currentVersion:Int = -1n;
+    		if (verValue != null)
+    			currentVersion = verValue.getVersion();
+    		
+    		if (currentVersion != oldVersion) {
+    			if (VERBOSE) Utils.console(moduleName, "Version conflict transaction["+transLog.transId+"] key["+key+"] oldVersion["+oldVersion+"] newVersion["+currentVersion+"] ...");
+    			result = false;
+    			break;
+    		}
+    	}
+    	return result;
     }
     
-    private def getConflictingActiveTransactions(transId:Long):ConflictReport {
-    	return null;
+    private def getConflictingActiveTransactions(transLog:TransLog):ConflictReport {
+    	val conflictList = new ArrayList[TransLog]();
+    	var maxTransId:Long = transLog.transId;
+    	val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
+    	val iter = activeTransMap.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val otherTransId = iter.next();
+    		val otherTrans = activeTransMap.getOrThrow(otherTransId);
+    		if (transLog.transId != otherTrans.transId && transLog.isConflicting(otherTrans)) {
+    			if (otherTrans.transId > maxTransId){
+    				maxTransId = otherTrans.transId;
+    			}
+    			conflictList.add(otherTrans);    			
+    		}
+    	}
+    	if (conflictList.size() == 0) {
+    		if (VERBOSE) Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is null");
+    		return null;
+    	}
+    	else {
+    		val result = new ConflictReport(conflictList, maxTransId);
+    		if (VERBOSE) Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is::: " + result.toString());
+    		return result;
+    	}
+    		
     }
     
     //TODO: should also check active transactions
@@ -365,6 +452,18 @@ class TransactionsMap {
 }
 
 class ConflictReport {
-	public val otherTransactions:ArrayList[TransLog] = new ArrayList[TransLog]();
-    public var maxTransId:Long = -1000;
+	public val otherTransactions:ArrayList[TransLog];
+    public val maxTransId:Long;
+    public def this(list:ArrayList[TransLog], maxId:Long) {
+    	this.otherTransactions = list;
+    	this.maxTransId = maxId;
+    }
+    public def toString():String {
+    	var str:String = "";
+        str += "ConflictReport with active transactions: ";
+        for (x in otherTransactions)
+        	str += x.transId + ",";
+        str += "   and maxTransId is: " + maxTransId;
+    	return str; 
+    }
 }

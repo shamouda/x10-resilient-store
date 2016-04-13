@@ -74,29 +74,31 @@ public class PartitionTable {
     	}
     	
     	
-    	if (VERBOSE) Utils.console(moduleName, "Node partitions ");
-    	val iter = nodePartitions.keySet().iterator();
-    	while (iter.hasNext()) {
-    		val key = iter.next();
-    		val mySet = nodePartitions.get(key);
-    		val iter2 = mySet.iterator();
-    		var str:String = "";
-    		while (iter2.hasNext())
-    			str += iter2.next() + " - ";
-    		Console.OUT.println(key + "->>> " + str);
-    	}
+    	if (VERBOSE) { 
+    		Utils.console(moduleName, "Node partitions ");
+    		val iter = nodePartitions.keySet().iterator();
+    		while (iter.hasNext()) {
+    			val key = iter.next();
+    			val mySet = nodePartitions.get(key);
+    			val iter2 = mySet.iterator();
+    			var str:String = "";
+    			while (iter2.hasNext())
+    				str += iter2.next() + " - ";
+    			Console.OUT.println(key + "->>> " + str);
+    		}
     	
     	
-    	if (VERBOSE) Utils.console(moduleName, "Place partitions ");
-    	val piter = placePartitions.keySet().iterator();
-    	while (piter.hasNext()) {
-    		val key = piter.next();
-    		val mySet = placePartitions.get(key);
-    		val iter2 = mySet.iterator();
-    		var str:String = "";
-    		while (iter2.hasNext())
-    			str += iter2.next() + " - ";
-    		Console.OUT.println(key + "->>> " + str);
+    		Utils.console(moduleName, "Place partitions ");
+    		val piter = placePartitions.keySet().iterator();
+    		while (piter.hasNext()) {
+    			val key = piter.next();
+    			val mySet = placePartitions.get(key);
+    			val iter2 = mySet.iterator();
+    			var str:String = "";
+    			while (iter2.hasNext())
+    				str += iter2.next() + " - ";
+    			Console.OUT.println(key + "->>> " + str);
+    		}
     	}
     	
     	

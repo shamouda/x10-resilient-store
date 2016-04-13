@@ -94,7 +94,7 @@ public class DataStore {
 		
 				initialized = true;
 		
-				Utils.console(moduleName, "Initialization done successfully ...");
+				if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
 			}
 		}finally {
 			initLock.unlock();

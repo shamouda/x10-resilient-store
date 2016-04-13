@@ -37,7 +37,7 @@ public class Partition {
     }
     
     public def put(mapName:String, key:Any, value:Any):Any {
-    	Utils.console(moduleName, "Partition ["+id+"]  PUT ("+key+","+value+") ...");
+    	if (VERBOSE) Utils.console(moduleName, "Partition ["+id+"]  PUT ("+key+","+value+") ...");
     	var verValue:VersionValue = maps.getOrThrow(mapName).getOrElse(key,null);
     	if (verValue == null)
     		verValue = new VersionValue();
@@ -46,18 +46,18 @@ public class Partition {
     }
 
     public def get(mapName:String, key:Any):Any {
-    	Utils.console(moduleName, "Partition ["+id+"]  GET ("+key+") ...");
+    	if (VERBOSE) Utils.console(moduleName, "Partition ["+id+"]  GET ("+key+") ...");
     	val verValue = maps.getOrThrow(mapName).getOrElse(key,null);
     	return (verValue == null)? null:verValue.getValue();
     }    
     
     public def delete(mapName:String, key:Any):Any {
-    	Utils.console(moduleName, "Partition ["+id+"]  DELETE ("+key+") ...");
+    	if (VERBOSE) Utils.console(moduleName, "Partition ["+id+"]  DELETE ("+key+") ...");
     	return maps.getOrThrow(mapName).put(key, new VersionValue());//put value=null version=-1
     }
 
     public def getV(mapName:String, key:Any):VersionValue {
-    	Utils.console(moduleName, "Partition ["+id+"]  GET_V ("+key+") ...");
+    	if (VERBOSE) Utils.console(moduleName, "Partition ["+id+"]  GET_V ("+key+") ...");
     	return maps.getOrThrow(mapName).getOrElse(key,null);
     }   
 }
