@@ -66,7 +66,7 @@ public class MapRequest {
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
-    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response for request === " + this.toString());
+    	if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response for request === " + this.toString()  + " ..... output["+output+"] exception["+exception+"] ");
     	try {
     		responseLock.lock();
     		
@@ -79,7 +79,7 @@ public class MapRequest {
     		
     		outException = exception;
     		
-    		if (exception != null)
+    		if (exception == null)
     			replicaResponse.add(output);
     		
     		if (lateReplicas.size() == 0) {
