@@ -15,8 +15,8 @@ public class PartitionTable {
     private val replicationFactor:Long;
     private val topology:Topology;
     // partition index :  0  -   1  -   2    -   3   -   4
-    // replica 1 place :  1  -   1  -   2    -   2   -    3
-    // replica 2 place :  2  -   3  -   1    -   1   -    2
+    // replica 1       :  1  -   2  -   3    -   4   -   5
+    // replica 2       :  2  -   3  -   4    -   5   -   0
 	private val replicas:ArrayList[Rail[Long]] = new ArrayList[Rail[Long]]();
 
 	private val lock:SimpleLatch;
