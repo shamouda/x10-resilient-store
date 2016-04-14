@@ -9,7 +9,7 @@ import x10.util.resilient.map.common.Utils;
 //The interface for the application usage
 //Object can only be created by the DataStore class
 public interface ResilientMap {
-	
+    
     /**
      * Get value associated with a key
      * returns the current value
