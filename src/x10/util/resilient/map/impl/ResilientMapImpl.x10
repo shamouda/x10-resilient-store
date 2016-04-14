@@ -30,6 +30,8 @@ public class ResilientMapImpl implements ResilientMap {
     public def tryOperation(requestType:Int,key:Any, value:Any):Any {
         var attempt:Long = 0;
         var result:Any = null;
+    	var succeeded:Boolean = false;
+        var commitException:Exception = null; 
         do {
             if (VERBOSE) Utils.console(moduleName,"$$= Running attempt ["+(attempt+1)+"/"+RETRY_MAX+"] for request ["+MapRequest.typeDesc(requestType)+"] =$$");
             val txId = startTransaction();
@@ -43,8 +45,10 @@ public class ResilientMapImpl implements ResilientMap {
                 }
                 if (VERBOSE) Utils.console(moduleName, "Result = " + result);
                 commitTransaction(txId);
+                succeeded = true;
                 break;
             } catch(ex:Exception) {
+            	commitException = ex;
                 ex.printStackTrace();
                 try {
                     
@@ -58,6 +62,8 @@ public class ResilientMapImpl implements ResilientMap {
             System.sleep(10);
         } while (attempt < RETRY_MAX);
         
+        if (!succeeded)
+        	throw commitException;
         return result;
     }
     
@@ -101,12 +107,11 @@ public class ResilientMapImpl implements ResilientMap {
         //if (VERBOSE) Utils.console(moduleName, "THE COMMIT REQ = " + request.toString());
         
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
-        if (VERBOSE) Utils.console(moduleName, "commitTransaction  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]  { await ... ");
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "commitTransaction          ... released } ");
+        if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (!request.isSuccessful())
             throw request.outException;
-        if (VERBOSE) Utils.console(moduleName, "commitTransaction SUCCEEDED ...");
     }
     
     /***
@@ -115,12 +120,11 @@ public class ResilientMapImpl implements ResilientMap {
     public def abortTransaction(transId:Long) {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name, timeoutMillis);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction          ... released } ");
+        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (!request.isSuccessful())
             throw request.outException;
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction SUCCEEDED ...");
     }
     
     /**
@@ -134,9 +138,9 @@ public class ResilientMapImpl implements ResilientMap {
         
         async DataStore.getInstance().executor().asyncExecuteRequest(request);
         
-        if (VERBOSE) Utils.console(moduleName, "get  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "get["+transId+"]  { await ... ");
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "get          ... released } ");
+        if (VERBOSE) Utils.console(moduleName, "get["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
         else
@@ -152,9 +156,9 @@ public class ResilientMapImpl implements ResilientMap {
         request.inKey = key;
         request.inValue = value;
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "put  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "put["+transId+"]  { await ... ");
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "put          ... released } ");
+        if (VERBOSE) Utils.console(moduleName, "put["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
         else
@@ -169,9 +173,9 @@ public class ResilientMapImpl implements ResilientMap {
         val request = new MapRequest(transId, MapRequest.REQ_DELETE, name, timeoutMillis);
         request.inKey = key;        
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "delete  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]  { await ... ");
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "delete          ... released } ");
+        if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
         else
