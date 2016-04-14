@@ -15,16 +15,16 @@ public class Partition {
     //application_map_Id::HashMap container
     private val maps:HashMap[String, HashMap[Any,VersionValue]];
 
-    private val mapsLock:SimpleLatch;
+    private val addMapLock:SimpleLatch;
 
     public def this(id:Long) {
         this.id = id;
         maps = new HashMap[String, HashMap[Any,VersionValue]]();
-        mapsLock = new SimpleLatch();
+        addMapLock = new SimpleLatch();
     }
     
     public def addMap(mapName:String) {
-        mapsLock.lock();
+        addMapLock.lock();
         try{
             var appMap:HashMap[Any,VersionValue] = maps.getOrElse(mapName,null);
             if (appMap == null)
@@ -32,7 +32,7 @@ public class Partition {
             maps.put(mapName,appMap);
         }
         finally{
-            mapsLock.unlock();
+            addMapLock.unlock();
         }
     }
     
