@@ -66,12 +66,12 @@ public class MapRequest {
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
-        if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response for request === " + this.toString()  + " ..... output["+output+"] exception["+exception+"] ");
+        if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] adding response for request === " + this.toString()  + " ..... output["+output+"] exception["+exception+"] ");
         try {
             responseLock.lock();
             
             if (completed) { //ignore late responses
-                if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] RESPONSE IGNORED  for request ==== " + this.toString());
+                if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] RESPONSE IGNORED  for request ==== " + this.toString());
                 return;
             }
             
@@ -91,17 +91,17 @@ public class MapRequest {
         finally {
             responseLock.unlock();
         }
-        if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding response completed ...");
+        //if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] adding response completed ...");
     }
     
     
     public def commitVote(vote:Long, replicaPlaceId:Long) {
-        if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response ["+vote+"] ...");
+        if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] adding vote response ["+vote+"] ...");
         try {
             responseLock.lock();
             
             if (completed) {
-                if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] VOTE IGNORED ...");
+                if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] VOTE IGNORED ...");
                 return;
             }
             
@@ -119,16 +119,16 @@ public class MapRequest {
                 
                 if (VERBOSE) {
                     if (commitStatus == CONFIRM_COMMIT)
-                        Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is COMMIT ...");
+                        Utils.console(moduleName, "TransId["+transactionId+"] Received all votes for trans ["+transactionId+"] - decision is COMMIT ...");
                     else
-                        Utils.console(moduleName, "Received all votes for trans ["+transactionId+"] - decision is ABORT ...");
+                        Utils.console(moduleName, "TransId["+transactionId+"] Received all votes for trans ["+transactionId+"] - decision is ABORT ...");
                 }
             }
             else if (VERBOSE) {
                 var str:String = "";
                 for (x in lateReplicas)
                     str += x + ",";
-                Utils.console(moduleName, "waiting for votes from places ["+str+"] ");
+                Utils.console(moduleName, "TransId["+transactionId+"] Waiting for votes from places ["+str+"] ");
             }
         }
         finally {
@@ -171,7 +171,7 @@ public class MapRequest {
     
     public def toString():String {
         var str:String = "";
-        str += "<request Id["+id+"] type["+typeDesc(requestType)+ "]>\n";
+        str += "<request Id["+id+"] type["+typeDesc(requestType)+ "]>";
         /*
         str += "<request  transactionId="+transactionId+"  type="+typeDesc(requestType)+ "  key=" + inKey + " \\>\n";
         if (outValue != null)
