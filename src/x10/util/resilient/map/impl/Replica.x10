@@ -37,14 +37,12 @@ public class Replica {
     private val transactionsLock:SimpleLatch;
     
     private val partitions:HashMap[Long,Partition];   
-    private val partitionsLock:SimpleLatch;
 
     private var timerOn:Boolean = false;
     
     public def this(partitionIds:HashSet[Long]) {
         partitions = new HashMap[Long,Partition]();
         createPartitions(partitionIds);
-        partitionsLock = new SimpleLatch();
         transactionsLock = new SimpleLatch();
         transactions = new HashMap[Int,TransactionsMap]();
         transactions.put(TRANS_ACTIVE, new TransactionsMap());
@@ -73,6 +71,7 @@ public class Replica {
         val transLog = getOrAddActiveTransaction(transId, clientId);
         val replicaId = here.id;
         if (transLog == null) {
+        	if (VERBOSE) Utils.console(moduleName, "(get) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
@@ -106,6 +105,7 @@ public class Replica {
         val transLog = getOrAddActiveTransaction(transId, clientId);
         val replicaId = here.id;
         if (transLog == null) {
+        	if (VERBOSE) Utils.console(moduleName, "(put) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
@@ -137,17 +137,17 @@ public class Replica {
     }
     
     public def delete(mapName:String, clientId:Long, paritionId:Long, transId:Long, key:Any, responseGR:GlobalRef[MapRequest]) {
-           val transLog = getOrAddActiveTransaction(transId, clientId);
-           val replicaId = here.id;
-           if (transLog == null) {
+        val transLog = getOrAddActiveTransaction(transId, clientId);
+        val replicaId = here.id;
+        if (transLog == null) {
+            if (VERBOSE) Utils.console(moduleName, "(delete) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
             return;
         }
-
-           var oldValue:Any = null;
-           val cache = transLog.getKeysCache();
+        var oldValue:Any = null;
+        val cache = transLog.getKeysCache();
         val keyLog = cache.getOrElse(key,null);
         if (keyLog != null) { // key used in the transaction before
             oldValue = keyLog.getValue();
@@ -163,7 +163,6 @@ public class Replica {
                 transLog.logDelete(key, verValue.getVersion(), verValue.getValue(), paritionId);
             }
         }
-       
         val returnValue = oldValue;
         at (responseGR) async {
             responseGR().addReplicaResponse(returnValue, null, replicaId);
@@ -174,6 +173,7 @@ public class Replica {
         val replicaId = here.id;
         val transLog = getTransactionLog(TRANS_ACTIVE, transId);
         if (transLog == null) {
+        	if (VERBOSE) Utils.console(moduleName, "(ready) Transaction ["+transId+"]  is not active. Return Not Ready ...");
             at (responseGR) async {
                 responseGR().commitVote(READY_NO, replicaId);
             }
@@ -197,8 +197,10 @@ public class Replica {
         while (keysIter.hasNext()) {
             val key = keysIter.next();
             val log = cache.getOrThrow(key);
+            if (log.readOnly()) continue;
+            
             val partition = partitions.getOrThrow(log.getPartitionId());
-            if (VERBOSE) Utils.console(moduleName, "Applying commit changes:=> " + log.toString());
+            if (VERBOSE) Utils.console(moduleName, "TransId["+transId+"] Applying commit changes:=> " + log.toString());
             if (log.isDeleted()) {
                 partition.delete(mapName, key);
             }
@@ -283,18 +285,12 @@ public class Replica {
     }
     
     public def addMap(mapName:String) {
-        try{
-            partitionsLock.lock();
-            val iter = partitions.keySet().iterator();
-            while (iter.hasNext()) {
-                val partId = iter.next();
-                val part = partitions.getOrThrow(partId);
-                part.addMap(mapName);
-            }    
-        }
-        finally{
-            partitionsLock.unlock();
-        }
+    	val iter = partitions.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val partId = iter.next();
+    		val part = partitions.getOrThrow(partId);
+    		part.addMap(mapName);
+    	}    
     }
     
     //assumes the current transaction is Active
@@ -308,7 +304,7 @@ public class Replica {
                 val conflictReport = getConflictingActiveTransactions(transLog);
                 if (conflictReport != null) {
                     if (conflictReport.maxTransId == transLog.transId) {
-                        if (VERBOSE) Utils.console(moduleName, "Abort other transaction and become ready to commit ...");
+                        if (VERBOSE) Utils.console(moduleName, "TransId["+transLog.transId+"] Abort other transaction and become ready to commit ...");
                         //    abort other transactions
                         for (otherTransId in conflictReport.otherTransactions) {
                             val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(otherTransId.transId);
@@ -316,10 +312,10 @@ public class Replica {
                         }
                     }
                     else {
-                        if (VERBOSE) Utils.console(moduleName, "Abort my self, NOT ready to commit ...");
+                        if (VERBOSE) Utils.console(moduleName, "TransId["+transLog.transId+"] Abort my self, NOT ready to commit ...");
                         // abort my self
                         ready = false;
-                        val curTrans = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transLog.transId);
+                        val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transLog.transId);
                         transactions.getOrThrow(TRANS_ABORTED).transMap.put(transLog.transId, DUMMY_TRANSACTION);
                     }
                 }
