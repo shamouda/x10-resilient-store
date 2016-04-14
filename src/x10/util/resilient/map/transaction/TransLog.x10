@@ -75,7 +75,7 @@ public class TransLog {
                 break;
             }
         }
-        if (VERBOSE) Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") not conflicting ...");
+        if (VERBOSE) Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") conflicting=["+result+"] ...");
         return result;
     }
     
