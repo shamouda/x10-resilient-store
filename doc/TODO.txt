@@ -1,0 +1,25 @@
+Tasks:
+------
+Get(key) should access only one replica
+
+Distributed Commit:
+ - No need to abort a Replica that voted NO for commit 
+ 
+Dead Places Handling:
+ - Dead Leader
+ - Dead Deputy Leader
+ - Dead Replica
+ - Dead ReplicaClient
+ 
+TimeOut Handling:
+ - Replica waiting for Replica Client
+ - ReplicaClient waiting for Replica
+ - Migration cases??
+ 
+Serialization:
+ - Currently keys and values are copied by "at". 
+   For large objects (like matrix blocks), this will be slow compared to using Rail.asyncCopy.  
+ 
+Test Cases:
+ - Stress Testing
+ - Performance Benchmarking
