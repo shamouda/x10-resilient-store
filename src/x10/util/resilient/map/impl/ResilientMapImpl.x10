@@ -49,13 +49,11 @@ public class ResilientMapImpl implements ResilientMap {
                 break;
             } catch(ex:Exception) {
             	commitException = ex;
-                ex.printStackTrace();
+                if (VERBOSE) ex.printStackTrace();
                 try {
-                    
-                    abortTransaction(txId);
-                    
+                    abortTransaction(txId);                    
                 }catch(abortEx:Exception) {
-                    abortEx.printStackTrace();
+                	if (VERBOSE) abortEx.printStackTrace();
                 }
             }
             attempt ++;

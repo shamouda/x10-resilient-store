@@ -12,6 +12,7 @@ import x10.util.resilient.map.partition.Topology;
 import x10.util.resilient.map.impl.Replica;
 import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
+import x10.util.resilient.map.exception.DeadLeadersException;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {
@@ -20,8 +21,9 @@ public class DataStore {
     public static val REPLICATION_FACTOR = Utils.getEnvLong("REPLICATION_FACTOR", 2);
     public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
     
-    /*the data store will be invalid if some partitions are permanantly lost due to loss 
-    of both their primary and secondary partitions*/
+    /*the data store will be invalid if:
+     * - failure happended during initialization
+     * - some partitions are permanantly lost due to loss of both their primary and secondary partitions*/
     private var valid:Boolean = true;
     
     //TODO: currently all places are members. Next, we should allow having some places are spare
@@ -49,7 +51,7 @@ public class DataStore {
     
     private static val lock:SimpleLatch = new SimpleLatch();
     
-    private static val cachedTopologyPlaceZero:Topology = createTopology();
+    private static val cachedTopologyPlaceZero:Topology = createTopologyPlaceZeroOnly();
         
     private var initialized:Boolean = false;
     
@@ -69,32 +71,42 @@ public class DataStore {
         try{
             initLock.lock();
             if (!initialized) { // initialize once per place
-                if (here.id == 0) // create the topology at place 0, and copy it to other places
-                    topology = cachedTopologyPlaceZero;
-                else
-                    topology = at (Place(0)) { cachedTopologyPlaceZero } ;
+            	try{
+            		if (here.id == 0) // create the topology at place 0, and copy it to other places
+            			topology = cachedTopologyPlaceZero;
+            		else
+            			topology = at (Place(0)) { cachedTopologyPlaceZero } ;
             
-                if (topology == null)
-                    throw new TopologyCreationFailedException();
+            			if (topology == null)
+            				throw new TopologyCreationFailedException();
                 
-                val partitionsCount = topology.getMainPlacesCount();
+            			val partitionsCount = topology.getMainPlacesCount();
 
                 
-                val masterNodeIndex = 0;
-                val placeIndex = 0;
-                leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
-                deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
+            			val masterNodeIndex = 0;
+            			val placeIndex = 0;
+            			leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
+            			deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
         
-                partitionTable = new PartitionTable(topology, partitionsCount, REPLICATION_FACTOR);
-                partitionTable.createParitionTable();
+            			partitionTable = new PartitionTable(topology, partitionsCount, REPLICATION_FACTOR);
+            			partitionTable.createParitionTable();
+            			
+            			if (here.id == 0)
+            				partitionTable.printParitionTable();
+            			
+            			container = new Replica(partitionTable.getPlacePartitions(here.id));
                 
-                container = new Replica(partitionTable.getPlacePartitions(here.id));
-                
-                executor = new ReplicaClient(partitionTable);
+            			executor = new ReplicaClient(partitionTable);
         
-                initialized = true;
+            			initialized = true;
         
-                if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
+            			if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
+            	}catch(ex:Exception) {
+            		initialized = true;
+            		valid = false;
+            		Utils.console(moduleName, "Initialization failed ...");
+            		ex.printStackTrace();
+            	}
             }
         }finally {
             initLock.unlock();
@@ -106,7 +118,7 @@ public class DataStore {
     
     public def executor() = executor;
     
-    private static def createTopology():Topology {
+    private static def createTopologyPlaceZeroOnly():Topology {
         if (here.id == 0) {
             val topology = new Topology();
             val gr = GlobalRef[Topology](topology);
@@ -131,8 +143,9 @@ public class DataStore {
     public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
         var mapObj:ResilientMap = userMaps.getOrElse(name,null);
         if (mapObj == null) {
-            //TODO: could not use broadcastFlat because of this exception: "Cannot create shifted activity under a SPMD Finish"
-            //shifted activity is required for copying the topology
+            //TODO: could not use broadcastFlat because of this exception: 
+        	//"Cannot create shifted activity under a SPMD Finish",
+            //a shifted activity is required for copying the topology
             finish for (p in Place.places()) at (p) async {
                 DataStore.getInstance().addApplicationMap(name, timeoutMillis);
             }
@@ -153,38 +166,34 @@ public class DataStore {
             lock.unlock();
         }
     }
-    
-/*    
-    public def getPrimaryPlace(partitionId:Long):Long {
-        val record = partitionTable.get(partitionId);
-        if (record == null)
-            return -1;
-        else 
-            return record.getPrimaryPlace();
-    }
    
-    public def getPartitionMapping(partitionId:Long):PartitionRecord {
-         return partitionTable.get(partitionId);
-    }
-    
-    
-    public def toString():String {
-        var str:String = "["+here+"] isMember? " + isMember + "  \n";
-        str += partitionTable.toString() + "\n";
-        if (container != null)
-            str += container.toString() + "\n"; 
-        str += "UserMaps [";
-        val iter = userMaps.keySet().iterator();
-        while (iter.hasNext()){
-            val key = iter.next();    
-            str += key + ",";
-        }
-        str += "]";
-        return str;
-    }
-  */
     
     public def printTopology(){
         topology.printTopology();
     }        
+   
+    
+    public def notifyDeadReplicasClient(deadReplias:HashSet[Long]) {
+    	if (!leaderPlace.isDead())
+    		notifyDeadReplicasLeader(deadReplias);
+    	else if (!deputyLeaderPlace.isDead())
+    		notifyDeadReplicasDeputyLeader(deadReplias);
+    	else {
+    		valid = false;
+    		throw new DeadLeadersException();
+    	}
+    		
+    }
+    
+    public def notifyDeadReplicasLeader(deadReplias:HashSet[Long]) {
+    	at (leaderPlace) {
+    		
+    	}
+    }
+    
+    public def notifyDeadReplicasDeputyLeader(deadReplias:HashSet[Long]) {
+    	
+    }
+
+
 }

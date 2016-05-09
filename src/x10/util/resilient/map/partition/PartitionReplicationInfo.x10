@@ -10,6 +10,16 @@ public class PartitionReplicationInfo {
         this.replicas = replicas;
     }
     
+    
+    public def getDeadReplicas() : HashSet[Long] {
+    	val result = new HashSet[Long]();
+    	for (placeId in replicas) {
+    		if (Place(placeId).isDead())
+    			result.add(placeId);
+    	}
+    	return result;
+    }
+    
     public def toString():String {
         var str:String = "";
         str += "ParitionId: " + partitionId + " [";

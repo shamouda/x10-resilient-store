@@ -60,6 +60,15 @@ public class Topology {
         return Place(-1);
     }
     
+    
+    public def getNodeIndex(placeId:Long):Long {
+        for (var i:Long = 0; i < mainNodes.size(); i++) {
+        	if (mainNodes.get(i).containsPlace(placeId))
+        		return i;
+        }
+        return -1;
+    }
+    
     public def printTopology(){
         for (node in mainNodes) {
             Console.OUT.println(node.toString());
@@ -84,6 +93,10 @@ class TopologyNode {
     public def addPlace(x10Place:Place) {
         if (!places.contains(x10Place))
             places.add(x10Place);
+    }
+    
+    public def containsPlace(placeId:Long) {
+    	return places.contains(Place(placeId));
     }
     
     public def toString():String {

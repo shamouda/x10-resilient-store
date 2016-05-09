@@ -89,11 +89,11 @@ public class Test {
                     Console.OUT.println("######## " + here + "  x2= " + x2 );  
                 }
                 catch (ex:Exception) {                       
-                    ex.printStackTrace();
+                    //ex.printStackTrace();
                 }
             }
         }catch(ex:Exception) {
-            ex.printStackTrace();
+            //ex.printStackTrace();
         }
     }
     
@@ -111,7 +111,7 @@ public class Test {
             }
         }            
         catch (ex:Exception) {
-            ex.printStackTrace();
+            //ex.printStackTrace();
         }
     }
     

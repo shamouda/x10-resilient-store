@@ -14,27 +14,38 @@ public class MapRequest {
     public val id:Long;
     private static val idSequence = new AtomicLong();
     
-    
+    //request type//
     public static val REQ_COMMIT:Int = 1n;
     public static val REQ_ABORT:Int = 2n;
     public static val REQ_GET:Int = 3n;
     public static val REQ_PUT:Int = 4n;
     public static val REQ_DELETE:Int = 5n;
     
+    //Two phase commit status//
     public static val CONFIRM_COMMIT:Int = 1n;
     public static val CANCELL_COMMIT:Int = 2n;
     public static val CONFIRMATION_SENT:Int = 3n;
     
+    //Request status//
+    public static val STATUS_STARTED:Int = 1n;
+    public static val STATUS_PENDING_SUBMIT:Int = 2n;
+    public static val STATUS_COMPLETED:Int = 10n;
+    
     public val mapName:String;
     public val timeoutMillis:Long;
     public val transactionId:Long;
-    public val requestType:Int;
+    public val requestType:Int;    
+    
+    //main status//
+    public var requestStatus:Int = STATUS_STARTED;
+    
+    //sub status//
+    public var commitStatus:Int;
+    public var oldPartitionTableVersion:Long;
 
+    //user inputs and outputs
     public var inKey:Any;
     public var inValue:Any;
-    
-    public var commitStatus:Int;
-    public var completed:Boolean = false;
     public var outValue:Any;
     public var outKeySet:HashSet[Any];
     public var outException:Exception;
@@ -42,12 +53,11 @@ public class MapRequest {
 
     public val replicaResponse:ArrayList[Any];
     public var replicas:HashSet[Long];
-    //public var replicasVotedToCommit:HashSet[Long];
     private var lateReplicas:HashSet[Long];
     public val responseLock:SimpleLatch;
+    public var partitionId:Long = -1;
     
     public val lock:SimpleLatch;
-    
     
     public def this(transId:Long, reqType:Int, mapName:String, timeoutMillis:Long) {
         this.id = idSequence.incrementAndGet();
@@ -60,9 +70,10 @@ public class MapRequest {
         this.replicaResponse = new ArrayList[Any]();
     }
     
-    public def setResponseReplicas(replicas:HashSet[Long]) {
+    public def setReplicationInfo(replicas:HashSet[Long], partitionId:Long) {
         this.replicas = replicas;
         this.lateReplicas = replicas.clone();
+        this.partitionId = partitionId;
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
@@ -70,7 +81,7 @@ public class MapRequest {
         try {
             responseLock.lock();
             
-            if (completed) { //ignore late responses
+            if (requestStatus == STATUS_COMPLETED) { //ignore late responses
                 if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] RESPONSE IGNORED  for request ==== " + this.toString());
                 return;
             }
@@ -83,7 +94,7 @@ public class MapRequest {
                 replicaResponse.add(output);
             
             if (lateReplicas.size() == 0) {
-                completed = true;
+            	requestStatus = STATUS_COMPLETED;
                 if (outException == null)
                     outValue = replicaResponse.get(0);
             }
@@ -100,7 +111,7 @@ public class MapRequest {
         try {
             responseLock.lock();
             
-            if (completed) {
+            if (requestStatus == STATUS_COMPLETED) {
                 if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] VOTE IGNORED ...");
                 return;
             }
@@ -160,14 +171,14 @@ public class MapRequest {
         try{
             if (VERBOSE) Utils.console(moduleName, "Completing failed request: " + this.toString() + "  Reason: " + outputException);
             responseLock.lock();
-            completed = true;
+            requestStatus = STATUS_COMPLETED;
             outException = outputException;
         }finally {
             responseLock.unlock();
         }
     }
     
-    public def isSuccessful() = completed && outException == null;
+    public def isSuccessful() = requestStatus == STATUS_COMPLETED && outException == null;
     
     public def toString():String {
         var str:String = "";
