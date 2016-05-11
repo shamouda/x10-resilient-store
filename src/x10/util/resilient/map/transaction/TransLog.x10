@@ -12,13 +12,16 @@ public class TransLog {
     private val moduleName = "TransLog";
     public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     
+    /*Transaction Id*/
     public val transId:Long;
     
-    //the used keys in the transaction
+    /*The used keys by a the transaction, and their logs*/
     private val cache:HashMap[Any,TransKeyLog] = new HashMap[Any,TransKeyLog]();
 
+    /*Transaction start time*/
     private val startTimeMillis:Long;
     
+    /* The client which issued the transaction. If the client dies, the Replica will abort all its transactions*/
     public val clientPlaceId:Long;
     
     public def this(transId:Long, startTimeMillis:Long, clientPlaceId:Long){
@@ -27,6 +30,7 @@ public class TransLog {
         this.clientPlaceId = clientPlaceId;
     }
     
+    /*Logs a 'get' operation on a key. If the key was not used before by the transaction, a new log record is created for that key*/
     public def logGet (key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
         var cacheRec:TransKeyLog = cache.getOrElse(key,null);
         if (cacheRec == null) {
@@ -36,6 +40,7 @@ public class TransLog {
         cache.put(key,cacheRec);
     }
     
+    /*Logs an 'update' operation on a key. If the key was not used before by the transaction, a new log record is created for that key*/
     public def logUpdate(key:Any, initVersion:Int, initValue:Any, newValue:Any, partitionId:Long) {
         var cacheRec:TransKeyLog = cache.getOrElse(key,null);
         if (cacheRec == null) {
@@ -45,12 +50,13 @@ public class TransLog {
         cacheRec.update(newValue);
     }
     
+    /*Logs an 'update' operation on a key that was used before by the transaction*/
     public def logUpdate(key:Any, newValue:Any) {
         val cacheRec = cache.getOrThrow(key);
         cacheRec.update(newValue);
     }
     
-    
+    /*Logs a 'delete' operation on a key. If the key was not used before by the transaction, a new log record is created for that key*/
     public def logDelete(key:Any, initVersion:Int, initValue:Any, partitionId:Long) {
         var cacheRec:TransKeyLog = cache.getOrElse(key,null);
         if (cacheRec == null) {
@@ -59,12 +65,14 @@ public class TransLog {
         }
         cacheRec.delete();
     }
-    
+   
+    /*Logs a 'delete' operation on a key that was used before by the transaction*/
     public def logDelete(key:Any) {
         val cacheRec = cache.getOrThrow(key);
         cacheRec.delete();
     }
     
+    /*Checks if two transactions are conflicting*/
     public def isConflicting (other:TransLog):Boolean {
         var result:Boolean = false;
         val overlap = getOverlappingKeys(other);
@@ -79,6 +87,7 @@ public class TransLog {
         return result;
     }
     
+    /*Returns a list of keys used by the two transactions*/
     private def getOverlappingKeys(other:TransLog):ArrayList[Any] {
         val iter = cache.keySet().iterator();
         val list = new ArrayList[Any]();
