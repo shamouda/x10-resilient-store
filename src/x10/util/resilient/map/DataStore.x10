@@ -25,9 +25,6 @@ public class DataStore {
      * - failure happended during initialization
      * - some partitions are permanantly lost due to loss of both their primary and secondary partitions*/
     private var valid:Boolean = true;
-    
-    //TODO: currently all places are members. Next, we should allow having some places are spare
-    private val isMember:Boolean = true;
 
     //takes over migration tasks
     private var leaderPlace:Place;
@@ -57,6 +54,10 @@ public class DataStore {
     
     private val initLock:SimpleLatch = new SimpleLatch();
     
+    private var migrating:Boolean = false;
+    
+    private val pendingDeadPlacesForMigration = new HashSet[Long]();
+    
     private def this() {
         userMaps = new HashMap[String,ResilientMap]();
     }
@@ -80,7 +81,7 @@ public class DataStore {
             			if (topology == null)
             				throw new TopologyCreationFailedException();
                 
-            			val partitionsCount = topology.getMainPlacesCount();
+            			val partitionsCount = topology.getPlacesCount();
 
                 
             			val masterNodeIndex = 0;
@@ -88,10 +89,10 @@ public class DataStore {
             			leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
             			deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
         
-            			partitionTable = new PartitionTable(topology, partitionsCount, REPLICATION_FACTOR);
-            			partitionTable.createParitionTable();
+            			partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
+            			partitionTable.createPartitionTable(topology);
             			
-            			if (here.id == 0)
+            			if (VERBOSE && here.id == 0)
             				partitionTable.printParitionTable();
             			
             			container = new Replica(partitionTable.getPlacePartitions(here.id));
@@ -115,9 +116,9 @@ public class DataStore {
     
     
     public def getReplica() = container;
-    
     public def executor() = executor;
     
+    //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
         if (here.id == 0) {
             val topology = new Topology();
@@ -130,8 +131,8 @@ public class DataStore {
                 else
                     name = Runtime.getName().split("@")(1);
                 val nodeName = name;
-                at (gr.home) {
-                    atomic gr().addMainPlace(nodeName, placeId);
+                at (gr.home) async {
+                    atomic gr().addPlace(nodeName, placeId);
                 }
             }
             return topology;
@@ -173,27 +174,75 @@ public class DataStore {
     }        
    
     
-    public def notifyDeadReplicasClient(deadReplias:HashSet[Long]) {
+    public def clientNotifyDeadPlaces(places:HashSet[Long]) {
+    	var targetPlace:Place;
     	if (!leaderPlace.isDead())
-    		notifyDeadReplicasLeader(deadReplias);
+    		targetPlace = leaderPlace;
     	else if (!deputyLeaderPlace.isDead())
-    		notifyDeadReplicasDeputyLeader(deadReplias);
+    		targetPlace = deputyLeaderPlace;
     	else {
     		valid = false;
     		throw new DeadLeadersException();
     	}
-    		
-    }
-    
-    public def notifyDeadReplicasLeader(deadReplias:HashSet[Long]) {
-    	at (leaderPlace) {
-    		
+    	
+    	/*leader responds to client with updated status immediately, if the dead places are already known to it.
+    	Otherwise, it returns null*/
+    	val updatedState = at (targetPlace) {
+    		val ds = DataStore.getInstance();
+    		var result:DataStoreUpdate = null;
+    		try {
+    			lock.lock();
+    			var alreadyReported:Boolean = true;
+    			for (p in places){
+    				if (!ds.topology.isDeadPlace(Place(p))) {
+    					alreadyReported = false;
+    					break;
+    				}
+    			}
+    			if (alreadyReported) {
+    				result = new DataStoreUpdate(ds.topology, ds.leaderPlace, ds.deputyLeaderPlace );
+    			}
+    			else {
+    				ds.pendingDeadPlacesForMigration.addAll(places);
+    				if (!ds.migrating) {
+    					ds.migrating = true;
+    					async ds.migrate(places);
+    				}
+    			}
+    		}
+    		finally{
+    			lock.unlock();
+    		}
+    		result
+    	};
+    	
+    	if (updatedState != null) {
+    		try{
+    			lock.lock();
+    			this.topology = updatedState.topology;
+    			this.leaderPlace = updatedState.leader;
+    			this.deputyLeaderPlace = updatedState.deputyLeader;
+    			this.partitionTable.createPartitionTable(topology);
+    		}finally {
+    			lock.unlock();
+    		}
     	}
     }
     
-    public def notifyDeadReplicasDeputyLeader(deadReplias:HashSet[Long]) {
-    	
+    public def migrate(deadPlaces:HashSet[Long]) {
+    	while (migrating) {
+    		try{
+    			lock.lock();
+    			
+    			if (pendingDeadPlacesForMigration.size() == 0)
+        			migrating = false;
+    		}
+    		finally {
+    			lock.unlock();
+    		}
+    		
+    	}
     }
-
-
 }
+
+class DataStoreUpdate (topology:Topology, leader:Place, deputyLeader:Place) { }

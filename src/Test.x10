@@ -15,7 +15,7 @@ public class Test {
             while (line != null) {
                 Console.OUT.println(line);
                 if (!line.startsWith("#"))
-                    topology.addMainPlace(line,Place(index++));
+                    topology.addPlace(line,Place(index++));
                 line = file.readLine();
             }
         } catch (eof:EOFException) {
@@ -24,8 +24,8 @@ public class Test {
         
         topology.printTopology();
         
-        val partitionTable = new PartitionTable(topology, topology.getMainPlacesCount(), 3);
-        partitionTable.createParitionTable();
+        val partitionTable = new PartitionTable(topology.getPlacesCount(), 3);
+        partitionTable.createPartitionTable(topology);
         partitionTable.printParitionTable();
     }
     

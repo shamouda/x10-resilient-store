@@ -7,7 +7,7 @@ import x10.util.concurrent.SimpleLatch;
 import x10.util.Timer;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.partition.PartitionTable;
-import x10.util.resilient.map.partition.PartitionReplicationInfo;
+import x10.util.resilient.map.partition.PartitionReplicas;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
@@ -92,7 +92,7 @@ public class ReplicaClient {
             	result = false;
                
             	val newDeadPlaces = excludeNotifiedDeadPlaces(deadReplicas);
-            	async DataStore.getInstance().notifyDeadReplicasClient(newDeadPlaces);            	
+            	async DataStore.getInstance().clientNotifyDeadPlaces(newDeadPlaces);            	
             }
             
             if (!timerOn){
@@ -310,7 +310,7 @@ public class ReplicaClient {
             }
             
             //resubmit the requests that were pending on updating the partition table
-            for (req in resubmitList) {            	
+            for (req in resubmitList) {
             	asyncExecuteRequest(req);
             }
         }

@@ -7,52 +7,64 @@ import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.impl.ResilientMapImpl;
 
 /*
- * The mapping between nodes, places and partitions
+ * A topology object contains information about the available nodes and their places.
+ * Place 0 communicates with all places to collect the topology information, 
+ * then it forwards the topology object to all places. 
+ * No changes are expected on the topology during run time.
+ * 
+ * TODO: support spare nodes
  * */
 public class Topology {
-    private val mainNodes:ArrayList[TopologyNode] = new ArrayList[TopologyNode]();
-    //private val spareNodes:ArrayList[TopologyNode] = new ArrayList[TopologyNode]();
+	/*List of main nodes*/
+    private val nodes:ArrayList[TopologyNode] = new ArrayList[TopologyNode]();
+    
+    /*The number of main places*/
+    private var placesCount:Long = 0;
+
+    /*An atomic sequence used to generate unique ids to nodes*/
     private val sequence = new AtomicLong();
-    public def this(){}
     
-    public def getMainNodes() = mainNodes;
+    /*List of dead places as known at the leader*/
+    private val deadPlaces:ArrayList[Place] = new ArrayList[Place]();
     
-    public def getMainPlacesCount():Long {
-        var count:Long = 0;
-        for (node in mainNodes) {
-            count += node.places.size();
-        }
-        return count;
-    }
+    /*Accessors for private data*/
+    public def getNodes() = nodes;    
+    public def getPlacesCount() = placesCount;
     
-    public def addMainPlace (nodeName:String, placeId:Long) {
-        addMainPlace(nodeName, Place(placeId));
+    /*Adds a place to node given the place Id*/
+    public def addPlace (nodeName:String, placeId:Long) {
+        addPlace(nodeName, Place(placeId));
     }
  
-    public def addMainPlace (nodeName:String, place:Place) {
+    /*Adds a place to node given the place object*/
+    public def addPlace (nodeName:String, place:Place) {
         var node:TopologyNode = getNode(nodeName);
         if (node == null)
-            node = addMainNode(nodeName);
+            node = addNode(nodeName);
         node.addPlace(place);
+        placesCount++;
     }
     
+    /*Finds a node given its name*/
     public def getNode(nodeName:String):TopologyNode {
-        for (n in mainNodes) {
-            if (n.getName().equals(nodeName))
+        for (n in nodes) {
+            if (n.name.equals(nodeName))
                 return n;
         }
         return null;
     }
     
-    public def addMainNode (name:String):TopologyNode {
+    /*Adds a node given its name*/
+    public def addNode (name:String):TopologyNode {
         val node = new TopologyNode(sequence.getAndIncrement(),name);
-        mainNodes.add(node);
+        nodes.add(node);
         return node;
     }
     
+    /*Finds a place given its node index and place index*/
     public def getPlaceByIndex(nodeIndex:Long, placeIndexInsideNode:Long):Place {
-        if (nodeIndex < mainNodes.size()) {
-            val node = mainNodes.get(nodeIndex);
+        if (nodeIndex < nodes.size()) {
+            val node = nodes.get(nodeIndex);
             if (placeIndexInsideNode < node.places.size()){
                 return node.places.get(placeIndexInsideNode);
             }
@@ -60,35 +72,37 @@ public class Topology {
         return Place(-1);
     }
     
-    
+    /*Finds the index of a node, given a place in it*/
     public def getNodeIndex(placeId:Long):Long {
-        for (var i:Long = 0; i < mainNodes.size(); i++) {
-        	if (mainNodes.get(i).containsPlace(placeId))
+        for (var i:Long = 0; i < nodes.size(); i++) {
+        	if (nodes.get(i).containsPlace(placeId))
         		return i;
         }
         return -1;
     }
     
+    /*Prints the topology*/
     public def printTopology(){
-        for (node in mainNodes) {
+        for (node in nodes) {
             Console.OUT.println(node.toString());
         }
     }
     
-}
-
-class TopologyNode {
-    private val id:Long;
-    private val name:String;
-    public val places:ArrayList[Place] = new ArrayList[Place]();
-
-    public def this (id:Long, name:String) {
-        this.id = id;
-        this.name = name;
+    /*Adds a dead place*/
+    public def addDeadPlace(p:Place){
+    	deadPlaces.add(p);
     }
     
-    public def getId() = id;
-    public def getName() = name;
+    /*Checks if a place is dead*/
+    public def isDeadPlace(p:Place) {
+    	return deadPlaces.contains(p);
+    }
+}
+
+class TopologyNode (id:Long, name:String) {
+	
+    /*List of node places*/
+    public val places:ArrayList[Place] = new ArrayList[Place]();
     
     public def addPlace(x10Place:Place) {
         if (!places.contains(x10Place))
