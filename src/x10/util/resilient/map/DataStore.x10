@@ -115,6 +115,7 @@ public class DataStore {
     
     public def getReplica() = container;
     public def executor() = executor;
+    public def getPartitionTable() = partitionTable;
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {

@@ -1,4 +1,4 @@
-package x10.util.resilient.map.partition;
+package x10.util.resilient.map.migration;
 
 public class MigrationRequest (partitionId:Long, oldReplicas:Rail[Long], newReplicas:Rail[Long]) {
 	

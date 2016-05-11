@@ -46,17 +46,26 @@ public class MigrationHandler {
     		}
     		
     		
-    		
+    		migratePartitions();
     		
     		nextReq = nextRequest();
     	}
+
     }
     
-    private def updatePartitionTable() {
+    //Don't aquire the lock here to allow new requests to be added while migrating the partitions
+    private def migratePartitions() {
     	partitionTable.createPartitionTable(topology);
+    	val oldPartitionTable = DataStore.getInstance().getPartitionTable();
     	
+    	//1. Compare the old and new parition tables and generate migration requests
+    	val migrationRequests = new ArrayList[MigrationRequest]();
+    	for (var i:Long = 0; i < oldPartitionTable.partitionsCount; i++) {
+    		//TODO:  compare the replicas of each partition
+    	}
     	
-    	
+    	//2. Apply the migration requests (copy from sources to destinations)
+    	//TODO ....
     	
     }
     
