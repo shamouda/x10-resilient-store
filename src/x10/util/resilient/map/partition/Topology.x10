@@ -25,11 +25,12 @@ public class Topology {
     private val sequence = new AtomicLong();
     
     /*List of dead places as known at the leader*/
-    private val deadPlaces:ArrayList[Place] = new ArrayList[Place]();
+    private val deadPlaces = new HashSet[Long]();
     
     /*Accessors for private data*/
     public def getNodes() = nodes;    
     public def getPlacesCount() = placesCount;
+    public def getNodesCount() = nodes.size();
     
     /*Adds a place to node given the place Id*/
     public def addPlace (nodeName:String, placeId:Long) {
@@ -89,13 +90,13 @@ public class Topology {
     }
     
     /*Adds a dead place*/
-    public def addDeadPlace(p:Place){
-    	deadPlaces.add(p);
+    public def addDeadPlace(pId:Long){
+    	deadPlaces.add(pId);
     }
     
-    /*Checks if a place is dead*/
-    public def isDeadPlace(p:Place) {
-    	return deadPlaces.contains(p);
+    /*Checks if a place is dead*/    
+    public def isDeadPlace(pId:Long) {
+    	return deadPlaces.contains(pId);
     }
 }
 

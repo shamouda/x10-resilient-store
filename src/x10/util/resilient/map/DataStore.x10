@@ -12,7 +12,7 @@ import x10.util.resilient.map.partition.Topology;
 import x10.util.resilient.map.impl.Replica;
 import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
-import x10.util.resilient.map.exception.DeadLeadersException;
+import x10.util.resilient.map.exception.InvalidDataStoreException;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {
@@ -56,8 +56,6 @@ public class DataStore {
     
     private var migrating:Boolean = false;
     
-    private val pendingDeadPlacesForMigration = new HashSet[Long]();
-    
     private def this() {
         userMaps = new HashMap[String,ResilientMap]();
     }
@@ -84,10 +82,10 @@ public class DataStore {
             			val partitionsCount = topology.getPlacesCount();
 
                 
-            			val masterNodeIndex = 0;
+            			val leaderNodeIndex = 0;
             			val placeIndex = 0;
-            			leaderPlace       = topology.getPlaceByIndex(masterNodeIndex     , placeIndex);
-            			deputyLeaderPlace = topology.getPlaceByIndex(masterNodeIndex + 1 , placeIndex);
+            			leaderPlace       = topology.getPlaceByIndex(leaderNodeIndex     , placeIndex);
+            			deputyLeaderPlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
         
             			partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
             			partitionTable.createPartitionTable(topology);
@@ -142,6 +140,9 @@ public class DataStore {
     
     //should be called by one place
     public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
+    	if (!DataStore.getInstance().valid)
+    		throw new InvalidDataStoreException();
+    	
         var mapObj:ResilientMap = userMaps.getOrElse(name,null);
         if (mapObj == null) {
             //TODO: could not use broadcastFlat because of this exception: 
@@ -176,73 +177,64 @@ public class DataStore {
     
     public def clientNotifyDeadPlaces(places:HashSet[Long]) {
     	var targetPlace:Place;
-    	if (!leaderPlace.isDead())
+    	if (!leaderPlace.isDead()) {
     		targetPlace = leaderPlace;
-    	else if (!deputyLeaderPlace.isDead())
+    		if (VERBOSE) Utils.console(moduleName, "reporting dead places to LEADER: " + targetPlace);
+    	}
+    	else if (!deputyLeaderPlace.isDead()) {
     		targetPlace = deputyLeaderPlace;
+    		if (VERBOSE) Utils.console(moduleName, "reporting dead places to DEPUTY LEADER: " + targetPlace);
+    	}
     	else {
     		valid = false;
-    		throw new DeadLeadersException();
+    		throw new InvalidDataStoreException();
     	}
     	
-    	/*leader responds to client with updated status immediately, if the dead places are already known to it.
-    	Otherwise, it returns null*/
-    	val updatedState = at (targetPlace) {
+    	val clientPlaceId = here.id;
+    	at (targetPlace) async {
     		val ds = DataStore.getInstance();
-    		var result:DataStoreUpdate = null;
     		try {
-    			lock.lock();
-    			var alreadyReported:Boolean = true;
-    			for (p in places){
-    				if (!ds.topology.isDeadPlace(Place(p))) {
-    					alreadyReported = false;
-    					break;
-    				}
-    			}
-    			if (alreadyReported) {
-    				result = new DataStoreUpdate(ds.topology, ds.leaderPlace, ds.deputyLeaderPlace );
-    			}
-    			else {
-    				ds.pendingDeadPlacesForMigration.addAll(places);
-    				if (!ds.migrating) {
-    					ds.migrating = true;
-    					async ds.migrate(places);
-    				}
-    			}
+    			lock.lock();    			
+    			
+    			
+    			//TODO: add dead places notification
+    			
     		}
     		finally{
     			lock.unlock();
     		}
-    		result
-    	};
-    	
-    	if (updatedState != null) {
-    		try{
-    			lock.lock();
-    			this.topology = updatedState.topology;
-    			this.leaderPlace = updatedState.leader;
-    			this.deputyLeaderPlace = updatedState.deputyLeader;
-    			this.partitionTable.createPartitionTable(topology);
-    		}finally {
-    			lock.unlock();
-    		}
+    		
     	}
+    	
+    }
+
+    
+    private def promoteHereToLeader() {
+        leaderPlace       = here;
+        deputyLeaderPlace = here;
+        
+        //try to appoint a deputy leader
+        try{
+        	val leaderNodeIndex = topology.getNodeIndex(here.id);
+        	val nodesCount = topology.getNodesCount();
+        	val placeIndex = 0;
+        	for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
+        		val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+        		if (!candidatePlace.isDead()) {
+        			promoteToDeputyLeader(deputyLeaderPlace);
+        			deputyLeaderPlace = candidatePlace;
+        			break;
+        		}
+        	}
+        }catch(ex:Exception) {
+        	ex.printStackTrace();
+        }
     }
     
-    public def migrate(deadPlaces:HashSet[Long]) {
-    	while (migrating) {
-    		try{
-    			lock.lock();
-    			
-    			if (pendingDeadPlacesForMigration.size() == 0)
-        			migrating = false;
-    		}
-    		finally {
-    			lock.unlock();
-    		}
-    		
+    private def promoteToDeputyLeader(place:Place) {
+    	at (place) {
+    		DataStore.getInstance().deputyLeaderPlace = here;
+    		//TODO: we can also update the partition table and topology here
     	}
     }
 }
-
-class DataStoreUpdate (topology:Topology, leader:Place, deputyLeader:Place) { }

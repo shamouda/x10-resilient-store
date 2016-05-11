@@ -65,7 +65,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     	val placeIndex = ( lastPlace + i) % nodePlacesCount;
                     	val targetPlace = nodes.get(nodeIndex).places.get(placeIndex);
                     	//topology.isDeadPlace returns the same result at all places because they use the same 'topology' object
-                    	if (!topology.isDeadPlace(targetPlace)) {
+                    	if (!topology.isDeadPlace(targetPlace.id)) {
                     		replicas.get(replicaIndex++)(p) = targetPlace.id;
                     		lastUsedPlace.put(nodeId, placeIndex);
                     		getPlacePartitions(targetPlace.id).add(p);
