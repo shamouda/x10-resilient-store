@@ -169,7 +169,7 @@ public class Replica {
         }
     }
     
-    public def submitReadyToCommit(mapName:String, transId:Long, responseGR:GlobalRef[MapRequest]) { 
+    public def submitPrepareCommit(mapName:String, transId:Long, responseGR:GlobalRef[MapRequest]) { 
         val replicaId = here.id;
         val transLog = getTransactionLog(TRANS_ACTIVE, transId);
         if (transLog == null) {
@@ -217,10 +217,13 @@ public class Replica {
             transactionsLock.unlock();
         }
         
+        /*
+         * no response is exception here
         val replicaId = here.id;
         at (responseGR) async {
             responseGR().addReplicaResponse(null, null, replicaId);
         }
+        */
     }
     
     public def submitAbort(transId:Long, responseGR:GlobalRef[MapRequest]) {

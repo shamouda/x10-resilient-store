@@ -6,6 +6,8 @@ import x10.util.ArrayList;
 import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.ReplicationFailureException;
+import x10.util.resilient.map.exception.InvalidDataStoreException;
+import x10.util.resilient.map.migration.MigrationRequest;
 
 /*
  * The partition table maps each partition to the places that contain it.
@@ -64,7 +66,9 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     for (var i:Long = 1; i < nodePlacesCount; i++) {
                     	val placeIndex = ( lastPlace + i) % nodePlacesCount;
                     	val targetPlace = nodes.get(nodeIndex).places.get(placeIndex);
-                    	//topology.isDeadPlace returns the same result at all places because they use the same 'topology' object
+                    	
+                    	//topology.isDeadPlace returns the same result at all places because they 
+                    	//use the same 'topology' object
                     	if (!topology.isDeadPlace(targetPlace.id)) {
                     		replicas.get(replicaIndex++)(p) = targetPlace.id;
                     		lastUsedPlace.put(nodeId, placeIndex);
@@ -169,7 +173,41 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         return result;
     }
     
-     
+    /*
+     * Compares two parition tables and generates migration requests
+     **/
+    public def generateMigrationRequests(updatedTable:PartitionTable):ArrayList[MigrationRequest] {
+    	val result = new ArrayList[MigrationRequest]();
+    	try {
+    		lock.lock();
+    		for (var p:Long = 0; p < partitionsCount; p++) {
+    			val samePlaces = new HashSet[Long]();
+    			val newPlaces = new HashSet[Long]();
+    			for (var new_r:Long = 0; new_r < replicationFactor; new_r++) {
+    				var found:Boolean = false;
+    				for (var old_r:Long = 0; old_r < replicationFactor; old_r++) {
+    					if (replicas.get(new_r)(p) == updatedTable.replicas.get(old_r)(p)) {
+    						found = true;
+    						samePlaces.add(replicas.get(new_r)(p));
+    						break;
+    					}
+    				}
+    				if (!found){
+    					newPlaces.add(replicas.get(new_r)(p));
+    				}
+    			}
+    			
+    			if (samePlaces.size() == 0)
+    				throw new InvalidDataStoreException();
+    			
+    			result.add(new MigrationRequest(p, samePlaces, newPlaces));    			
+    		}
+    	}finally {
+    		lock.unlock();
+    	}
+    	return result;
+    }
+    
     private def getPartitionId(key:Any) : Long {
         var result:Long = -1;
         try {

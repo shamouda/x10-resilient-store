@@ -50,24 +50,36 @@ public class MigrationHandler {
     		
     		nextReq = nextRequest();
     	}
-
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
     private def migratePartitions() {
     	partitionTable.createPartitionTable(topology);
     	val oldPartitionTable = DataStore.getInstance().getPartitionTable();
-    	
     	//1. Compare the old and new parition tables and generate migration requests
-    	val migrationRequests = new ArrayList[MigrationRequest]();
-    	for (var i:Long = 0; i < oldPartitionTable.partitionsCount; i++) {
-    		//TODO:  compare the replicas of each partition
-    	}
+    	val migrationRequests = oldPartitionTable.generateMigrationRequests(partitionTable);
     	
     	//2. Apply the migration requests (copy from sources to destinations)
-    	//TODO ....
-    	
+    	for (req in migrationRequests) {
+    		try {
+    			val src = req.oldReplicas.get(0);
+    			for (dst in req.newReplicas) {
+    				at (Place(src)) {
+    					//TODO: how to make sure the parition is not being updated while copying it????????????????
+    					val partition = DataStore.getInstance().getReplica().getPartition(req.partitionId);
+    					at (Place(dst)) {
+    						DataStore.getInstance().getReplica().addPartition(partition);
+    					}
+    				}
+    			}
+    		}
+    		catch(ex:Exception) {
+    			
+    		}
+    	}    	
     }
+    
+    
     
     public def isMigrating() {
     	var result:Boolean = false;

@@ -101,7 +101,7 @@ public class ResilientMapImpl implements ResilientMap {
      * throws an exception if commit failed
      */
     public def commitTransaction(transId:Long) {        
-        val request = new MapRequest(transId, MapRequest.REQ_COMMIT, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name, timeoutMillis);
         //if (VERBOSE) Utils.console(moduleName, "THE COMMIT REQ = " + request.toString());
         
         DataStore.getInstance().executor().asyncExecuteRequest(request);   

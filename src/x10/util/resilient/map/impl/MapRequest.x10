@@ -7,40 +7,22 @@ import x10.util.concurrent.AtomicLong;
 import x10.util.resilient.map.common.Utils;
 
 public class MapRequest {
-    
     private val moduleName = "MapRequest";
     public static val VERBOSE = Utils.getEnvLong("MAP_REQ_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     
     public val id:Long;
     private static val idSequence = new AtomicLong();
     
-    //request type//
-    public static val REQ_COMMIT:Int = 1n;
-    public static val REQ_ABORT:Int = 2n;
-    public static val REQ_GET:Int = 3n;
-    public static val REQ_PUT:Int = 4n;
-    public static val REQ_DELETE:Int = 5n;
-    
-    //Two phase commit status//
-    public static val CONFIRM_COMMIT:Int = 1n;
-    public static val CANCELL_COMMIT:Int = 2n;
-    public static val CONFIRMATION_SENT:Int = 3n;
-    
-    //Request status//
-    public static val STATUS_STARTED:Int = 1n;
-    public static val STATUS_PENDING_SUBMIT:Int = 2n;
-    public static val STATUS_COMPLETED:Int = 10n;
-    
     public val mapName:String;
     public val timeoutMillis:Long;
     public val transactionId:Long;
-    public val requestType:Int;    
+    public var requestType:Int;    
     
     //main status//
     public var requestStatus:Int = STATUS_STARTED;
     
     //sub status//
-    public var commitStatus:Int;
+    public var commitStatus:Int = UNUSED_COMMIT;
     public var oldPartitionTableVersion:Long;
 
     //user inputs and outputs
@@ -49,15 +31,28 @@ public class MapRequest {
     public var outValue:Any;
     public var outKeySet:HashSet[Any];
     public var outException:Exception;
-    
 
+    /*The values received from replicas*/
     public val replicaResponse:ArrayList[Any];
-    public var replicas:HashSet[Long];
-    private var lateReplicas:HashSet[Long];
-    public val responseLock:SimpleLatch;
-    public var partitionId:Long = -1;
     
+    /*All replicas participating in the request*/
+    public var replicas:HashSet[Long];
+    
+    /*Replicas have not completed request processing*/
+    public var lateReplicas:HashSet[Long];
+    
+    /*The partition impacted by the request*/
+    //TODO: remove this variable, not useful
+    public var partitionId:Long = -1;
+
+    /* Lock used by ResilientMapImpl to wait for the completion of the request*/
     public val lock:SimpleLatch;
+    
+    /*Lock used to serialize accesses from different replicas*/
+    public val responseLock:SimpleLatch;
+    
+    /*Processing start time. It is a var because the request can be resubmitted with a new time*/
+    public var startTimeMillis:Long;
     
     public def this(transId:Long, reqType:Int, mapName:String, timeoutMillis:Long) {
         this.id = idSequence.incrementAndGet();
@@ -118,28 +113,18 @@ public class MapRequest {
             
             replicaResponse.add(vote);
             lateReplicas.remove(replicaPlaceId);
-            if (lateReplicas.size() == 0) {
+            
+            if (vote == 0)
+            	commitStatus = CANCELL_COMMIT;
+            else if (lateReplicas.size() == 0 && commitStatus != CANCELL_COMMIT) //vote==1
                 commitStatus = CONFIRM_COMMIT;
-                                        
-                for (resp in replicaResponse) {
-                    if (resp == 0) {
-                        commitStatus = CANCELL_COMMIT;
-                        break;
-                    }
-                }
-                
-                if (VERBOSE) {
-                    if (commitStatus == CONFIRM_COMMIT)
-                        Utils.console(moduleName, "TransId["+transactionId+"] Received all votes for trans ["+transactionId+"] - decision is COMMIT ...");
-                    else
-                        Utils.console(moduleName, "TransId["+transactionId+"] Received all votes for trans ["+transactionId+"] - decision is ABORT ...");
-                }
-            }
-            else if (VERBOSE) {
+            
+
+            if (VERBOSE) {
                 var str:String = "";
                 for (x in lateReplicas)
                     str += x + ",";
-                Utils.console(moduleName, "TransId["+transactionId+"] Waiting for votes from places ["+str+"] ");
+                Utils.console(moduleName, "TransId["+transactionId+"] Waiting for votes from places ["+str+"] commitStatus is["+commitStatusDesc(commitStatus)+"] ");
             }
         }
         finally {
@@ -167,9 +152,9 @@ public class MapRequest {
         return result;
     }
     
-    public def completeFailedRequest(outputException:Exception) {
+    public def completeRequest(outputException:Exception) {
         try{
-            if (VERBOSE) Utils.console(moduleName, "Completing failed request: " + this.toString() + "  Reason: " + outputException);
+            if (VERBOSE) Utils.console(moduleName, "Completing request: " + this.toString() + "  Exception: " + outputException);
             responseLock.lock();
             requestStatus = STATUS_COMPLETED;
             outException = outputException;
@@ -199,12 +184,44 @@ public class MapRequest {
     
     public static def typeDesc(typeId:Int):String {
         switch(typeId){
-            case REQ_COMMIT: return "Commit-"+typeId;
-            case REQ_ABORT: return "Abort-"+typeId;
-            case REQ_GET: return "Get-"+typeId;
-            case REQ_PUT: return "Put-"+typeId;
-            case REQ_DELETE: return "Delete-"+typeId;
+        	case REQ_PREPARE_COMMIT: return "PrepareCommit";
+            case REQ_COMMIT: 		 return "Commit";
+            case REQ_ABORT: 	     return "Abort";
+            case REQ_GET: 			 return "Get";
+            case REQ_PUT: 			 return "Put";
+            case REQ_DELETE: 		 return "Delete";
         }
         return "UnknowReqType-"+typeId;
     }
+    
+    public static def commitStatusDesc(commitStatusId:Int):String {
+        switch(commitStatusId){
+        	case UNUSED_COMMIT: 	return "UnusedCommit";
+            case CONFIRM_COMMIT:	return "ConfirmCommit";
+            case CANCELL_COMMIT: 	return "CancelCommit";
+            case CONFIRMATION_SENT: return "ConfirmationSent";
+        }
+        return "UnknownCommitStatus";
+    }
+    
+    
+    /******   CONSTANTS  *******/
+    //request type//
+    public static val REQ_GET:Int = 1n;
+    public static val REQ_PUT:Int = 2n;
+    public static val REQ_DELETE:Int = 3n;
+    public static val REQ_PREPARE_COMMIT:Int = 4n;
+    public static val REQ_COMMIT:Int = 5n;
+    public static val REQ_ABORT:Int = 6n;
+    
+    //Two phase commit status//
+    public static val UNUSED_COMMIT:Int = 0n;
+    public static val CONFIRM_COMMIT:Int = 1n;
+    public static val CANCELL_COMMIT:Int = 2n;
+    public static val CONFIRMATION_SENT:Int = 3n;
+    
+    //Request status//
+    public static val STATUS_STARTED:Int = 1n;
+    public static val STATUS_PENDING_MIGRATION:Int = 2n;
+    public static val STATUS_COMPLETED:Int = 10n;
 }

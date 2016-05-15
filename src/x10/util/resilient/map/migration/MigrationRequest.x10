@@ -1,6 +1,8 @@
 package x10.util.resilient.map.migration;
 
-public class MigrationRequest (partitionId:Long, oldReplicas:Rail[Long], newReplicas:Rail[Long]) {
+import x10.util.HashSet;
+
+public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newReplicas:HashSet[Long]) {
 	
 	public def toString():String {
 		var str:String = "partitionId:"+partitionId + "=> old[";
