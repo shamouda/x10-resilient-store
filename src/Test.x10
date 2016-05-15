@@ -68,6 +68,7 @@ public class Test {
     
     //succeeded
     public static def test04() {
+    	Console.OUT.println("Test 4 started ...");
         val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
         
         try{
@@ -116,6 +117,9 @@ public class Test {
     }
     
     public static def main(args:Rail[String]) {
+    	//DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 ./a.out
+    	test02();
+    	test03();
         test04();
     }
 }

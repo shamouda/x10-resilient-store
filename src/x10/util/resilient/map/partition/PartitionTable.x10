@@ -43,7 +43,6 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         for (i in 0..(replicationFactor-1)){
             replicas.add(new Rail[Long](partitionsCount));
         }
-        
         val nodes = topology.getNodes();
         val nodesCount = nodes.size();
         val lastUsedPlace = new HashMap[Long,Long](); // node-id, last-used-place
@@ -63,8 +62,8 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     val lastPlace = lastUsedPlace.getOrElse(nodeId,-1);
                     var placeFound:Boolean = false;
                     //try all places within the node (don't overload the place that was last used)
-                    for (var i:Long = 1; i < nodePlacesCount; i++) {
-                    	val placeIndex = ( lastPlace + i) % nodePlacesCount;
+                    for (var i:Long = 0; i < nodePlacesCount; i++) {
+                    	val placeIndex = ( lastPlace + i + 1) % nodePlacesCount;
                     	val targetPlace = nodes.get(nodeIndex).places.get(placeIndex);
                     	
                     	//topology.isDeadPlace returns the same result at all places because they 
@@ -129,11 +128,8 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         var obj:HashSet[Long] = null;
         try{
             lock.lock();
-            obj = nodePartitions.getOrElse(nodeId,null);
-            if (obj == null){
-                obj = new HashSet[Long]();
-                nodePartitions.put(nodeId, obj);
-            }
+            obj = nodePartitions.getOrElse(nodeId,new HashSet[Long]());
+            nodePartitions.put(nodeId, obj);
         }
         finally {
             lock.unlock();

@@ -75,31 +75,23 @@ public class DataStore {
             			topology = cachedTopologyPlaceZero;
             		else
             			topology = at (Place(0)) { cachedTopologyPlaceZero } ;
-            
-            			if (topology == null)
-            				throw new TopologyCreationFailedException();
+            		if (topology == null)
+            			throw new TopologyCreationFailedException();
                 
-            			val partitionsCount = topology.getPlacesCount();
-
-                
-            			val leaderNodeIndex = 0;
-            			val placeIndex = 0;
-            			leaderPlace       = topology.getPlaceByIndex(leaderNodeIndex     , placeIndex);
-            			deputyLeaderPlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+            		val partitionsCount = topology.getPlacesCount();
+            		val leaderNodeIndex = 0;
+            		val placeIndex = 0;
+            		leaderPlace       = topology.getPlaceByIndex(leaderNodeIndex     , placeIndex);
+            		deputyLeaderPlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+            		partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
+            		partitionTable.createPartitionTable(topology);
+            		if (VERBOSE && here.id == 0)
+            			partitionTable.printParitionTable();
+            		container = new Replica(partitionTable.getPlacePartitions(here.id));
+            		executor = new ReplicaClient(partitionTable);
+           			initialized = true;
         
-            			partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
-            			partitionTable.createPartitionTable(topology);
-            			
-            			if (VERBOSE && here.id == 0)
-            				partitionTable.printParitionTable();
-            			
-            			container = new Replica(partitionTable.getPlacePartitions(here.id));
-                
-            			executor = new ReplicaClient(partitionTable);
-        
-            			initialized = true;
-        
-            			if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
+           			if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
             	}catch(ex:Exception) {
             		initialized = true;
             		valid = false;
@@ -120,8 +112,10 @@ public class DataStore {
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
         if (here.id == 0) {
+        	Console.OUT.println("A ...");
             val topology = new Topology();
             val gr = GlobalRef[Topology](topology);
+            Console.OUT.println("B ...");
             finish for (p in Place.places()) at (p) async {
                 val placeId = here.id;
                 var name:String = "";
@@ -134,6 +128,7 @@ public class DataStore {
                     atomic gr().addPlace(nodeName, placeId);
                 }
             }
+            Console.OUT.println("C ...");
             return topology;
         }
         return null;
