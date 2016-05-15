@@ -226,6 +226,30 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             Console.OUT.println(p + " => " + str);
         }
     }
+    
+    public def clone():PartitionTable {
+    	val cloneObj = new PartitionTable(partitionsCount, replicationFactor);
+    	cloneObj.replicas.addAll(replicas);
+    	if (nodePartitions != null) {
+    		cloneObj.nodePartitions = new HashMap[Long,HashSet[Long]]();
+    		val iter = nodePartitions.keySet().iterator();
+    		while (iter.hasNext()) {
+    			val key = iter.next();
+    			val value = nodePartitions.getOrThrow(key);
+    			cloneObj.nodePartitions.put(key, value);
+    		}
+    	}
+    	if (placePartitions != null) {
+    		cloneObj.placePartitions = new HashMap[Long,HashSet[Long]]();
+    		val iter2 = placePartitions.keySet().iterator();
+    		while (iter2.hasNext()) {
+    			val key = iter2.next();
+    			val value = placePartitions.getOrThrow(key);
+    			cloneObj.placePartitions.put(key,value);
+    		}
+    	}
+    	return cloneObj;
+    }
 }
 
 

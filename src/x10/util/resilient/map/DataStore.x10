@@ -13,6 +13,7 @@ import x10.util.resilient.map.impl.Replica;
 import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
+import x10.util.resilient.map.migration.MigrationHandler;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {
@@ -54,7 +55,7 @@ public class DataStore {
     
     private val initLock:SimpleLatch = new SimpleLatch();
     
-    private var migrating:Boolean = false;
+    private var migrationHandler:MigrationHandler;
     
     private def this() {
         userMaps = new HashMap[String,ResilientMap]();
@@ -89,6 +90,10 @@ public class DataStore {
             			partitionTable.printParitionTable();
             		container = new Replica(partitionTable.getPlacePartitions(here.id));
             		executor = new ReplicaClient(partitionTable);
+            		
+            		if (here.id == leaderPlace.id || here.id == deputyLeaderPlace.id)
+            			migrationHandler = new MigrationHandler(topology, partitionTable);
+            		
            			initialized = true;
         
            			if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
@@ -108,6 +113,7 @@ public class DataStore {
     public def getReplica() = container;
     public def executor() = executor;
     public def getPartitionTable() = partitionTable;
+    public def getMigrationHandler() = migrationHandler;
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
@@ -172,6 +178,10 @@ public class DataStore {
    
     
     public def clientNotifyDeadPlaces(places:HashSet[Long]) {
+    	var str:String = "";
+    	for (x in places)
+    		str += x + ",";
+    	Console.OUT.println("clientNotifyDeadPlaces: " + str);
     	var targetPlace:Place;
     	if (!leaderPlace.isDead()) {
     		targetPlace = leaderPlace;
@@ -188,20 +198,8 @@ public class DataStore {
     	
     	val clientPlaceId = here.id;
     	at (targetPlace) async {
-    		val ds = DataStore.getInstance();
-    		try {
-    			lock.lock();    			
-    			
-    			
-    			//TODO: add dead places notification
-    			
-    		}
-    		finally{
-    			lock.unlock();
-    		}
-    		
+    		DataStore.getInstance().getMigrationHandler().addRequest(clientPlaceId, places);
     	}
-    	
     }
 
     
@@ -217,7 +215,7 @@ public class DataStore {
         	for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
         		val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
         		if (!candidatePlace.isDead()) {
-        			promoteToDeputyLeader(deputyLeaderPlace);
+        			promoteToDeputyLeader(deputyLeaderPlace, partitionTable, topology);
         			deputyLeaderPlace = candidatePlace;
         			break;
         		}
@@ -227,10 +225,10 @@ public class DataStore {
         }
     }
     
-    private def promoteToDeputyLeader(place:Place) {
+    private def promoteToDeputyLeader(place:Place, partitionTable:PartitionTable, topology:Topology) {
     	at (place) {
     		DataStore.getInstance().deputyLeaderPlace = here;
-    		//TODO: we can also update the partition table and topology here
+    		DataStore.getInstance().migrationHandler = new MigrationHandler(topology, partitionTable);
     	}
     }
 }

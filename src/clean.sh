@@ -13,5 +13,6 @@ x10/util/resilient/map/impl/*.h \
 x10/util/resilient/map/*.cc \
 x10/util/resilient/map/*.h \
 Test.cc \
-Test.h
+Test.h \
+a.out
 

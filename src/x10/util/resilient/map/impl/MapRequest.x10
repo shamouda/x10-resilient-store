@@ -41,10 +41,6 @@ public class MapRequest {
     /*Replicas have not completed request processing*/
     public var lateReplicas:HashSet[Long];
     
-    /*The partition impacted by the request*/
-    //TODO: remove this variable, not useful
-    public var partitionId:Long = -1;
-
     /* Lock used by ResilientMapImpl to wait for the completion of the request*/
     public val lock:SimpleLatch;
     
@@ -65,10 +61,10 @@ public class MapRequest {
         this.replicaResponse = new ArrayList[Any]();
     }
     
-    public def setReplicationInfo(replicas:HashSet[Long], partitionId:Long) {
+    public def setReplicationInfo(replicas:HashSet[Long]) {
         this.replicas = replicas;
-        this.lateReplicas = replicas.clone();
-        this.partitionId = partitionId;
+        if (replicas != null)
+        	this.lateReplicas = replicas.clone();
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {

@@ -33,9 +33,12 @@ public class Utils {
     
     public static def getDeadReplicas(replicas:HashSet[Long]):HashSet[Long] {
     	val result = new HashSet[Long]();
-    	for (x in replicas)
-    		if (Place(x).isDead())
-    			result.add(x);
+    	if (replicas != null) {
+    		for (x in replicas) {
+    			if (Place(x).isDead())
+    				result.add(x);
+    		}
+    	}
     	return result;
     }
     
@@ -48,9 +51,11 @@ public class Utils {
     	if (KILL_PLACE == -1 || Place(KILL_PLACE).isDead())
     		return;
     	
-    	async at(Place(KILL_PLACE)) {
-    		Console.OUT.println("Killing " + here);
-    		System.killHere();
-    	}
+    	try{
+    		async at(Place(KILL_PLACE)) {
+    			Console.OUT.println("Killing " + here);
+    			System.killHere();
+    		}
+    	}catch(ex:Exception) {}
     }
 }

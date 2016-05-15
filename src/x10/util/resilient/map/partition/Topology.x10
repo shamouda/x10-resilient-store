@@ -98,6 +98,14 @@ public class Topology {
     public def isDeadPlace(pId:Long) {
     	return deadPlaces.contains(pId);
     }
+    
+    public def clone():Topology {
+    	val cloneObj = new Topology();
+    	cloneObj.nodes.addAll(nodes);
+    	cloneObj.placesCount = placesCount;
+        cloneObj.deadPlaces.addAll(deadPlaces);
+    	return cloneObj;
+    }
 }
 
 class TopologyNode (id:Long, name:String) {

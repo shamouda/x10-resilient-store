@@ -1,13 +1,22 @@
 package x10.util.resilient.map.migration;
 
 import x10.util.concurrent.SimpleLatch;
-
+import x10.util.HashSet;
+import x10.util.ArrayList;
+import x10.util.resilient.map.partition.Topology;
+import x10.util.resilient.map.partition.PartitionTable;
+import x10.util.resilient.map.DataStore;
+import x10.util.resilient.map.common.Utils;
 /*
  * Responsible for receiving dead place notifications and updating the partition table
  * An object of this class exists only at the Leader and DeputyLeader places
  **/
 public class MigrationHandler {
-    private val pendingRequests = new ArrayList[DeadPlaceNotificationRequest]();
+    private val moduleName = "MigrationHandler";
+    public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+
+    
+    private val pendingRequests = new ArrayList[DeadPlaceNotification]();
     private var migrating:Boolean = false;
     private val lock = new SimpleLatch();
     
@@ -24,7 +33,7 @@ public class MigrationHandler {
     public def addRequest(clientPlace:Long, deadPlaces:HashSet[Long]) {
     	try{
     		lock.lock();
-    		pendingRequest.add(new DeadPlaceNotification(clientPlace, deadPlaces));
+    		pendingRequests.add(new DeadPlaceNotification(clientPlace, deadPlaces));
     		if (!migrating) {
     			migrating = true;
     			async processRequests();
@@ -45,7 +54,6 @@ public class MigrationHandler {
     			}
     		}
     		
-    		
     		migratePartitions();
     		
     		nextReq = nextRequest();
@@ -59,17 +67,20 @@ public class MigrationHandler {
     	//1. Compare the old and new parition tables and generate migration requests
     	val migrationRequests = oldPartitionTable.generateMigrationRequests(partitionTable);
     	
+    	for (req in migrationRequests)
+    		Console.OUT.println(req.toString());
+    	
     	//2. Apply the migration requests (copy from sources to destinations)
     	for (req in migrationRequests) {
     		try {
-    			val src = req.oldReplicas.get(0);
+    			val src = req.oldReplicas.iterator().next();
     			for (dst in req.newReplicas) {
     				at (Place(src)) {
     					//TODO: how to make sure the parition is not being updated while copying it????????????????
-    					val partition = DataStore.getInstance().getReplica().getPartition(req.partitionId);
-    					at (Place(dst)) {
-    						DataStore.getInstance().getReplica().addPartition(partition);
-    					}
+    					//val partition = DataStore.getInstance().getReplica().getPartition(req.partitionId);
+    					//at (Place(dst)) {
+    					//	DataStore.getInstance().getReplica().addPartition(partition);
+    					//}
     				}
     			}
     		}

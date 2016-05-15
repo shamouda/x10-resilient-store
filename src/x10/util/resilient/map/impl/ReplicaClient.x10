@@ -12,9 +12,9 @@ import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
 
-/*
+/**
  * The ReplicaClient receives MapRequests from ResilientMapImpl an execute them on relevant Replicas
- * */
+ **/
 public class ReplicaClient {
     private val moduleName = "ReplicaClient";
     public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
@@ -70,13 +70,19 @@ public class ReplicaClient {
     private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
     	var result:Boolean = true;
         val deadReplicas = Utils.getDeadReplicas(replicas); 
+        Console.OUT.println("notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
         if (deadReplicas.size() != 0) {
         	val notifyList = new HashSet[Long]();
         	for (newDead in deadReplicas) {
-        		if (!notifiedDeadReplicas.contains(newDead))
+        		if (!notifiedDeadReplicas.contains(newDead)) {
         			notifyList.add(newDead);
+        			notifiedDeadReplicas.add(newDead);
+        		}
         	}    		
-        	async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);            	
+        	if (notifyList.size() > 0)
+        		async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
+        	else
+        		if (VERBOSE) Console.OUT.println("Dead places already notified ...");
         }
         else
         	result = false;
@@ -97,9 +103,13 @@ public class ReplicaClient {
         }        
     }
     
+    /**
+     * Start Get/Put/Delete request
+     **/
     private def asyncExecuteSingleKeyRequest(request:MapRequest) {
         val key = request.inKey;
         val repInfo = partitionTable.getKeyReplicas(key);
+        Console.OUT.println("Key["+key+"] replicas are["+repInfo.toString()+"] ");
         val submit = asyncWaitForResponse(request, repInfo.replicas);
         if (submit)
         	submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);
@@ -107,6 +117,9 @@ public class ReplicaClient {
         	if (VERBOSE) Utils.console(moduleName, "Request Held until partition table is updated: " + request.toString());    
     }
     
+    /**
+     * Start prepare commit request
+     **/
     private def asyncExecutePrepareCommit(request:MapRequest) {           
         val transId = request.transactionId;
         val replicas = getTransactionReplicas(transId);
@@ -119,9 +132,12 @@ public class ReplicaClient {
         }
     }
     
+    /**
+     * Start confirm commit request
+     **/
     private def asyncExecuteConfirmCommit(request:MapRequest) {
         val replicas = request.replicas;
-        request.setReplicationInfo(replicas, -1);
+        request.setReplicationInfo(replicas);
         val submit = asyncWaitForResponse(request, replicas);
         if (submit)
         	submitAsyncConfirmCommit(request, replicas);
@@ -131,10 +147,20 @@ public class ReplicaClient {
         } 
     }
     
+    /**
+     * Start abort request
+     **/
     private def asyncExecuteAbort(request:MapRequest) {
     	val transId = request.transactionId;
-        val replicas = getTransactionReplicas(transId);       
+        val replicas = getTransactionReplicas(transId);
         val submit = asyncWaitForResponse(request, replicas);
+        
+        if (replicas == null){
+        	//transaction was not submitted to any replica
+        	request.completeRequest(null);
+        	return;
+        }
+        
         if (submit)
         	submitAsyncExecuteAbort(request, replicas);
         else {
@@ -143,6 +169,7 @@ public class ReplicaClient {
         }        
     }
     
+    /************************  Functions to send requests to Replicas  *****************************/
     
     private def submitSingleKeyRequest(request:MapRequest, replicas:HashSet[Long], partitionId:Long) {
     	if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());    
@@ -152,7 +179,7 @@ public class ReplicaClient {
         val requestType = request.requestType;
         val transId = request.transactionId;
         val gr = GlobalRef[MapRequest](request);
-        request.setReplicationInfo(replicas, partitionId);
+        request.setReplicationInfo(replicas);
         
         var exception:Exception = null;
     	for (placeId in replicas) {
@@ -176,7 +203,7 @@ public class ReplicaClient {
         val transId = request.transactionId;
         val mapName = request.mapName;
         val gr = GlobalRef[MapRequest](request);
-        request.setReplicationInfo(replicas, -1);
+        request.setReplicationInfo(replicas);
         
         var exception:Exception = null;
         for (placeId in replicas) {
@@ -219,7 +246,7 @@ public class ReplicaClient {
         if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());        
         val transId = request.transactionId;
         val gr = GlobalRef[MapRequest](request);
-        request.setReplicationInfo(replicas, -1);
+        request.setReplicationInfo(replicas);
         
         var exception:Exception = null;
         for (placeId in replicas) {
@@ -237,7 +264,6 @@ public class ReplicaClient {
     }
     
     /************************  Functions to Add and Monitor Requests  *****************************/
-    /*********************************************************************************************/
     
     /**
      * Returns true if all replicas are active
@@ -329,22 +355,20 @@ public class ReplicaClient {
                             checkTimeout = false;
                         }
                     }
-                    
                     if (checkTimeout) {
-                    	if (Timer.milliTime() - mapReq.startTimeMillis > mapReq.startTimeMillis) {
+                    	if (Timer.milliTime() - mapReq.startTimeMillis > mapReq.timeoutMillis) {
                     		mapReq.completeRequest(new RequestTimeoutException());    
                     		mapReq.lock.release();
                     		pendingRequests.removeAt(i);
                     		i--;
                     	}
-                    	else {
+                    	else if (mapReq.lateReplicas != null) {
                     		val deadReplicas = Utils.getDeadReplicas(mapReq.lateReplicas);
                     		if (deadReplicas.size() != 0) {
                     			val deadPlaceId = Utils.getDeadReplicas(deadReplicas).iterator().next(); 
-                    			mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));                            
+                    			mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));       
                     			mapReq.lock.release();
-                    			pendingRequests.removeAt(i);
-                    			i--;
+                    			pendingRequests.removeAt(i--);
                     		}
                     	}
                     }
