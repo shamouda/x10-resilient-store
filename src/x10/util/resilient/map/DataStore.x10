@@ -87,7 +87,7 @@ public class DataStore {
             		partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
             		partitionTable.createPartitionTable(topology);
             		if (VERBOSE && here.id == 0)
-            			partitionTable.printParitionTable();
+            			partitionTable.printPartitionTable();
             		container = new Replica(partitionTable.getPlacePartitions(here.id));
             		executor = new ReplicaClient(partitionTable);
             		
@@ -118,11 +118,9 @@ public class DataStore {
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
         if (here.id == 0) {
-        	Console.OUT.println("A ...");
             val topology = new Topology();
             val gr = GlobalRef[Topology](topology);
-            Console.OUT.println("B ...");
-            finish for (p in Place.places()) at (p) async {
+            finish for (p in Place.places()) at (p) {
                 val placeId = here.id;
                 var name:String = "";
                 if (FORCE_ONE_PLACE_PER_NODE)
