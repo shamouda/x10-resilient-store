@@ -39,6 +39,11 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * retrieved from leader/deputyLeader place
      */
     public def createPartitionTable(topology:Topology) {
+    	if (here.id == 0) {
+    		topology.printTopology();
+    		topology.printDeadPlaces();
+    	}
+    		
     	replicas.clear();
         for (i in 0..(replicationFactor-1)){
             replicas.add(new Rail[Long](partitionsCount));
@@ -73,7 +78,6 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     		lastUsedPlace.put(nodeId, placeIndex);
                     		getPlacePartitions(targetPlace.id).add(p);
                     		nodePartitions.add(p);
-                    		if (VERBOSE) Utils.console(moduleName, "partition:"+p + "   r:" + r + "   nIndex:"+nodeIndex + "   nodeId:"+nodeId + "   lastPlace:" + lastPlace + "  placeIndex:"+placeIndex);
                     		placeFound = true;
                     		break;
                     	}
@@ -106,7 +110,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                 var str:String = "";
                 while (iter2.hasNext())
                     str += iter2.next() + " - ";
-                Console.OUT.println(key + "->>> " + str);
+                Console.OUT.println("Node"+key + "->>> Part-" + str);
             }
         
         
@@ -119,7 +123,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                 var str:String = "";
                 while (iter2.hasNext())
                     str += iter2.next() + " - ";
-                Console.OUT.println(key + "->>> " + str);
+                Console.OUT.println("Place"+key + "->>> Part-" + str);
             }
         }
     }
@@ -173,32 +177,40 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * Compares two parition tables and generates migration requests
      **/
     public def generateMigrationRequests(updatedTable:PartitionTable):ArrayList[MigrationRequest] {
+    	Console.OUT.println("%%%   Old Table   %%%");
+    	printPartitionTable();
+    	Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
+    	
+    	Console.OUT.println("%%%   New Table   %%%");
+    	updatedTable.printPartitionTable();
+    	Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
     	val result = new ArrayList[MigrationRequest]();
     	try {
     		lock.lock();
     		for (var p:Long = 0; p < partitionsCount; p++) {
-    			val samePlaces = new HashSet[Long]();
+    			val hostPlaces = new HashSet[Long]();
     			val newPlaces = new HashSet[Long]();
     			for (var new_r:Long = 0; new_r < replicationFactor; new_r++) {
     				var found:Boolean = false;
     				for (var old_r:Long = 0; old_r < replicationFactor; old_r++) {
-    					if (replicas.get(new_r)(p) == updatedTable.replicas.get(old_r)(p)) {
+    					if (replicas.get(old_r)(p) == updatedTable.replicas.get(new_r)(p)) {
     						found = true;
-    						samePlaces.add(replicas.get(new_r)(p));
+    						hostPlaces.add(replicas.get(new_r)(p));
     						break;
     					}
     				}
     				if (!found){
-    					newPlaces.add(replicas.get(new_r)(p));
+    					newPlaces.add(updatedTable.replicas.get(new_r)(p));
     				}
     			}
     			
-    			if (samePlaces.size() == 0)
+    			if (hostPlaces.size() == 0)
     				throw new InvalidDataStoreException();
     			
-    			result.add(new MigrationRequest(p, samePlaces, newPlaces));    			
+    			if (newPlaces.size() > 0)    			
+    				result.add(new MigrationRequest(p, hostPlaces, newPlaces));    			
     		}
-    	}finally {
+    	} finally {
     		lock.unlock();
     	}
     	return result;
@@ -216,7 +228,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         return result;
     }
     
-    public def printParitionTable() {
+    public def printPartitionTable() {
         Utils.console(moduleName, "Parition places");
         for (var p:Long = 0; p < partitionsCount; p++) {
             var str:String = "";
