@@ -8,6 +8,7 @@ import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.ReplicationFailureException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.resilient.map.migration.MigrationRequest;
+import x10.util.concurrent.AtomicLong;
 
 /*
  * The partition table maps each partition to the places that contain it.
@@ -33,7 +34,11 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
     
     //maps a placeId to partitions it hosts 
     private var placePartitions:HashMap[Long,HashSet[Long]];
-     
+    
+    private val version:AtomicLong = new AtomicLong(0);
+    
+    public def getVersion() = version.get();
+    
     /* Creates the partition replica mapping
      * When places die, this method should be called with an updated topology 
      * retrieved from leader/deputyLeader place
@@ -261,6 +266,34 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
     		}
     	}
     	return cloneObj;
+    }
+    
+    public def update(newTable:PartitionTable) {
+    	lock.lock();
+    	for (var r:Long = 0; r < replicationFactor; r++) {
+    		for (var p:Long = 0; p < partitionsCount; p++) {
+    			replicas.get(r)(p) = newTable.replicas.get(r)(p) ; 
+    		}
+    	}
+    	nodePartitions.clear();
+    	
+    	val iter = newTable.nodePartitions.keySet().iterator();
+		while (iter.hasNext()) {
+			val key = iter.next();
+			val value = newTable.nodePartitions.getOrThrow(key);
+			nodePartitions.put(key, value);
+		}
+		
+		placePartitions.clear();
+    	
+    	val iter2 = newTable.placePartitions.keySet().iterator();
+		while (iter2.hasNext()) {
+			val key = iter2.next();
+			val value = newTable.placePartitions.getOrThrow(key);
+			placePartitions.put(key, value);
+		}    	
+    	lock.unlock();    	
+    	version.incrementAndGet();
     }
 }
 

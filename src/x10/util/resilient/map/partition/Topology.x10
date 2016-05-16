@@ -107,6 +107,14 @@ public class Topology {
     	return cloneObj;
     }
     
+    public def update(newTopology:Topology) {
+    	nodes.clear();
+    	nodes.addAll(newTopology.nodes);
+    	placesCount = newTopology.placesCount;
+    	deadPlaces.clear();
+    	deadPlaces.addAll(newTopology.deadPlaces);
+    }
+    
     public def printDeadPlaces() {
     	for (x in deadPlaces)
     		Console.OUT.println("Topology dead place ["+x+"] ....");	
