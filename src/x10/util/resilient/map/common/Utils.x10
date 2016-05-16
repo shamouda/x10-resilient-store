@@ -42,6 +42,12 @@ public class Utils {
     	return result;
     }
     
+    public static def hashSetToString(set:HashSet[Long]):String {
+    	var result:String = "";
+    	for (x in set)
+    		result += x + ",";
+    	return result;
+    }
     
     public static val KILL_PLACE = Utils.getEnvLong("KILL_PLACE", -1);
     public static val KILL_PLACE_POINT = Utils.getEnvLong("KILL_PLACE_POINT", -1);
