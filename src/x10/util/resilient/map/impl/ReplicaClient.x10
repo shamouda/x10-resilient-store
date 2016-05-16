@@ -209,7 +209,7 @@ public class ReplicaClient {
         for (placeId in replicas) {
             try{
                 at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().submitPrepareCommit(mapName, transId, gr);
+                    DataStore.getInstance().getReplica().prepareCommit(mapName, transId, gr);
                 }
             }
             catch (ex:Exception) {
@@ -231,7 +231,7 @@ public class ReplicaClient {
     	for (placeId in replicas) {
     		try{
     			at (Place(placeId)) async {
-    				DataStore.getInstance().getReplica().submitConfirmCommit(mapName, transId, gr);
+    				DataStore.getInstance().getReplica().commitNoResponse(mapName, transId, gr);
     			}
     		}
     		catch (ex:Exception) {
@@ -252,7 +252,7 @@ public class ReplicaClient {
         for (placeId in replicas) {
             try{
                 at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().submitAbort(transId, gr);
+                    DataStore.getInstance().getReplica().abortNoResponse(transId, gr);
                 }
             }
             catch (ex:Exception) {
