@@ -5,18 +5,20 @@ import x10.util.concurrent.SimpleLatch;
 import x10.util.Timer;
 
 public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newReplicas:HashSet[Long]) {
-	private val lock:SimpleLatch = new SimpleLatch();
+	private var completed:Boolean = false;
     private var startTimeMillis:Long = -1;
 
-    public def wait() {
+    public def start() {
     	startTimeMillis = Timer.milliTime();
-    	lock.await();
     }
     
     public def complete() {
-    	lock.release();
+    	completed = true;
     }
 
+    public def isComplete() = completed;
+    public def isTimeOut(limit:Long) = (Timer.milliTime()-startTimeMillis) > limit;
+    
 	public def toString():String {
 		var str:String = "partitionId:"+partitionId + "=> old[";
 	    for (x in oldReplicas)

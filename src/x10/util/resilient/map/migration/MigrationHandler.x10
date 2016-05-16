@@ -14,7 +14,8 @@ import x10.util.resilient.map.common.Utils;
 public class MigrationHandler {
     private val moduleName = "MigrationHandler";
     public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-
+    public static val MIGRATION_TIMEOUT_LIMIT = Utils.getEnvLong("MIGRATION_TIMEOUT_LIMIT", 100);
+    
     
     private val pendingRequests = new ArrayList[DeadPlaceNotification]();
     private var migrating:Boolean = false;
@@ -33,7 +34,9 @@ public class MigrationHandler {
     public def addRequest(clientPlace:Long, deadPlaces:HashSet[Long]) {
     	try{
     		lock.lock();
-    		pendingRequests.add(new DeadPlaceNotification(clientPlace, deadPlaces));
+    		val impactedClients = new HashSet[Long]();
+    		impactedClients.add(clientPlace);
+    		pendingRequests.add(new DeadPlaceNotification(impactedClients, deadPlaces));
     		if (!migrating) {
     			migrating = true;
     			async processRequests();
@@ -46,6 +49,7 @@ public class MigrationHandler {
     public def processRequests() {
     	var nextReq:DeadPlaceNotification = nextRequest();
     	var newDeadPlaces:Boolean = false;
+        val impactedClients = new HashSet[Long](); 
     	while(nextReq != null){
     		for (p in nextReq.deadPlaces){
     			if (!topology.isDeadPlace(p)) {
@@ -53,16 +57,23 @@ public class MigrationHandler {
     				newDeadPlaces = true;
     			}
     		}
-    		
+    		var success:Boolean = true;
     		if (newDeadPlaces)
-    			migratePartitions();
-    		
-    		nextReq = nextRequest();
-    	}
+    			success = migratePartitions();
+    		if (success) {
+    			impactedClients.addAll(nextReq.impactedClients);
+    			/*get next request if the current one is successful*/
+    			nextReq = nextRequest();
+    		}
+    	}   	
+    	
+    	DataStore.getInstance().updateLeader(topology, partitionTable);    	
+    	DataStore.getInstance().updatePlaces(impactedClients);
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
     private def migratePartitions() {
+    	var success:Boolean = true;
     	partitionTable.createPartitionTable(topology);
     	val oldPartitionTable = DataStore.getInstance().getPartitionTable();
     	//1. Compare the old and new parition tables and generate migration requests
@@ -75,23 +86,45 @@ public class MigrationHandler {
     	for (req in migrationRequests) {
     		try {
     			val src = req.oldReplicas.iterator().next();
-    			for (dst in req.newReplicas) {
-    				at (Place(src)) {
-    					//TODO: how to make sure the parition is not being updated while copying it????????????????
-    					//val partition = DataStore.getInstance().getReplica().getPartition(req.partitionId);
-    					//at (Place(dst)) {
-    					//	DataStore.getInstance().getReplica().addPartition(partition);
-    					//}
-    				}
+    			val destinations = req.newReplicas;
+    			val partitionId = req.partitionId;
+    			val gr = GlobalRef[MigrationRequest](req);
+    			req.start();
+    			at (Place(src)) async {
+    				DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);    					
     			}
     		}
     		catch(ex:Exception) {
-    			
+    			ex.printStackTrace();
     		}
-    	}    	
+    	}
+    	success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+    	return success;
     }
     
-    
+    //TODO: add timeout limit
+    private def waitForMigrationCompletion(requests:ArrayList[MigrationRequest], timeoutLimit:Long):Boolean {
+	    var allComplete:Boolean = true;
+    	do {
+    		allComplete = true;
+    		for (req in requests) {
+    			if (!req.isComplete()) {
+    				allComplete = false;
+    				if (req.isTimeOut(timeoutLimit)){
+    					break;
+    				}
+    			}
+    		}
+    		
+    		if (allComplete)
+    			break;
+    		
+    		System.threadSleep(10);
+    		
+    	} while (!allComplete);
+    	
+    	return allComplete;
+    }
     
     public def isMigrating() {
     	var result:Boolean = false;
@@ -112,11 +145,15 @@ public class MigrationHandler {
     		if (pendingRequests.size() > 0) {
     			//combine all requests into one
     			val allDeadPlaces = new HashSet[Long]();
-    			for (curReq in pendingRequests)
+    			val allClients = new HashSet[Long]();
+    			
+    			for (curReq in pendingRequests) {
     				allDeadPlaces.addAll(curReq.deadPlaces);
+    				allClients.addAll(curReq.impactedClients);
+    			}
     			
     			pendingRequests.clear();
-    			result = new DeadPlaceNotification(-1, allDeadPlaces);
+    			result = new DeadPlaceNotification(allClients, allDeadPlaces);
     		}
     		else
     			migrating = false;
@@ -129,5 +166,5 @@ public class MigrationHandler {
     
 }
 
-class DeadPlaceNotification (clientPlace:Long, deadPlaces:HashSet[Long]) {}
+class DeadPlaceNotification (impactedClients:HashSet[Long], deadPlaces:HashSet[Long]) {}
 
