@@ -54,7 +54,8 @@ public class MigrationHandler {
     			}
     		}
     		
-    		migratePartitions();
+    		if (newDeadPlaces)
+    			migratePartitions();
     		
     		nextReq = nextRequest();
     	}
