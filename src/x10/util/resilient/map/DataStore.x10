@@ -38,7 +38,7 @@ public class DataStore {
     private var executor:ReplicaClient;
     
     //container for the data partitions, null for non-members
-    private var container:Replica;
+    private var replica:Replica;
     
     //pointers to the different application maps
     private var userMaps:HashMap[String,ResilientMap];
@@ -88,7 +88,7 @@ public class DataStore {
             		partitionTable.createPartitionTable(topology);
             		if (VERBOSE && here.id == 0)
             			partitionTable.printPartitionTable();
-            		container = new Replica(partitionTable.getPlacePartitions(here.id));
+            		replica = new Replica(partitionTable.getPlacePartitions(here.id));
             		executor = new ReplicaClient(partitionTable);
             		
             		if (here.id == leaderPlace.id || here.id == deputyLeaderPlace.id)
@@ -110,10 +110,11 @@ public class DataStore {
     }
     
     
-    public def getReplica() = container;
+    public def getReplica() = replica;
     public def executor() = executor;
     public def getPartitionTable() = partitionTable;
     public def getMigrationHandler() = migrationHandler;
+    public def isLeader() = here.id == leaderPlace.id;
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
@@ -124,7 +125,7 @@ public class DataStore {
                 val placeId = here.id;
                 var name:String = "";
                 if (FORCE_ONE_PLACE_PER_NODE)
-                    name = Runtime.getName();
+                    name = Runtime.getName(); //use process name as node name
                 else
                     name = Runtime.getName().split("@")(1);
                 val nodeName = name;
@@ -132,7 +133,6 @@ public class DataStore {
                     atomic gr().addPlace(nodeName, placeId);
                 }
             }
-            Console.OUT.println("C ...");
             return topology;
         }
         return null;
@@ -160,7 +160,7 @@ public class DataStore {
             lock.lock();
             var resilientMap:ResilientMap = userMaps.getOrElse(mapName,null);
             if (resilientMap == null){
-                container.addMap(mapName);
+                replica.addMap(mapName);
                 resilientMap = new ResilientMapImpl(mapName, timeoutMillis);
                 userMaps.put(mapName, resilientMap);
             }
@@ -168,7 +168,6 @@ public class DataStore {
             lock.unlock();
         }
     }
-   
     
     public def printTopology(){
         topology.printTopology();
@@ -176,10 +175,7 @@ public class DataStore {
    
     
     public def clientNotifyDeadPlaces(places:HashSet[Long]) {
-    	var str:String = "";
-    	for (x in places)
-    		str += x + ",";
-    	Console.OUT.println("clientNotifyDeadPlaces: " + str);
+    	if (VERBOSE) Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places));
     	var targetPlace:Place;
     	if (!leaderPlace.isDead()) {
     		targetPlace = leaderPlace;
@@ -199,28 +195,50 @@ public class DataStore {
     		DataStore.getInstance().getMigrationHandler().addRequest(clientPlaceId, places);
     	}
     }
-
     
-    private def promoteHereToLeader() {
-        leaderPlace       = here;
-        deputyLeaderPlace = here;
-        
-        //try to appoint a deputy leader
-        try{
-        	val leaderNodeIndex = topology.getNodeIndex(here.id);
-        	val nodesCount = topology.getNodesCount();
-        	val placeIndex = 0;
-        	for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
-        		val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
-        		if (!candidatePlace.isDead()) {
-        			promoteToDeputyLeader(deputyLeaderPlace, partitionTable, topology);
-        			deputyLeaderPlace = candidatePlace;
-        			break;
-        		}
-        	}
-        }catch(ex:Exception) {
-        	ex.printStackTrace();
-        }
+    
+    public def updateLeader(topology:Topology, partitionTable:PartitionTable) {
+    	this.topology.update(topology);
+    	this.partitionTable.update(partitionTable);
+    	if (leaderPlace.isDead()) {
+    		leaderPlace = here;
+    		deputyLeaderPlace = findNewDeputyLeader();
+   			at (deputyLeaderPlace) {
+   				updateClient (leaderPlace, here, topology, partitionTable);
+   			}
+    	}
+    }
+    
+    public def updatePlaces(places:HashSet[Long]) {
+    	val leader = leaderPlace;
+    	val deputyLeader = deputyLeaderPlace;
+    	val tmpTopology = topology;
+    	val tmpPartitionTable = partitionTable;
+    	finish for (targetClient in places) at (Place(targetClient)) async {
+    		updateClient(leader, deputyLeader, tmpTopology, tmpPartitionTable);
+    	}
+    }
+
+    public def updateClient(leader:Place, deputyLeader:Place, topology:Topology, partitionTable:PartitionTable) {
+    	this.leaderPlace = leader;
+    	this.deputyLeaderPlace = deputyLeader;
+    	this.topology.update(topology);
+    	this.partitionTable.update(partitionTable);
+    }
+    
+    public def findNewDeputyLeader():Place {
+    	var newDeputyLeader:Place = here;        
+       	val leaderNodeIndex = topology.getNodeIndex(here.id);
+       	val nodesCount = topology.getNodesCount();
+       	val placeIndex = 0;
+       	for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
+      		val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+       		if (!candidatePlace.isDead()) {
+       			newDeputyLeader = candidatePlace;
+      			break;
+       		}
+       	}
+       	return newDeputyLeader;
     }
     
     private def promoteToDeputyLeader(place:Place, partitionTable:PartitionTable, topology:Topology) {
