@@ -106,6 +106,11 @@ public class Topology {
         cloneObj.deadPlaces.addAll(deadPlaces);
     	return cloneObj;
     }
+    
+    public def printDeadPlaces() {
+    	for (x in deadPlaces)
+    		Console.OUT.println("Topology dead place ["+x+"] ....");	
+    }
 }
 
 class TopologyNode (id:Long, name:String) {
