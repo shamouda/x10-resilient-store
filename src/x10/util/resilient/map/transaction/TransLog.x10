@@ -114,5 +114,17 @@ public class TransLog {
     
     public def getKeysCache() = cache;
     
+    
+    public def isPartitionUsedForUpdate(partitionId:Long) {
+    	val iter = cache.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val key = iter.next();
+    		val keyLog = cache.getOrThrow(key);
+    		if (keyLog.getPartitionId() == partitionId && !keyLog.readOnly()) {
+    			return true;
+    		}
+    	}
+        return false;
+    }
 
 }
