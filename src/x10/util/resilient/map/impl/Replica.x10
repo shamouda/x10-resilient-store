@@ -57,17 +57,11 @@ public class Replica {
     }
     
     private def createPartitions(partitionIds:HashSet[Long]) {
-    	try{
-    		partitionsLock.lock();
-    		val iter = partitionIds.iterator();
-    		while (iter.hasNext()) {
-    			val id = iter.next();
-    			partitions.put(id,new Partition(id));
-    		}
-    	} 
-    	finally{
-        	partitionsLock.unlock();
-        }
+    	val iter = partitionIds.iterator();
+    	while (iter.hasNext()) {
+    		val id = iter.next();
+    		partitions.put(id,new Partition(id));
+    	}
     }
     
     private def getVersionValue(partitionId:Long, mapName:String, key:Any):VersionValue {
@@ -483,7 +477,7 @@ public class Replica {
     	}
     }
     
-    public def movePartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
+    public def copyPartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
     	do {
     		try{
     			transactionsLock.lock();
