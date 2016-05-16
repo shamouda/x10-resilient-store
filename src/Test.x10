@@ -26,7 +26,7 @@ public class Test {
         
         val partitionTable = new PartitionTable(topology.getPlacesCount(), 3);
         partitionTable.createPartitionTable(topology);
-        partitionTable.printParitionTable();
+        partitionTable.printPartitionTable();
     }
     
     public static def test02() {
