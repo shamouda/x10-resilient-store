@@ -21,7 +21,6 @@ public class ReplicaClient {
     
     /*Copy of the parition table*/
     private var partitionTable:PartitionTable;
-    private var partitionTableVersion:Long = 1;
 
     private val pendingRequests:ArrayList[MapRequest];
     
@@ -51,17 +50,6 @@ public class ReplicaClient {
             lock.unlock();
         }
     }
-
-    public def updatePartitionTable(p:PartitionTable) {
-        try{
-            lock.lock();
-            partitionTableVersion++;
-            partitionTable = p;
-        }
-        finally {
-            lock.unlock();
-        }
-    }   
     
     /**
      * Checks if any of the provided replicas is dead, and notifies the master place
@@ -289,7 +277,7 @@ public class ReplicaClient {
             }
             else{
             	req.requestStatus = MapRequest.STATUS_PENDING_MIGRATION;
-            	req.oldPartitionTableVersion = partitionTableVersion;  // don't submit untill the partition table is updated
+            	req.oldPartitionTableVersion = partitionTable.getVersion();  // don't submit untill the partition table is updated
             	result = false;        	
             }
             
@@ -335,7 +323,7 @@ public class ReplicaClient {
                         checkTimeout = false;
                     }
                     else if (mapReq.requestStatus == MapRequest.STATUS_PENDING_MIGRATION && 
-                    		mapReq.oldPartitionTableVersion != partitionTableVersion) {
+                    		mapReq.oldPartitionTableVersion != partitionTable.getVersion()) {
                     	mapReq.requestStatus = MapRequest.STATUS_STARTED;
                     	resubmitList.add(mapReq);
                     	pendingRequests.removeAt(i--);
