@@ -7,7 +7,7 @@ import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.ReplicationFailureException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
-import x10.util.resilient.map.migration.MigrationRequest;
+import x10.util.resilient.map.impl.migration.MigrationRequest;
 import x10.util.concurrent.AtomicLong;
 
 /*
@@ -44,12 +44,12 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * retrieved from leader/deputyLeader place
      */
     public def createPartitionTable(topology:Topology) {
-    	if (here.id == 0) {
-    		topology.printTopology();
-    		topology.printDeadPlaces();
-    	}
-    		
-    	replicas.clear();
+        if (here.id == 0) {
+            topology.printTopology();
+            topology.printDeadPlaces();
+        }
+            
+        replicas.clear();
         for (i in 0..(replicationFactor-1)){
             replicas.add(new Rail[Long](partitionsCount));
         }
@@ -73,24 +73,24 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     var placeFound:Boolean = false;
                     //try all places within the node (don't overload the place that was last used)
                     for (var i:Long = 0; i < nodePlacesCount; i++) {
-                    	val placeIndex = ( lastPlace + i + 1) % nodePlacesCount;
-                    	val targetPlace = nodes.get(nodeIndex).places.get(placeIndex);
-                    	
-                    	//topology.isDeadPlace returns the same result at all places because they 
-                    	//use the same 'topology' object
-                    	if (!topology.isDeadPlace(targetPlace.id)) {
-                    		replicas.get(replicaIndex++)(p) = targetPlace.id;
-                    		lastUsedPlace.put(nodeId, placeIndex);
-                    		getPlacePartitions(targetPlace.id).add(p);
-                    		nodePartitions.add(p);
-                    		placeFound = true;
-                    		break;
-                    	}
+                        val placeIndex = ( lastPlace + i + 1) % nodePlacesCount;
+                        val targetPlace = nodes.get(nodeIndex).places.get(placeIndex);
+                        
+                        //topology.isDeadPlace returns the same result at all places because they 
+                        //use the same 'topology' object
+                        if (!topology.isDeadPlace(targetPlace.id)) {
+                            replicas.get(replicaIndex++)(p) = targetPlace.id;
+                            lastUsedPlace.put(nodeId, placeIndex);
+                            getPlacePartitions(targetPlace.id).add(p);
+                            nodePartitions.add(p);
+                            placeFound = true;
+                            break;
+                        }
                     }
                     if (!placeFound) {
-                    	//some places are dead in this node, try the next one
-                    	d++;
-                    	r--; 
+                        //some places are dead in this node, try the next one
+                        d++;
+                        r--; 
                     }
                 }
                 
@@ -182,43 +182,43 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * Compares two parition tables and generates migration requests
      **/
     public def generateMigrationRequests(updatedTable:PartitionTable):ArrayList[MigrationRequest] {
-    	Console.OUT.println("%%%   Old Table   %%%");
-    	printPartitionTable();
-    	Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
-    	
-    	Console.OUT.println("%%%   New Table   %%%");
-    	updatedTable.printPartitionTable();
-    	Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
-    	val result = new ArrayList[MigrationRequest]();
-    	try {
-    		lock.lock();
-    		for (var p:Long = 0; p < partitionsCount; p++) {
-    			val hostPlaces = new HashSet[Long]();
-    			val newPlaces = new HashSet[Long]();
-    			for (var new_r:Long = 0; new_r < replicationFactor; new_r++) {
-    				var found:Boolean = false;
-    				for (var old_r:Long = 0; old_r < replicationFactor; old_r++) {
-    					if (replicas.get(old_r)(p) == updatedTable.replicas.get(new_r)(p)) {
-    						found = true;
-    						hostPlaces.add(replicas.get(new_r)(p));
-    						break;
-    					}
-    				}
-    				if (!found){
-    					newPlaces.add(updatedTable.replicas.get(new_r)(p));
-    				}
-    			}
-    			
-    			if (hostPlaces.size() == 0)
-    				throw new InvalidDataStoreException();
-    			
-    			if (newPlaces.size() > 0)    			
-    				result.add(new MigrationRequest(p, hostPlaces, newPlaces));    			
-    		}
-    	} finally {
-    		lock.unlock();
-    	}
-    	return result;
+        Console.OUT.println("%%%   Old Table   %%%");
+        printPartitionTable();
+        Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
+        
+        Console.OUT.println("%%%   New Table   %%%");
+        updatedTable.printPartitionTable();
+        Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
+        val result = new ArrayList[MigrationRequest]();
+        try {
+            lock.lock();
+            for (var p:Long = 0; p < partitionsCount; p++) {
+                val hostPlaces = new HashSet[Long]();
+                val newPlaces = new HashSet[Long]();
+                for (var new_r:Long = 0; new_r < replicationFactor; new_r++) {
+                    var found:Boolean = false;
+                    for (var old_r:Long = 0; old_r < replicationFactor; old_r++) {
+                        if (replicas.get(old_r)(p) == updatedTable.replicas.get(new_r)(p)) {
+                            found = true;
+                            hostPlaces.add(replicas.get(new_r)(p));
+                            break;
+                        }
+                    }
+                    if (!found){
+                        newPlaces.add(updatedTable.replicas.get(new_r)(p));
+                    }
+                }
+                
+                if (hostPlaces.size() == 0)
+                    throw new InvalidDataStoreException();
+                
+                if (newPlaces.size() > 0)                
+                    result.add(new MigrationRequest(p, hostPlaces, newPlaces));                
+            }
+        } finally {
+            lock.unlock();
+        }
+        return result;
     }
     
     private def getPartitionId(key:Any) : Long {
@@ -245,55 +245,55 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
     }
     
     public def clone():PartitionTable {
-    	val cloneObj = new PartitionTable(partitionsCount, replicationFactor);
-    	cloneObj.replicas.addAll(replicas);
-    	if (nodePartitions != null) {
-    		cloneObj.nodePartitions = new HashMap[Long,HashSet[Long]]();
-    		val iter = nodePartitions.keySet().iterator();
-    		while (iter.hasNext()) {
-    			val key = iter.next();
-    			val value = nodePartitions.getOrThrow(key);
-    			cloneObj.nodePartitions.put(key, value);
-    		}
-    	}
-    	if (placePartitions != null) {
-    		cloneObj.placePartitions = new HashMap[Long,HashSet[Long]]();
-    		val iter2 = placePartitions.keySet().iterator();
-    		while (iter2.hasNext()) {
-    			val key = iter2.next();
-    			val value = placePartitions.getOrThrow(key);
-    			cloneObj.placePartitions.put(key,value);
-    		}
-    	}
-    	return cloneObj;
+        val cloneObj = new PartitionTable(partitionsCount, replicationFactor);
+        cloneObj.replicas.addAll(replicas);
+        if (nodePartitions != null) {
+            cloneObj.nodePartitions = new HashMap[Long,HashSet[Long]]();
+            val iter = nodePartitions.keySet().iterator();
+            while (iter.hasNext()) {
+                val key = iter.next();
+                val value = nodePartitions.getOrThrow(key);
+                cloneObj.nodePartitions.put(key, value);
+            }
+        }
+        if (placePartitions != null) {
+            cloneObj.placePartitions = new HashMap[Long,HashSet[Long]]();
+            val iter2 = placePartitions.keySet().iterator();
+            while (iter2.hasNext()) {
+                val key = iter2.next();
+                val value = placePartitions.getOrThrow(key);
+                cloneObj.placePartitions.put(key,value);
+            }
+        }
+        return cloneObj;
     }
     
     public def update(newTable:PartitionTable) {
-    	lock.lock();
-    	for (var r:Long = 0; r < replicationFactor; r++) {
-    		for (var p:Long = 0; p < partitionsCount; p++) {
-    			replicas.get(r)(p) = newTable.replicas.get(r)(p) ; 
-    		}
-    	}
-    	nodePartitions.clear();
-    	
-    	val iter = newTable.nodePartitions.keySet().iterator();
-		while (iter.hasNext()) {
-			val key = iter.next();
-			val value = newTable.nodePartitions.getOrThrow(key);
-			nodePartitions.put(key, value);
-		}
-		
-		placePartitions.clear();
-    	
-    	val iter2 = newTable.placePartitions.keySet().iterator();
-		while (iter2.hasNext()) {
-			val key = iter2.next();
-			val value = newTable.placePartitions.getOrThrow(key);
-			placePartitions.put(key, value);
-		}    	
-    	lock.unlock();    	
-    	version.incrementAndGet();
+        lock.lock();
+        for (var r:Long = 0; r < replicationFactor; r++) {
+            for (var p:Long = 0; p < partitionsCount; p++) {
+                replicas.get(r)(p) = newTable.replicas.get(r)(p) ; 
+            }
+        }
+        nodePartitions.clear();
+        
+        val iter = newTable.nodePartitions.keySet().iterator();
+        while (iter.hasNext()) {
+            val key = iter.next();
+            val value = newTable.nodePartitions.getOrThrow(key);
+            nodePartitions.put(key, value);
+        }
+        
+        placePartitions.clear();
+        
+        val iter2 = newTable.placePartitions.keySet().iterator();
+        while (iter2.hasNext()) {
+            val key = iter2.next();
+            val value = newTable.placePartitions.getOrThrow(key);
+            placePartitions.put(key, value);
+        }        
+        lock.unlock();        
+        version.incrementAndGet();
     }
 }
 

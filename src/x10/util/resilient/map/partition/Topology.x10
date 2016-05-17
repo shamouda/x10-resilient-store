@@ -15,7 +15,7 @@ import x10.util.resilient.map.impl.ResilientMapImpl;
  * TODO: support spare nodes
  * */
 public class Topology {
-	/*List of main nodes*/
+    /*List of main nodes*/
     private val nodes:ArrayList[TopologyNode] = new ArrayList[TopologyNode]();
     
     /*The number of main places*/
@@ -76,8 +76,8 @@ public class Topology {
     /*Finds the index of a node, given a place in it*/
     public def getNodeIndex(placeId:Long):Long {
         for (var i:Long = 0; i < nodes.size(); i++) {
-        	if (nodes.get(i).containsPlace(placeId))
-        		return i;
+            if (nodes.get(i).containsPlace(placeId))
+                return i;
         }
         return -1;
     }
@@ -91,38 +91,38 @@ public class Topology {
     
     /*Adds a dead place*/
     public def addDeadPlace(pId:Long){
-    	deadPlaces.add(pId);
+        deadPlaces.add(pId);
     }
     
     /*Checks if a place is dead*/    
     public def isDeadPlace(pId:Long) {
-    	return deadPlaces.contains(pId);
+        return deadPlaces.contains(pId);
     }
     
     public def clone():Topology {
-    	val cloneObj = new Topology();
-    	cloneObj.nodes.addAll(nodes);
-    	cloneObj.placesCount = placesCount;
+        val cloneObj = new Topology();
+        cloneObj.nodes.addAll(nodes);
+        cloneObj.placesCount = placesCount;
         cloneObj.deadPlaces.addAll(deadPlaces);
-    	return cloneObj;
+        return cloneObj;
     }
     
     public def update(newTopology:Topology) {
-    	nodes.clear();
-    	nodes.addAll(newTopology.nodes);
-    	placesCount = newTopology.placesCount;
-    	deadPlaces.clear();
-    	deadPlaces.addAll(newTopology.deadPlaces);
+        nodes.clear();
+        nodes.addAll(newTopology.nodes);
+        placesCount = newTopology.placesCount;
+        deadPlaces.clear();
+        deadPlaces.addAll(newTopology.deadPlaces);
     }
     
     public def printDeadPlaces() {
-    	for (x in deadPlaces)
-    		Console.OUT.println("Topology dead place ["+x+"] ....");	
+        for (x in deadPlaces)
+            Console.OUT.println("Topology dead place ["+x+"] ....");    
     }
 }
 
 class TopologyNode (id:Long, name:String) {
-	
+    
     /*List of node places*/
     public val places:ArrayList[Place] = new ArrayList[Place]();
     
@@ -132,7 +132,7 @@ class TopologyNode (id:Long, name:String) {
     }
     
     public def containsPlace(placeId:Long) {
-    	return places.contains(Place(placeId));
+        return places.contains(Place(placeId));
     }
     
     public def toString():String {

@@ -32,21 +32,21 @@ public class Utils {
     }
     
     public static def getDeadReplicas(replicas:HashSet[Long]):HashSet[Long] {
-    	val result = new HashSet[Long]();
-    	if (replicas != null) {
-    		for (x in replicas) {
-    			if (Place(x).isDead())
-    				result.add(x);
-    		}
-    	}
-    	return result;
+        val result = new HashSet[Long]();
+        if (replicas != null) {
+            for (x in replicas) {
+                if (Place(x).isDead())
+                    result.add(x);
+            }
+        }
+        return result;
     }
     
     public static def hashSetToString(set:HashSet[Long]):String {
-    	var result:String = "";
-    	for (x in set)
-    		result += x + ",";
-    	return result;
+        var result:String = "";
+        for (x in set)
+            result += x + ",";
+        return result;
     }
     
     public static val KILL_PLACE = Utils.getEnvLong("KILL_PLACE", -1);
@@ -54,14 +54,14 @@ public class Utils {
     public static val POINT_BEGIN_ASYNC_EXEC_REQUEST = 1;
     
     public static def asyncKillPlace() {
-    	if (KILL_PLACE == -1 || Place(KILL_PLACE).isDead())
-    		return;
-    	
-    	try{
-    		async at(Place(KILL_PLACE)) {
-    			Console.OUT.println("Killing " + here);
-    			System.killHere();
-    		}
-    	}catch(ex:Exception) {}
+        if (KILL_PLACE == -1 || Place(KILL_PLACE).isDead())
+            return;
+        
+        try{
+            async at(Place(KILL_PLACE)) {
+                Console.OUT.println("Killing " + here);
+                System.killHere();
+            }
+        }catch(ex:Exception) {}
     }
 }

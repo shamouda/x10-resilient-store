@@ -4,7 +4,7 @@ import x10.util.HashMap;
 import x10.util.resilient.map.common.Utils;
 
 public class TransKeyLog {
-	/*The version of the value when the transaction started*/
+    /*The version of the value when the transaction started*/
     private val initVersion:Int;
 
     /*A copy of the value, used to isolate the transaction updates for the actual value*/

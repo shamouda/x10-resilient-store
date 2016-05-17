@@ -5,7 +5,7 @@ import x10.util.concurrent.AtomicInteger;
 /*A container for a value and its version*/
 public class VersionValue {
     
-	private val version:AtomicInteger = new AtomicInteger(-1n);
+    private val version:AtomicInteger = new AtomicInteger(-1n);
     private var value:Any;
    
     /*Update the value and increment its version*/

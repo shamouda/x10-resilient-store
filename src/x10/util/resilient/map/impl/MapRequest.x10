@@ -64,7 +64,7 @@ public class MapRequest {
     public def setReplicationInfo(replicas:HashSet[Long]) {
         this.replicas = replicas;
         if (replicas != null)
-        	this.lateReplicas = replicas.clone();
+            this.lateReplicas = replicas.clone();
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
@@ -85,7 +85,7 @@ public class MapRequest {
                 replicaResponse.add(output);
             
             if (lateReplicas.size() == 0) {
-            	requestStatus = STATUS_COMPLETED;
+                requestStatus = STATUS_COMPLETED;
                 if (outException == null)
                     outValue = replicaResponse.get(0);
             }
@@ -111,7 +111,7 @@ public class MapRequest {
             lateReplicas.remove(replicaPlaceId);
             
             if (vote == 0)
-            	commitStatus = CANCELL_COMMIT;
+                commitStatus = CANCELL_COMMIT;
             else if (lateReplicas.size() == 0 && commitStatus != CANCELL_COMMIT) //vote==1
                 commitStatus = CONFIRM_COMMIT;
             
@@ -180,21 +180,21 @@ public class MapRequest {
     
     public static def typeDesc(typeId:Int):String {
         switch(typeId){
-        	case REQ_PREPARE_COMMIT: return "PrepareCommit";
-            case REQ_COMMIT: 		 return "Commit";
-            case REQ_ABORT: 	     return "Abort";
-            case REQ_GET: 			 return "Get";
-            case REQ_PUT: 			 return "Put";
-            case REQ_DELETE: 		 return "Delete";
+            case REQ_PREPARE_COMMIT: return "PrepareCommit";
+            case REQ_COMMIT:          return "Commit";
+            case REQ_ABORT:          return "Abort";
+            case REQ_GET:              return "Get";
+            case REQ_PUT:              return "Put";
+            case REQ_DELETE:          return "Delete";
         }
         return "UnknowReqType-"+typeId;
     }
     
     public static def commitStatusDesc(commitStatusId:Int):String {
         switch(commitStatusId){
-        	case UNUSED_COMMIT: 	return "UnusedCommit";
-            case CONFIRM_COMMIT:	return "ConfirmCommit";
-            case CANCELL_COMMIT: 	return "CancelCommit";
+            case UNUSED_COMMIT:     return "UnusedCommit";
+            case CONFIRM_COMMIT:    return "ConfirmCommit";
+            case CANCELL_COMMIT:     return "CancelCommit";
             case CONFIRMATION_SENT: return "ConfirmationSent";
         }
         return "UnknownCommitStatus";

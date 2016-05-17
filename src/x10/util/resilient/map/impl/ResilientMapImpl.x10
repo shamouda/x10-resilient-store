@@ -30,7 +30,7 @@ public class ResilientMapImpl implements ResilientMap {
     public def tryOperation(requestType:Int,key:Any, value:Any):Any {
         var attempt:Long = 0;
         var result:Any = null;
-    	var succeeded:Boolean = false;
+        var succeeded:Boolean = false;
         var commitException:Exception = null; 
         do {
             if (VERBOSE) Utils.console(moduleName,"$$= Running attempt ["+(attempt+1)+"/"+RETRY_MAX+"] for request ["+MapRequest.typeDesc(requestType)+"] =$$");
@@ -48,12 +48,12 @@ public class ResilientMapImpl implements ResilientMap {
                 succeeded = true;
                 break;
             } catch(ex:Exception) {
-            	commitException = ex;
+                commitException = ex;
                 if (VERBOSE) ex.printStackTrace();
                 try {
                     abortTransaction(txId);                    
                 }catch(abortEx:Exception) {
-                	if (VERBOSE) abortEx.printStackTrace();
+                    if (VERBOSE) abortEx.printStackTrace();
                 }
             }
             attempt ++;
@@ -61,7 +61,7 @@ public class ResilientMapImpl implements ResilientMap {
         } while (attempt < RETRY_MAX);
         
         if (!succeeded)
-        	throw commitException;
+            throw commitException;
         return result;
     }
     

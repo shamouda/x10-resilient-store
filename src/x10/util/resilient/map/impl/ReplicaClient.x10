@@ -56,31 +56,31 @@ public class ReplicaClient {
      * Returns true if any replica is dead
      **/
     private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
-    	var result:Boolean = true;
+        var result:Boolean = true;
         val deadReplicas = Utils.getDeadReplicas(replicas); 
         Console.OUT.println("notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
         if (deadReplicas.size() != 0) {
-        	val notifyList = new HashSet[Long]();
-        	for (newDead in deadReplicas) {
-        		if (!notifiedDeadReplicas.contains(newDead)) {
-        			notifyList.add(newDead);
-        			notifiedDeadReplicas.add(newDead);
-        		}
-        	}    		
-        	if (notifyList.size() > 0)
-        		async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
-        	else
-        		if (VERBOSE) Console.OUT.println("Dead places already notified ...");
+            val notifyList = new HashSet[Long]();
+            for (newDead in deadReplicas) {
+                if (!notifiedDeadReplicas.contains(newDead)) {
+                    notifyList.add(newDead);
+                    notifiedDeadReplicas.add(newDead);
+                }
+            }            
+            if (notifyList.size() > 0)
+                async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
+            else
+                if (VERBOSE) Console.OUT.println("Dead places already notified ...");
         }
         else
-        	result = false;
+            result = false;
         return result;
     }
     
     public def asyncExecuteRequest(request:MapRequest) {
-    	if (Utils.KILL_PLACE_POINT == Utils.POINT_BEGIN_ASYNC_EXEC_REQUEST)
-    		Utils.asyncKillPlace();
-    	
+        if (Utils.KILL_PLACE_POINT == Utils.POINT_BEGIN_ASYNC_EXEC_REQUEST)
+            Utils.asyncKillPlace();
+        
         switch(request.requestType) {
             case MapRequest.REQ_GET:    asyncExecuteSingleKeyRequest(request); break;
             case MapRequest.REQ_PUT:    asyncExecuteSingleKeyRequest(request); break;
@@ -100,9 +100,9 @@ public class ReplicaClient {
         Console.OUT.println("Key["+key+"] replicas are["+repInfo.toString()+"] ");
         val submit = asyncWaitForResponse(request, repInfo.replicas);
         if (submit)
-        	submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);
+            submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);
         else
-        	if (VERBOSE) Utils.console(moduleName, "Request Held until partition table is updated: " + request.toString());    
+            if (VERBOSE) Utils.console(moduleName, "Request Held until partition table is updated: " + request.toString());    
     }
     
     /**
@@ -113,10 +113,10 @@ public class ReplicaClient {
         val replicas = getTransactionReplicas(transId);
         val submit = asyncWaitForResponse(request, replicas);
         if (submit)
-        	submitAsyncPrepareCommit(request, replicas);
+            submitAsyncPrepareCommit(request, replicas);
         else {
             val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
-        	request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
+            request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
         }
     }
     
@@ -128,10 +128,10 @@ public class ReplicaClient {
         request.setReplicationInfo(replicas);
         val submit = asyncWaitForResponse(request, replicas);
         if (submit)
-        	submitAsyncConfirmCommit(request, replicas);
+            submitAsyncConfirmCommit(request, replicas);
         else {
-        	val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
-        	request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
+            val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
+            request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
         } 
     }
     
@@ -139,29 +139,29 @@ public class ReplicaClient {
      * Start abort request
      **/
     private def asyncExecuteAbort(request:MapRequest) {
-    	val transId = request.transactionId;
+        val transId = request.transactionId;
         val replicas = getTransactionReplicas(transId);
         val submit = asyncWaitForResponse(request, replicas);
         
         if (replicas == null){
-        	//transaction was not submitted to any replica
-        	request.completeRequest(null);
-        	return;
+            //transaction was not submitted to any replica
+            request.completeRequest(null);
+            return;
         }
         
         if (submit)
-        	submitAsyncExecuteAbort(request, replicas);
+            submitAsyncExecuteAbort(request, replicas);
         else {
-        	val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
-        	request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
+            val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
+            request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
         }        
     }
     
     /************************  Functions to send requests to Replicas  *****************************/
     
     private def submitSingleKeyRequest(request:MapRequest, replicas:HashSet[Long], partitionId:Long) {
-    	if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());    
-    	val key = request.inKey;
+        if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());    
+        val key = request.inKey;
         val value = request.inValue;
         val mapName = request.mapName;
         val requestType = request.requestType;
@@ -170,19 +170,19 @@ public class ReplicaClient {
         request.setReplicationInfo(replicas);
         
         var exception:Exception = null;
-    	for (placeId in replicas) {
+        for (placeId in replicas) {
             try{
                 at (Place(placeId)) async {
                     DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, here.id, partitionId, transId, requestType, key, value, gr);
                 }
             }
             catch (ex:Exception) {
-            	exception = ex;
+                exception = ex;
                 break;
             }
         }
-    	if (exception != null)
-    		request.completeRequest(exception);
+        if (exception != null)
+            request.completeRequest(exception);
     }
     
     private def submitAsyncPrepareCommit(request:MapRequest, replicas:HashSet[Long]) {
@@ -201,33 +201,33 @@ public class ReplicaClient {
                 }
             }
             catch (ex:Exception) {
-            	exception = ex;
+                exception = ex;
                 break;
             }
         }
         if (exception != null)
-    		request.completeRequest(exception);
+            request.completeRequest(exception);
     }
     
     private def submitAsyncConfirmCommit(request:MapRequest, replicas:HashSet[Long]) {
-    	if (VERBOSE) Utils.console(moduleName, "Submitting ConfirmCommit for request: " + request.toString());    
-    	val transId = request.transactionId;
+        if (VERBOSE) Utils.console(moduleName, "Submitting ConfirmCommit for request: " + request.toString());    
+        val transId = request.transactionId;
         val mapName = request.mapName;
         val gr = GlobalRef[MapRequest](request);
         
-    	var exception:Exception = null;
-    	for (placeId in replicas) {
-    		try{
-    			at (Place(placeId)) async {
-    				DataStore.getInstance().getReplica().commitNoResponse(mapName, transId, gr);
-    			}
-    		}
-    		catch (ex:Exception) {
-    			exception = ex;
-    		}
-    	}
-    	//Ignore exceptions
-    	request.completeRequest(null);
+        var exception:Exception = null;
+        for (placeId in replicas) {
+            try{
+                at (Place(placeId)) async {
+                    DataStore.getInstance().getReplica().commitNoResponse(mapName, transId, gr);
+                }
+            }
+            catch (ex:Exception) {
+                exception = ex;
+            }
+        }
+        //Ignore exceptions
+        request.completeRequest(null);
     }
     
     private def submitAsyncExecuteAbort(request:MapRequest, replicas:HashSet[Long]) {
@@ -257,7 +257,7 @@ public class ReplicaClient {
      * Returns true if all replicas are active
      * */
     private def asyncWaitForResponse(req:MapRequest, replicas:HashSet[Long]):Boolean {
-    	var result:Boolean = true;
+        var result:Boolean = true;
         try{
             lock.lock();            
             
@@ -268,17 +268,17 @@ public class ReplicaClient {
             val deadPlacesFound = notifyDeadPlaces(replicas);
             
             if (!deadPlacesFound) {
-            	if (! (req.requestType == MapRequest.REQ_COMMIT || req.requestType == MapRequest.REQ_ABORT)) {
-            		//append to the transaction replicas (needed for commit)//
-            		var set:HashSet[Long] = transReplicas.getOrElse(req.transactionId,new HashSet[Long]());
-            		set.addAll(replicas);
-               		transReplicas.put(req.transactionId,set);
-            	}
+                if (! (req.requestType == MapRequest.REQ_COMMIT || req.requestType == MapRequest.REQ_ABORT)) {
+                    //append to the transaction replicas (needed for commit)//
+                    var set:HashSet[Long] = transReplicas.getOrElse(req.transactionId,new HashSet[Long]());
+                    set.addAll(replicas);
+                       transReplicas.put(req.transactionId,set);
+                }
             }
             else{
-            	req.requestStatus = MapRequest.STATUS_PENDING_MIGRATION;
-            	req.oldPartitionTableVersion = partitionTable.getVersion();  // don't submit untill the partition table is updated
-            	result = false;        	
+                req.requestStatus = MapRequest.STATUS_PENDING_MIGRATION;
+                req.oldPartitionTableVersion = partitionTable.getVersion();  // don't submit untill the partition table is updated
+                result = false;            
             }
             
             if (!timerOn){
@@ -303,10 +303,10 @@ public class ReplicaClient {
      **/
     private def checkPendingTransactions() {
         while (timerOn) {
-        	
-        	//requests that were pending until migration completes
-        	val resubmitList = new ArrayList[MapRequest]();
-        	
+            
+            //requests that were pending until migration completes
+            val resubmitList = new ArrayList[MapRequest]();
+            
             System.threadSleep(10);
             try{
                 lock.lock();
@@ -323,16 +323,16 @@ public class ReplicaClient {
                         checkTimeout = false;
                     }
                     else if (mapReq.requestStatus == MapRequest.STATUS_PENDING_MIGRATION && 
-                    		mapReq.oldPartitionTableVersion != partitionTable.getVersion()) {
-                    	mapReq.requestStatus = MapRequest.STATUS_STARTED;
-                    	resubmitList.add(mapReq);
-                    	pendingRequests.removeAt(i--);
+                            mapReq.oldPartitionTableVersion != partitionTable.getVersion()) {
+                        mapReq.requestStatus = MapRequest.STATUS_STARTED;
+                        resubmitList.add(mapReq);
+                        pendingRequests.removeAt(i--);
                         checkTimeout = false;
                     }
                     else if (mapReq.requestType == MapRequest.REQ_PREPARE_COMMIT) {
                         if (mapReq.commitStatus == MapRequest.CONFIRM_COMMIT) {
-                        	mapReq.requestType = MapRequest.REQ_COMMIT;
-                        	resubmitList.add(mapReq);
+                            mapReq.requestType = MapRequest.REQ_COMMIT;
+                            resubmitList.add(mapReq);
                             pendingRequests.removeAt(i--);
                             checkTimeout = false;
                         }
@@ -344,21 +344,21 @@ public class ReplicaClient {
                         }
                     }
                     if (checkTimeout) {
-                    	if (Timer.milliTime() - mapReq.startTimeMillis > mapReq.timeoutMillis) {
-                    		mapReq.completeRequest(new RequestTimeoutException());    
-                    		mapReq.lock.release();
-                    		pendingRequests.removeAt(i);
-                    		i--;
-                    	}
-                    	else if (mapReq.lateReplicas != null) {
-                    		val deadReplicas = Utils.getDeadReplicas(mapReq.lateReplicas);
-                    		if (deadReplicas.size() != 0) {
-                    			val deadPlaceId = Utils.getDeadReplicas(deadReplicas).iterator().next(); 
-                    			mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));       
-                    			mapReq.lock.release();
-                    			pendingRequests.removeAt(i--);
-                    		}
-                    	}
+                        if (Timer.milliTime() - mapReq.startTimeMillis > mapReq.timeoutMillis) {
+                            mapReq.completeRequest(new RequestTimeoutException());    
+                            mapReq.lock.release();
+                            pendingRequests.removeAt(i);
+                            i--;
+                        }
+                        else if (mapReq.lateReplicas != null) {
+                            val deadReplicas = Utils.getDeadReplicas(mapReq.lateReplicas);
+                            if (deadReplicas.size() != 0) {
+                                val deadPlaceId = Utils.getDeadReplicas(deadReplicas).iterator().next(); 
+                                mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));       
+                                mapReq.lock.release();
+                                pendingRequests.removeAt(i--);
+                            }
+                        }
                     }
                     
                 }//for loop on pendingRequests
@@ -373,7 +373,7 @@ public class ReplicaClient {
             
             //resubmit the requests that were pending on migration or on commit confirmation
             for (req in resubmitList) {
-            	asyncExecuteRequest(req);
+                asyncExecuteRequest(req);
             }
         }
     }
