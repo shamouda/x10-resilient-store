@@ -10,7 +10,6 @@ import x10.util.resilient.map.impl.ResilientMapImpl;
  * A topology object contains information about the available nodes and their places.
  * Place 0 communicates with all places to collect the topology information, 
  * then it forwards the topology object to all places. 
- * No changes are expected on the topology during run time.
  * 
  * TODO: support spare nodes
  * */

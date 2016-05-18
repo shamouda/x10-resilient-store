@@ -23,3 +23,10 @@ Serialization:
 Test Cases:
  - Stress Testing
  - Performance Benchmarking
+ 
+ 
+- Migration:
+  How to suspend transactions while migrating????
+  
+- Before issuing a request, if replicas are dead,  make the user wait till migration is complete !!!!
+Should we better throw an exception here

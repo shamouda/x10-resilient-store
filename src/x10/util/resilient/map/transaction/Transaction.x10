@@ -8,8 +8,8 @@ import x10.util.resilient.map.common.Utils;
  * Used to log the changes in key values by a single transaction
  * The object is expected to be used by only one thread
  * */
-public class TransLog {
-    private val moduleName = "TransLog";
+public class Transaction {
+    private val moduleName = "Transaction";
     public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     
     /*Transaction Id*/
@@ -73,7 +73,7 @@ public class TransLog {
     }
     
     /*Checks if two transactions are conflicting*/
-    public def isConflicting (other:TransLog):Boolean {
+    public def isConflicting (other:Transaction):Boolean {
         var result:Boolean = false;
         val overlap = getOverlappingKeys(other);
         for (key in overlap){
@@ -88,7 +88,7 @@ public class TransLog {
     }
     
     /*Returns a list of keys used by the two transactions*/
-    private def getOverlappingKeys(other:TransLog):ArrayList[Any] {
+    private def getOverlappingKeys(other:Transaction):ArrayList[Any] {
         val iter = cache.keySet().iterator();
         val list = new ArrayList[Any]();
         while (iter.hasNext()){

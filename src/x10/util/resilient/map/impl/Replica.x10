@@ -8,7 +8,7 @@ import x10.util.HashMap;
 import x10.util.HashSet;
 import x10.util.Timer;
 import x10.util.resilient.map.common.Utils;
-import x10.util.resilient.map.transaction.TransLog;
+import x10.util.resilient.map.transaction.Transaction;
 import x10.util.resilient.map.exception.CommitedTransactionCanNotBeAbortedException;
 import x10.util.resilient.map.exception.TransactionNotFoundException;
 import x10.util.resilient.map.exception.TransactionAbortedException;
@@ -33,7 +33,7 @@ public class Replica {
     public static val READY_NO:Long = 0;
     
     // Dummy transaction log used to replace aborted/commited transactions
-    private static val DUMMY_TRANSACTION = new TransLog(-1, -1, -1); 
+    private static val DUMMY_TRANSACTION = new Transaction(-1, -1, -1); 
     
     //transaction_status::transactions
     private val transactions:HashMap[Int,TransactionsMap];
@@ -244,7 +244,7 @@ public class Replica {
     public def abortNoResponse(transId:Long, responseGR:GlobalRef[MapRequest]) {
         try{
             transactionsLock.lock();
-            var transLog:TransLog = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
+            var transLog:Transaction = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
             if (transLog == null) {
                 transLog = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
                 if (transLog == null) {
@@ -268,8 +268,8 @@ public class Replica {
     }
     
     
-    private def getOrAddActiveTransaction(transId:Long, clientId:Long):TransLog {
-        var result:TransLog = null;
+    private def getOrAddActiveTransaction(transId:Long, clientId:Long):Transaction {
+        var result:Transaction = null;
         try{
             transactionsLock.lock();
             result = transactions.getOrThrow(TRANS_ACTIVE).transMap.getOrElse(transId,null);
@@ -279,7 +279,7 @@ public class Replica {
                 val z = transactions.getOrThrow(TRANS_ABORTED).transMap.getOrElse(transId,null);
                 
                 if (x == null && y == null && z == null) {
-                    result = new TransLog(transId,Timer.milliTime(), clientId);
+                    result = new Transaction(transId,Timer.milliTime(), clientId);
                     transactions.getOrThrow(TRANS_ACTIVE).transMap.put(transId,result);
                     if (!timerOn)
                         timerOn = true;
@@ -292,8 +292,8 @@ public class Replica {
         return result;
     }
     
-    private def getTransactionLog(status:Int, transId:Long):TransLog {
-        var result:TransLog = null;
+    private def getTransactionLog(status:Int, transId:Long):Transaction {
+        var result:Transaction = null;
         try{
             transactionsLock.lock();
             result = transactions.getOrThrow(status).transMap.getOrElse(transId,null);
@@ -319,7 +319,7 @@ public class Replica {
     }
     
     //assumes the current transaction is Active
-    private def readyToCommit(mapName:String, transLog:TransLog):Boolean {
+    private def readyToCommit(mapName:String, transLog:Transaction):Boolean {
         var ready:Boolean = true;
         try{
             transactionsLock.lock();
@@ -361,7 +361,7 @@ public class Replica {
         return ready;
     }
     
-    private def conflictingWithReadyTransaction(transLog:TransLog):Boolean {
+    private def conflictingWithReadyTransaction(transLog:Transaction):Boolean {
         var result:Boolean = false;
         val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
         val iter = readyTransMap.keySet().iterator();
@@ -382,7 +382,7 @@ public class Replica {
      * If another transaction commited after my transaction started, 
      * the current values can be different from the values read by my transaction.
      * */
-    private def sameInitialVersions(mapName:String, transLog:TransLog):Boolean {
+    private def sameInitialVersions(mapName:String, transLog:Transaction):Boolean {
         var result:Boolean = true;
         val map = transLog.getKeysCache();
         val iter = map.keySet().iterator();
@@ -406,8 +406,8 @@ public class Replica {
         return result;
     }
     
-    private def getConflictingActiveTransactions(transLog:TransLog):ConflictReport {
-        val conflictList = new ArrayList[TransLog]();
+    private def getConflictingActiveTransactions(transLog:Transaction):ConflictReport {
+        val conflictList = new ArrayList[Transaction]();
         var maxTransId:Long = transLog.transId;
         val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
         val iter = activeTransMap.keySet().iterator();
@@ -545,13 +545,13 @@ public class Replica {
 }
 
 class TransactionsMap {
-    public val transMap:HashMap[Long,TransLog] = new HashMap[Long,TransLog]();
+    public val transMap:HashMap[Long,Transaction] = new HashMap[Long,Transaction]();
 }
 
 class ConflictReport {
-    public val otherTransactions:ArrayList[TransLog];
+    public val otherTransactions:ArrayList[Transaction];
     public val maxTransId:Long;
-    public def this(list:ArrayList[TransLog], maxId:Long) {
+    public def this(list:ArrayList[Transaction], maxId:Long) {
         this.otherTransactions = list;
         this.maxTransId = maxId;
     }

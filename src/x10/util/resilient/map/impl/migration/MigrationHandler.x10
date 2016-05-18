@@ -16,7 +16,6 @@ public class MigrationHandler {
     public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val MIGRATION_TIMEOUT_LIMIT = Utils.getEnvLong("MIGRATION_TIMEOUT_LIMIT", 100);
     
-    
     private val pendingRequests = new ArrayList[DeadPlaceNotification]();
     private var migrating:Boolean = false;
     private val lock = new SimpleLatch();
@@ -24,7 +23,6 @@ public class MigrationHandler {
     //clones of the original objects in the DataStore class
     private val partitionTable:PartitionTable;
     private val topology:Topology;
-    
     
     public def this(topology:Topology, partitionTable:PartitionTable) {
         this.partitionTable = partitionTable.clone();

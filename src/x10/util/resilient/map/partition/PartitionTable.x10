@@ -182,13 +182,13 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * Compares two parition tables and generates migration requests
      **/
     public def generateMigrationRequests(updatedTable:PartitionTable):ArrayList[MigrationRequest] {
-        Console.OUT.println("%%%   Old Table   %%%");
-        printPartitionTable();
-        Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
-        
-        Console.OUT.println("%%%   New Table   %%%");
-        updatedTable.printPartitionTable();
-        Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
+        if (VERBOSE) {
+            Console.OUT.println("%%%   Old Table   %%%");
+            printPartitionTable();        
+            Console.OUT.println("%%%   New Table   %%%");
+            updatedTable.printPartitionTable();
+            Console.OUT.println("%%%%%%%%%%%%%%%%%%%%%%");
+        }
         val result = new ArrayList[MigrationRequest]();
         try {
             lock.lock();
