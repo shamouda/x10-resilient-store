@@ -198,53 +198,66 @@ public class DataStore {
     
     
     public def updateLeader(topology:Topology, partitionTable:PartitionTable) {
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status ...");
         this.topology.update(topology);
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
         this.partitionTable.update(partitionTable);
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
+        
         if (leaderPlace.isDead()) {
             leaderPlace = here;
             deputyLeaderPlace = findNewDeputyLeader();
             at (deputyLeaderPlace) {
-                updateClient (leaderPlace, here, topology, partitionTable);
+                updateClient (leaderPlace, here, topology);
             }
+        }
+        else {
+            if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - no need to change the leader, I am still alive ...");
         }
     }
     
+    /**
+     * This function should be called only form the leader or deputy leader places
+     * It updates the state of other places with the same state at the leader or deputy leader
+     **/
     public def updatePlaces(places:HashSet[Long]) {
-        val leader = leaderPlace;
-        val deputyLeader = deputyLeaderPlace;
+        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ...");
+        val tmpLeader = leaderPlace;
+        val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
-        val tmpPartitionTable = partitionTable;
         finish for (targetClient in places) at (Place(targetClient)) async {
-            updateClient(leader, deputyLeader, tmpTopology, tmpPartitionTable);
+            DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
         }
     }
 
-    public def updateClient(leader:Place, deputyLeader:Place, topology:Topology, partitionTable:PartitionTable) {
+    /**
+     * Update my place with the updated state of leader, deputyLeader and topology
+     * No need to pass in the partition table, it can be re-created using the topology object
+     **/
+    public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
         this.leaderPlace = leader;
         this.deputyLeaderPlace = deputyLeader;
         this.topology.update(topology);
-        this.partitionTable.update(partitionTable);
+        this.partitionTable.createPartitionTable(this.topology);
+        if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated ...");
     }
     
+    /**
+     * Find a new place that can serve as a deputy leader
+     **/
     public def findNewDeputyLeader():Place {
         var newDeputyLeader:Place = here;        
-           val leaderNodeIndex = topology.getNodeIndex(here.id);
-           val nodesCount = topology.getNodesCount();
-           val placeIndex = 0;
-           for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
-              val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
-               if (!candidatePlace.isDead()) {
-                   newDeputyLeader = candidatePlace;
-                  break;
-               }
-           }
-           return newDeputyLeader;
+        val leaderNodeIndex = topology.getNodeIndex(here.id);
+        val nodesCount = topology.getNodesCount();
+        val placeIndex = 0;
+        for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
+            val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+            if (!candidatePlace.isDead()) {
+                newDeputyLeader = candidatePlace;
+                break;
+            }
+        }
+        return newDeputyLeader;
     }
     
-    private def promoteToDeputyLeader(place:Place, partitionTable:PartitionTable, topology:Topology) {
-        at (place) {
-            DataStore.getInstance().deputyLeaderPlace = here;
-            DataStore.getInstance().migrationHandler = new MigrationHandler(topology, partitionTable);
-        }
-    }
 }

@@ -104,6 +104,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             }
         }
         
+        version.incrementAndGet();
         
         if (VERBOSE) { 
             Utils.console(moduleName, "Node partitions ");

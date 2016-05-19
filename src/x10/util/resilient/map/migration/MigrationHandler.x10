@@ -71,9 +71,6 @@ public class MigrationHandler {
                 /*get next request if the current one is successful*/
                 nextReq = nextRequest();
             }
-            else if (VERBOSE) {
-                Utils.console(moduleName, "");
-            }
         }       
         
         DataStore.getInstance().updateLeader(topology, partitionTable);        
@@ -81,7 +78,7 @@ public class MigrationHandler {
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
-    private def migratePartitions() {
+    private def migratePartitions():Boolean {
         var success:Boolean = true;
         partitionTable.createPartitionTable(topology);
         val oldPartitionTable = DataStore.getInstance().getPartitionTable();
@@ -96,11 +93,9 @@ public class MigrationHandler {
                 val destinations = req.newReplicas;
                 val partitionId = req.partitionId;
                 val gr = GlobalRef[MigrationRequest](req);
-                
                 if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... ");
                 req.start();
                 at (Place(src)) async {
-                    Console.OUT.println("Dummy here: " + here + "==============================");
                     DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
                 }
             }
@@ -109,6 +104,7 @@ public class MigrationHandler {
             }
         }
         success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+        if (VERBOSE) Utils.console(moduleName, "Migration completed with successStatus = ["+success+"] ...");
         return success;
     }
     
@@ -129,6 +125,7 @@ public class MigrationHandler {
             if (allComplete)
                 break;
             
+            if (VERBOSE) Utils.console(moduleName, "waiting for migration to complete ...");
             System.threadSleep(10);
             
         } while (!allComplete);
