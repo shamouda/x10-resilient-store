@@ -3,16 +3,22 @@ package x10.util.resilient.map.migration;
 import x10.util.HashSet;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.Timer;
+import x10.util.resilient.map.common.Utils;
 
 public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newReplicas:HashSet[Long]) {
+    private val moduleName = "MigrationHandler";
+    public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+    
     private var completed:Boolean = false;
     private var startTimeMillis:Long = -1;
 
     public def start() {
         startTimeMillis = Timer.milliTime();
+        if (VERBOSE) Utils.console(moduleName, "migration request for partitionId["+partitionId+"] started at ["+startTimeMillis+"]");
     }
     
     public def complete() {
+        if (VERBOSE) Utils.console(moduleName, "migration request for partitionId["+partitionId+"] is complete");
         completed = true;
     }
 

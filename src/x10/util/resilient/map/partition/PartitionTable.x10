@@ -200,7 +200,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     for (var old_r:Long = 0; old_r < replicationFactor; old_r++) {
                         if (replicas.get(old_r)(p) == updatedTable.replicas.get(new_r)(p)) {
                             found = true;
-                            hostPlaces.add(replicas.get(new_r)(p));
+                            hostPlaces.add(replicas.get(old_r)(p));
                             break;
                         }
                     }
@@ -217,6 +217,13 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             }
         } finally {
             lock.unlock();
+        }
+        
+        if (VERBOSE) {
+            Utils.console(moduleName, "Printing migration requests:");
+            for (req in result) {
+                Utils.console(moduleName, req.toString());
+            }
         }
         return result;
     }

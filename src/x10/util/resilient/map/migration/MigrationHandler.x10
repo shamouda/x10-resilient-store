@@ -88,18 +88,19 @@ public class MigrationHandler {
         //1. Compare the old and new parition tables and generate migration requests
         val migrationRequests = oldPartitionTable.generateMigrationRequests(partitionTable);
         
-        for (req in migrationRequests)
-            Console.OUT.println(req.toString());
-        
         //2. Apply the migration requests (copy from sources to destinations)
         for (req in migrationRequests) {
+            if (VERBOSE) Utils.console(moduleName, "Handling migration request: " + req.toString());
             try {
                 val src = req.oldReplicas.iterator().next();
                 val destinations = req.newReplicas;
                 val partitionId = req.partitionId;
                 val gr = GlobalRef[MigrationRequest](req);
+                
+                if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... ");
                 req.start();
                 at (Place(src)) async {
+                    Console.OUT.println("Dummy here: " + here + "==============================");
                     DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
                 }
             }

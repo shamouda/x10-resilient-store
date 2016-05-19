@@ -467,31 +467,35 @@ public class Replica {
     /**
      * Migrating a partition to here
      **/
-    public def addPartition(partition:Partition) {
+    public def addPartition(id:Long, maps:HashMap[String, HashMap[Any,VersionValue]]) {
+        if (VERBOSE) Utils.console(moduleName, "Adding partition , waiting for partitions lock ...");
         try{
             partitionsLock.lock();
-            partitions.put(partition.id, partition);
+            val partition = new Partition(id, maps);
+            partitions.put(id, partition);
         }
         finally{
             partitionsLock.unlock();
         }
+        if (VERBOSE) Utils.console(moduleName, "Adding partition succeeded ...");
     }
     
     public def copyPartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
+        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] ...");
         do {
             try{
                 transactionsLock.lock();
-                
+                if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ...");
                 if (!isPartitionUsedForUpdate(partitionId)) {
-                    
                     partitionsLock.lock();
                     try{
                         val partition = partitions.getOrThrow(partitionId);
-                            
-                        finish for (placeId in destPlaces) {
-                            at (Place(placeId)) async {
-                                DataStore.getInstance().getReplica().addPartition(partition);
-                            }
+                        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition ready to migrate ...");
+                        
+                        val maps =  partition.getMaps();
+                        finish for (placeId in destPlaces) at (Place(placeId)) async {
+                            //NOTE: using verbose causes this to hang
+                            DataStore.getInstance().getReplica().addPartition(partitionId, maps);
                         }
                     
                         at (gr.home) {
@@ -500,6 +504,10 @@ public class Replica {
                     }finally {
                         partitionsLock.unlock();
                     }
+                    break;
+                }
+                else{
+                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN ...");
                 }
             }
             finally{
@@ -509,6 +517,9 @@ public class Replica {
              System.threadSleep(10);
         }
         while(true);
+        
+        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] succeeded.  Broke infinite loop...");
+        
     }
     
     /**

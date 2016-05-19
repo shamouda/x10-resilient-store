@@ -23,6 +23,14 @@ public class Partition {
         addMapLock = new SimpleLatch();
     }
     
+    public def this(id:Long, maps:HashMap[String, HashMap[Any,VersionValue]]) {
+        this.id = id;
+        this.maps = maps;
+        addMapLock = new SimpleLatch();;
+    }
+    
+    public def getMaps() = maps;
+    
     public def addMap(mapName:String) {
         addMapLock.lock();
         try{
