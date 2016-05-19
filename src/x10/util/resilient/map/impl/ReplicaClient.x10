@@ -97,7 +97,7 @@ public class ReplicaClient {
     private def asyncExecuteSingleKeyRequest(request:MapRequest) {
         val key = request.inKey;
         val repInfo = partitionTable.getKeyReplicas(key);
-        Console.OUT.println("Key["+key+"] replicas are["+repInfo.toString()+"] ");
+        if (VERBOSE) Utils.console(moduleName, "Key["+key+"] "+repInfo.toString());
         val submit = asyncWaitForResponse(request, repInfo.replicas);
         if (submit)
             submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);

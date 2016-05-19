@@ -1,0 +1,59 @@
+-- Notes from Olivier's meeting ---
+
+1. The Leader:
+ - A leader is the member place with minimum id
+ - A potential leader is member next to the leader, which takes over when the leader dies
+ - The leader should only push the updated partition table to the potential leader (no need to broadcast it to everyone)
+ - Other places should lazily update their partition table.
+
+
+2. Assumptions about the failure model: 
+ - we assume that failures are not frequent,
+ - no multiple failures happening at the same time, 
+ - and that no failure will happen until the previous failure is repaired
+
+
+2. Point of Failure: We should be able to have one container per unit of failure (to be able to place the replicas on different nodes).
+
+3. Catastrophic Failures: We should be able to know when a catastrophic failure has happened, and mark the DataStore as invalid
+
+4. Strong Consistency: Initially, we should focus only on strong consistency.
+
+5. Elasticity: Initially, we should use elasticity only to replace failed places.
+
+6. Extra APIs:
+
+- compareAndSwap
+- submitToKey (sends a piece of code to the run at the key location)
+- We can define put and get in terms of compareAndSwap
+
+
+7. Options for the way we implement Replication:
+- Option 1:
+    client -> master
+    master -> slave
+    slave -> master
+    master -> client
+
+    
+
+- Option 2:
+    client -> master
+    client -> slave
+    master -> client
+    slave -> client
+
+7. Challenges to correctness:
+
+- Multiple updates to the "same key" should run in the "same order" in both the primary and secondary places
+- The replication protocol should NOT be blocking to avoid blocking worker threads:
+  * we can use immediate threads when the primary place needs to wait for a certain event
+  * instead of blocking the current thread, let it terminate, and depend on call-back events to resume the remaining work.
+
+- Update requests might reach the secondary place after the the primary has died. These requests should be ignored (using an epoc mechanism)
+
+- We might need a valid flag per partition
+
+- Migrations:
+  * How to handle reading/writing while partitions are being migrated to another place?
+  * what should be the unit of migration (a single partition/whole partitions)? whole paritions is simpler 

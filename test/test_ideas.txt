@@ -1,0 +1,12 @@
+1. Concurrent and Random:
+   Kill a random place every second
+   Have a specified list of keys - less than or equals the number of places
+   All places iterate on the while list at random:
+      get - increment - and put
+   Place 0 - print all keys
+   
+   
+2. Add an environment variable to control who is the leader and deputy leader,
+   test killing the leader
+   
+   

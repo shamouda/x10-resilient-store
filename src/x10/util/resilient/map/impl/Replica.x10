@@ -17,8 +17,10 @@ import x10.util.resilient.map.partition.VersionValue;
 import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.resilient.map.DataStore;
 
-
-//Concurrency:  multiple threads
+/*
+ * Replica is a container for partitions and logs of transactions accessing them
+ * 
+ * */
 public class Replica {
     private val moduleName = "Replica("+here.id+")";
     public static val VERBOSE = Utils.getEnvLong("REPLICA_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;

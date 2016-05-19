@@ -111,7 +111,7 @@ public class Test {
                 Console.OUT.println("Test failed  ["+x+"]...");                
             }
         }            
-        catch (ex:Exception) {
+        catch (ex:MultipleExceptions) {
             //ex.printStackTrace();
         }
     }
@@ -124,5 +124,6 @@ public class Test {
         //test03();
         //test04();
         test05();
+        
     }
 }

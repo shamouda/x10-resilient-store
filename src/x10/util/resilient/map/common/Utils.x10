@@ -58,7 +58,7 @@ public class Utils {
             return;
         
         try{
-            async at(Place(KILL_PLACE)) {
+            at(Place(KILL_PLACE)) {
                 Console.OUT.println("Killing " + here);
                 System.killHere();
             }

@@ -44,7 +44,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * retrieved from leader/deputyLeader place
      */
     public def createPartitionTable(topology:Topology) {
-        if (here.id == 0) {
+        if (VERBOSE && here.id == 0) {
             topology.printTopology();
             topology.printDeadPlaces();
         }

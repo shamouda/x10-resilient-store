@@ -6,7 +6,7 @@ public class PartitionReplicas (partitionId:Long, replicas:HashSet[Long]) {
     
     public def toString():String {
         var str:String = "";
-        str += "ParitionId: " + partitionId + " [";
+        str += "ParitionId: " + partitionId + " Replicas[";
         for (x in replicas)
             str += x + "  ";
         str += " ]";
