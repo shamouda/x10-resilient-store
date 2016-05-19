@@ -13,7 +13,7 @@ import x10.util.resilient.map.impl.Replica;
 import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
-import x10.util.resilient.map.impl.migration.MigrationHandler;
+import x10.util.resilient.map.migration.MigrationHandler;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {
@@ -203,9 +203,9 @@ public class DataStore {
         if (leaderPlace.isDead()) {
             leaderPlace = here;
             deputyLeaderPlace = findNewDeputyLeader();
-               at (deputyLeaderPlace) {
-                   updateClient (leaderPlace, here, topology, partitionTable);
-               }
+            at (deputyLeaderPlace) {
+                updateClient (leaderPlace, here, topology, partitionTable);
+            }
         }
     }
     

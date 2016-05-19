@@ -7,7 +7,7 @@ import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.ReplicationFailureException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
-import x10.util.resilient.map.impl.migration.MigrationRequest;
+import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.concurrent.AtomicLong;
 
 /*

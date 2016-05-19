@@ -14,7 +14,7 @@ import x10.util.resilient.map.exception.TransactionNotFoundException;
 import x10.util.resilient.map.exception.TransactionAbortedException;
 import x10.util.resilient.map.partition.Partition;
 import x10.util.resilient.map.partition.VersionValue;
-import x10.util.resilient.map.impl.migration.MigrationRequest;
+import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.resilient.map.DataStore;
 
 

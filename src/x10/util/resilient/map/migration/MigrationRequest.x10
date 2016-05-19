@@ -1,4 +1,4 @@
-package x10.util.resilient.map.impl.migration;
+package x10.util.resilient.map.migration;
 
 import x10.util.HashSet;
 import x10.util.concurrent.SimpleLatch;

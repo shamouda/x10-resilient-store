@@ -1,4 +1,4 @@
-package x10.util.resilient.map.impl.migration;
+package x10.util.resilient.map.migration;
 
 import x10.util.concurrent.SimpleLatch;
 import x10.util.HashSet;
@@ -30,12 +30,14 @@ public class MigrationHandler {
     }
     
     public def addRequest(clientPlace:Long, deadPlaces:HashSet[Long]) {
+        if (VERBOSE) Utils.console(moduleName, "adding dead place notification from client ["+clientPlace+"]");
         try{
             lock.lock();
             val impactedClients = new HashSet[Long]();
             impactedClients.add(clientPlace);
             pendingRequests.add(new DeadPlaceNotification(impactedClients, deadPlaces));
             if (!migrating) {
+                if (VERBOSE) Utils.console(moduleName, "starting an async migration request ...");
                 migrating = true;
                 async processRequests();
             }
@@ -45,23 +47,32 @@ public class MigrationHandler {
     }
     
     public def processRequests() {
+        if (VERBOSE) Utils.console(moduleName, "processing migration requests ...");
         var nextReq:DeadPlaceNotification = nextRequest();
         var newDeadPlaces:Boolean = false;
         val impactedClients = new HashSet[Long](); 
         while(nextReq != null){
+            if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
+            
+            //update the topology to re-generate a new partition table
             for (p in nextReq.deadPlaces){
                 if (!topology.isDeadPlace(p)) {
                     topology.addDeadPlace(p);
                     newDeadPlaces = true;
                 }
             }
+            
             var success:Boolean = true;
             if (newDeadPlaces)
                 success = migratePartitions();
+            
             if (success) {
                 impactedClients.addAll(nextReq.impactedClients);
                 /*get next request if the current one is successful*/
                 nextReq = nextRequest();
+            }
+            else if (VERBOSE) {
+                Utils.console(moduleName, "");
             }
         }       
         

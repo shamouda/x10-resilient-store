@@ -58,7 +58,7 @@ public class ReplicaClient {
     private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
         var result:Boolean = true;
         val deadReplicas = Utils.getDeadReplicas(replicas); 
-        Console.OUT.println("notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
+        if (VERBOSE) Utils.console(moduleName, "notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
         if (deadReplicas.size() != 0) {
             val notifyList = new HashSet[Long]();
             for (newDead in deadReplicas) {
@@ -70,7 +70,7 @@ public class ReplicaClient {
             if (notifyList.size() > 0)
                 async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
             else
-                if (VERBOSE) Console.OUT.println("Dead places already notified ...");
+                if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
         }
         else
             result = false;
