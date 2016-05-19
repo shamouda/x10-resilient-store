@@ -29,4 +29,7 @@ Test Cases:
   How to suspend transactions while migrating????
   
 - Before issuing a request, if replicas are dead,  make the user wait till migration is complete !!!!
-Should we better throw an exception here
+Should we better throw an exception here?
+no, because the application will keep repeating the request multiple times and getting exceptions
+better hold the request
+
