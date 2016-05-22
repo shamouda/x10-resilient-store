@@ -1,6 +1,7 @@
 Tasks:
 ------
-Get(key) should access only one replica
+Get(key) should access only one replica:  
+ - No need for that, because conflicts might happen with other put operations
 
 Distributed Commit:
  - No need to abort a Replica that voted NO for commit 
@@ -20,7 +21,11 @@ TimeOut Handling:
 Serialization:
  - Currently keys and values are copied by "at". 
    For large objects (like matrix blocks), this will be slow compared to using Rail.asyncCopy.  
- 
+
+Caching:
+  - Repeated put operations due to conflicts, cache the values for next retries!!!!!
+  
+  
 Test Cases:
  - All Places Increment All Keys in random order
  - Each Place puts and gets its own data
