@@ -6,22 +6,24 @@ Distributed Commit:
  - No need to abort a Replica that voted NO for commit 
  
 Dead Places Handling:
- - Dead Leader
- - Dead Deputy Leader
- - Dead Replica
- - Dead ReplicaClient
+ - Dead Leader           (DONE - not tested)
+ - Dead Deputy Leader    (DONE - not tested)
+ - Dead Replica          (DONE - tested)
+ - Dead ReplicaClient    (DONE - not tested)
  
 TimeOut Handling:
- - Replica waiting for Replica Client
+ - Replica waiting for Replica Client    (DONE) 
  - ReplicaClient waiting for Replica
- - Migration cases??
+ - ReplicaClient waiting for migration   (DONE - tested)    
+ - Leader waiting for replicas to copy partitions
  
 Serialization:
  - Currently keys and values are copied by "at". 
    For large objects (like matrix blocks), this will be slow compared to using Rail.asyncCopy.  
  
 Test Cases:
- - Stress Testing
+ - All Places Increment All Keys in random order
+ - Each Place puts and gets its own data
  - Performance Benchmarking
  
  
@@ -33,3 +35,10 @@ Should we better throw an exception here?
 no, because the application will keep repeating the request multiple times and getting exceptions
 better hold the request
 
+
+Assumptions:
+- no place failure until the data store is first initialized
+- leader and deputy leader will not die at the same time
+
+Statistics Collection:
+- Store statistics about the number of aborts and the reason (dead place, timeout, conflict) 
