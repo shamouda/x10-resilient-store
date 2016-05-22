@@ -123,8 +123,11 @@ public class ResilientMapImpl implements ResilientMap {
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
         request.lock.await();
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        /*
+        We don't expect abort to throw an exception
         if (!request.isSuccessful())
             throw request.outException;
+        */
     }
     
     /**
