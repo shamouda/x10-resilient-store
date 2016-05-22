@@ -54,6 +54,7 @@ public class MigrationHandler {
         while(nextReq != null){
             if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
             
+            newDeadPlaces = false;
             //update the topology to re-generate a new partition table
             for (p in nextReq.deadPlaces){
                 if (!topology.isDeadPlace(p)) {
@@ -161,6 +162,7 @@ public class MigrationHandler {
                 
                 pendingRequests.clear();
                 result = new DeadPlaceNotification(allClients, allDeadPlaces);
+                if (VERBOSE) Utils.console(moduleName, "nextMigrationRequest is: " + result.toString());
             }
             else
                 migrating = false;
@@ -173,5 +175,17 @@ public class MigrationHandler {
     
 }
 
-class DeadPlaceNotification (impactedClients:HashSet[Long], deadPlaces:HashSet[Long]) {}
+class DeadPlaceNotification (impactedClients:HashSet[Long], deadPlaces:HashSet[Long]) {
+	public def toString():String {
+		var result:String = "ImpactedClients=[";
+	    for (c in impactedClients)
+	    	result += c + ",";
+	    result += "]  deadPlaces[";
+	    for (d in deadPlaces)
+	    	result += d + ",";
+	    result += "]";
+		return result;
+	}
+	
+}
 
