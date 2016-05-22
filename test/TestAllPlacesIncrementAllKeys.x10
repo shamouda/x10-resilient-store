@@ -48,7 +48,12 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 					val index = Math.abs(rnd.nextLong()) % keyIndexList.size();
 					val keyIndex = keyIndexList.get(index);
 					val nextKey = KEYS_RAIL(keyIndex);
+					var keySuccess:Boolean = false;
 					for (var r:Long = 0 ; r < hm.retryMaximum(); r++) {
+						/*sleep before retry ...*/
+						if (r > 0)
+							System.sleep(10);
+						
 						val txId = hm.startTransaction();
 						try{
 							val x = hm.get(txId, nextKey);
@@ -59,12 +64,15 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 								hm.put(txId, nextKey, (x as Long)+1);
 							}
 							hm.commitTransaction(txId);
+							keySuccess = true;
 							break;
 						}
 						catch (ex:Exception) {
 							hm.abortTransaction(txId);
 						}
 					}
+					if (!keySuccess)
+						Console.OUT.println(here + "key["+nextKey+"]  all retries failed ...");
 					keyIndexList.removeAt(index);
 					
 				}
