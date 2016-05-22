@@ -129,15 +129,14 @@ public class MapRequest {
         if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response completed ...");
     }
     
-    public def findDeadReplica():Long {        
-        var result:Long = -1;
+    public def getRequestDeadReplicas():HashSet[Long] {        
+        val result = new HashSet[Long]();
         try {
             responseLock.lock();
             if (lateReplicas != null) {
                 for (pId in lateReplicas){
                     if (Place(pId).isDead()) {
-                        result = pId;
-                        break;
+                        result.add(pId);                        
                     }
                 }
             }

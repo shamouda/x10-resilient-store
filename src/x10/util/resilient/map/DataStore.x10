@@ -204,15 +204,24 @@ public class DataStore {
         this.partitionTable.update(partitionTable);
         if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
         
-        if (leaderPlace.isDead()) {
+        var changeDeputyLeader:Boolean = false;
+        if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
+        	changeDeputyLeader = true;
+        }        
+        else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {
             leaderPlace = here;
-            deputyLeaderPlace = findNewDeputyLeader();
+            changeDeputyLeader = true;
+            if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
+        }        
+        
+        if (changeDeputyLeader) {
+        	if (VERBOSE) Utils.console(moduleName, "Changing the deputy leader ...");
+        	deputyLeaderPlace = findNewDeputyLeader();
+        	val tmpLeader = leaderPlace;
+        	val tmpTopology = topology;        	
             at (deputyLeaderPlace) {
-                updateClient (leaderPlace, here, topology);
+                updateClient (tmpLeader, here, tmpTopology);
             }
-        }
-        else {
-            if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - no need to change the leader, I am still alive ...");
         }
     }
     

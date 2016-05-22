@@ -61,5 +61,11 @@ public interface ResilientMap {
      * returns the old value
      **/
     public def delete(transId:Long,key:Any):Any;
+    
+    
+    /**
+     * Returns the maximum number of allowed trials when a transaction fails
+     * */
+    public def retryMaximum():Long;
         
 }
