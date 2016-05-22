@@ -162,7 +162,7 @@ public class MapRequest {
     
     public def toString():String {
         var str:String = "";
-        str += "<request Id["+id+"] type["+typeDesc(requestType)+ "]>";
+        str += "<request TransactionId["+transactionId+"] ReqId["+id+"] type["+typeDesc(requestType)+ "]  key["+inKey+"]>";
         /*
         str += "<request  transactionId="+transactionId+"  type="+typeDesc(requestType)+ "  key=" + inKey + " \\>\n";
         if (outValue != null)
