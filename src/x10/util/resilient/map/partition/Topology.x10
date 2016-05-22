@@ -83,9 +83,14 @@ public class Topology {
     
     /*Prints the topology*/
     public def printTopology(){
+    	var str:String = "";
         for (node in nodes) {
-            Console.OUT.println(node.toString());
+        	str += node.toString() + "\n";
         }
+        for (d in deadPlaces) {
+        	str += "   <deadplace id="+d+">\n";
+        }
+        Console.OUT.println(str);
     }
     
     /*Adds a dead place*/
