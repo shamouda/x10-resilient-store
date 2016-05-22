@@ -17,7 +17,7 @@ import x10.util.resilient.map.DataStore;
 public class ResilientMapImpl implements ResilientMap {
     private val moduleName = "ResilientMapImpl";
     public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-    public static val RETRY_MAX = Utils.getEnvLong("TRANS_RETRY_MAX", 3);
+    public static val RETRY_MAX = Utils.getEnvLong("TRANS_RETRY_MAX", Place.numPlaces());
     
     private val name:String;
     private val timeoutMillis:Long;
@@ -26,6 +26,8 @@ public class ResilientMapImpl implements ResilientMap {
         this.name = name;
         this.timeoutMillis = timeoutMillis;   
     }
+    
+    public def retryMaximum() = RETRY_MAX;
     
     public def tryOperation(requestType:Int,key:Any, value:Any):Any {
         var attempt:Long = 0;
