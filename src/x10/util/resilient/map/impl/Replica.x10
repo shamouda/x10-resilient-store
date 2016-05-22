@@ -213,25 +213,25 @@ public class Replica {
         val cache = transLog.getKeysCache();
         val keysIter = cache.keySet().iterator();
 
-        while (keysIter.hasNext()) {
-            val key = keysIter.next();
-            val log = cache.getOrThrow(key);
-            if (log.readOnly()) continue;
+        try{
+            partitionsLock.lock();
             
-            try{
-                partitionsLock.lock();
+            while (keysIter.hasNext()) {
+            	val key = keysIter.next();
+            	val log = cache.getOrThrow(key);
+            	if (log.readOnly()) continue;
                 val partition = partitions.getOrThrow(log.getPartitionId());
-                if (VERBOSE) Utils.console(moduleName, "TransId["+transId+"] Applying commit changes:=> " + log.toString());
-                if (log.isDeleted()) {
-                    partition.delete(mapName, key);
-                }
-                else if (!log.readOnly()) {
-                    partition.put(mapName, key, log.getValue());
-                }
+               	if (VERBOSE) Utils.console(moduleName, "TransId["+transId+"] Applying commit changes:=> " + log.toString());
+               	if (log.isDeleted()) {
+               		partition.delete(mapName, key);
+               	}
+               	else if (!log.readOnly()) {
+               		partition.put(mapName, key, log.getValue());
+               	}
             }
-            finally{
-                partitionsLock.unlock();
-            }
+        }
+        finally{
+            partitionsLock.unlock();
         }
         
         try{
@@ -269,8 +269,8 @@ public class Replica {
         }
     }
     
-    
     private def getOrAddActiveTransaction(transId:Long, clientId:Long):Transaction {
+    	if (VERBOSE) Utils.console(moduleName, "getOrAddActiveTransaction transId["+transId+"] clientId["+clientId+"] ...");
         var result:Transaction = null;
         try{
             transactionsLock.lock();
@@ -283,8 +283,10 @@ public class Replica {
                 if (x == null && y == null && z == null) {
                     result = new Transaction(transId,Timer.milliTime(), clientId);
                     transactions.getOrThrow(TRANS_ACTIVE).transMap.put(transId,result);
-                    if (!timerOn)
-                        timerOn = true;
+                    if (!timerOn) {
+                    	timerOn = true;
+                        async checkDeadReplicaClient();
+                    }
                 }
             }
         }
@@ -354,8 +356,10 @@ public class Replica {
             if (ready){
                 val myTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transLog.transId);
                 transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.put(transLog.transId, myTrans);
-                if (!timerOn)
-                    async checkDeadClientForReadyTransactions();
+                if (!timerOn) {
+                	timerOn = true;
+                    async checkDeadReplicaClient();
+                }
             }
         }finally {
             transactionsLock.unlock();
@@ -437,25 +441,38 @@ public class Replica {
     
     /**
      * Abort readyToCommit transactions if their client is dead
-     * TODO: should also check active transactions
      **/
-    public def checkDeadClientForReadyTransactions () {
+    public def checkDeadReplicaClient() {
         while (timerOn) {
             System.threadSleep(100);
+            if (VERBOSE) Utils.console(moduleName, "checkDeadReplicaClient new iteration ...");
             try{
                 transactionsLock.lock();
-                val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
-                val iter = readyTransMap.keySet().iterator();
+                val activeAndReadyToCommit = combineActiveAndReadyToCommitTransactions();
+                
+                //activeAndReadyToCommit.printKeys();
+                
+                val transMap = activeAndReadyToCommit.transMap;
+                val iter = transMap.keySet().iterator();
                 while (iter.hasNext()) {
                     val transId = iter.next();
-                    val curTrans = readyTransMap.getOrThrow(transId);
+                    val curTrans = transMap.getOrThrow(transId);
+                    
+                    
+                    if (VERBOSE) Utils.console(moduleName, "check transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
+                    
                     if (Place(curTrans.clientPlaceId).isDead()) {
-                        readyTransMap.remove(transId);
+                        transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+                        transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
                         transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
+                        
+                        if (VERBOSE) Utils.console(moduleName, "Aborting transaction ["+transId+"] because client ["+Place(curTrans.clientPlaceId)+"] died ...");
                     }
                 }
                 
-                if (readyTransMap.size() == 0){
+                val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
+                val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
+                if (readyTransMap.size() == 0 && activeTransMap.size() == 0){
                     timerOn = false;
                 }
             }
@@ -464,8 +481,7 @@ public class Replica {
             }
         }
     }
-    
-    
+       
     /**
      * Migrating a partition to here
      **/
@@ -509,7 +525,7 @@ public class Replica {
                     break;
                 }
                 else{
-                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN ...");
+                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER...");
                 }
             }
             finally{
@@ -528,37 +544,46 @@ public class Replica {
      * Returns true if the partition is being 'used for update' by an active or a readyToCommit transaction
      **/
     private def isPartitionUsedForUpdate(partitionId:Long):Boolean { 
-        val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
-        val iter1 = readyTransMap.keySet().iterator();
-        while (iter1.hasNext()) {
-            val transId = iter1.next();
-            val curTrans = readyTransMap.getOrThrow(transId);
+    	val activeAndReadyToCommit = combineActiveAndReadyToCommitTransactions();
+        val transMap = activeAndReadyToCommit.transMap;
+        val iter = transMap.keySet().iterator();
+        while (iter.hasNext()) {
+            val transId = iter.next();
+            val curTrans = transMap.getOrThrow(transId);
             if (curTrans.isPartitionUsedForUpdate(partitionId))
                 true;
         }
-        
-        val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
-        val iter2 = activeTransMap.keySet().iterator();
-        while (iter2.hasNext()) {
-            val transId = iter2.next();
-            val curTrans = activeTransMap.getOrThrow(transId);
-            if (curTrans.isPartitionUsedForUpdate(partitionId))
-                true;
-        }      
-        
         return false;
     }
     
-    public def toString():String {
-        var str:String = "Primary [";
-        
-        str += "]\n";
-        return str;
+    private def combineActiveAndReadyToCommitTransactions():TransactionsMap {
+    	val combined = new TransactionsMap();
+    	combined.addAll(transactions.getOrThrow(TRANS_ACTIVE));
+    	combined.addAll(transactions.getOrThrow(TRANS_READY_TO_COMMIT));
+    	return combined;
     }
+
 }
 
 class TransactionsMap {
     public val transMap:HashMap[Long,Transaction] = new HashMap[Long,Transaction]();
+    public def addAll(other:TransactionsMap) {
+    	val iter = other.transMap.keySet().iterator();
+    	while (iter.hasNext()) {
+    		val id = iter.next();
+    		val transaction = other.transMap.getOrThrow(id);
+    		transMap.put(id, transaction);
+    	}
+    }
+    
+    public def printKeys() {
+    	val iter = transMap.keySet().iterator();
+    	var str:String = "";
+    	while (iter.hasNext()) {
+    		str += iter.next() + " , ";
+    	}
+    	Utils.console("TransactionsMap", "Combined keys = " + str);
+    }
 }
 
 class ConflictReport {
