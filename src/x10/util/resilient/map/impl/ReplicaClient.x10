@@ -351,9 +351,9 @@ public class ReplicaClient {
                             i--;
                         }
                         else if (mapReq.lateReplicas != null) {
-                            val deadReplicas = Utils.getDeadReplicas(mapReq.lateReplicas);
+                            val deadReplicas = mapReq.getRequestDeadReplicas();
                             if (deadReplicas.size() != 0) {
-                                val deadPlaceId = Utils.getDeadReplicas(deadReplicas).iterator().next(); 
+                                val deadPlaceId = deadReplicas.iterator().next(); 
                                 mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));       
                                 mapReq.lock.release();
                                 pendingRequests.removeAt(i--);
