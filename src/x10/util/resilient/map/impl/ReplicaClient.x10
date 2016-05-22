@@ -51,32 +51,6 @@ public class ReplicaClient {
         }
     }
     
-    /**
-     * Checks if any of the provided replicas is dead, and notifies the master place
-     * Returns true if any replica is dead
-     **/
-    private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
-        var result:Boolean = true;
-        val deadReplicas = Utils.getDeadReplicas(replicas); 
-        if (VERBOSE) Utils.console(moduleName, "notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
-        if (deadReplicas.size() != 0) {
-            val notifyList = new HashSet[Long]();
-            for (newDead in deadReplicas) {
-                if (!notifiedDeadReplicas.contains(newDead)) {
-                    notifyList.add(newDead);
-                    notifiedDeadReplicas.add(newDead);
-                }
-            }            
-            if (notifyList.size() > 0)
-                async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
-            else
-                if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
-        }
-        else
-            result = false;
-        return result;
-    }
-    
     public def asyncExecuteRequest(request:MapRequest) {
         if (Utils.KILL_PLACE_POINT == Utils.POINT_BEGIN_ASYNC_EXEC_REQUEST)
             Utils.asyncKillPlace();
@@ -141,19 +115,23 @@ public class ReplicaClient {
     private def asyncExecuteAbort(request:MapRequest) {
         val transId = request.transactionId;
         val replicas = getTransactionReplicas(transId);
-        val submit = asyncWaitForResponse(request, replicas);
-        
         if (replicas == null){
+        	if (VERBOSE) Utils.console(moduleName, "abort successfully because replicas are null for request: " + request.toString());
             //transaction was not submitted to any replica
             request.completeRequest(null);
+            request.lock.release();
             return;
         }
         
-        if (submit)
+        val submit = asyncWaitForResponse(request, replicas); 
+        if (VERBOSE) Utils.console(moduleName, "submit= " + submit);
+        if (submit) {
             submitAsyncExecuteAbort(request, replicas);
+        }
         else {
             val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
             request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
+            if (VERBOSE) Utils.console(moduleName, "complete request with dead place exception= " + request.toString());
         }        
     }
     
@@ -167,13 +145,14 @@ public class ReplicaClient {
         val requestType = request.requestType;
         val transId = request.transactionId;
         val gr = GlobalRef[MapRequest](request);
+        val clientId = here.id;
         request.setReplicationInfo(replicas);
         
         var exception:Exception = null;
         for (placeId in replicas) {
             try{
                 at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, here.id, partitionId, transId, requestType, key, value, gr);
+                    DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, clientId, partitionId, transId, requestType, key, value, gr);
                 }
             }
             catch (ex:Exception) {
@@ -376,5 +355,31 @@ public class ReplicaClient {
                 asyncExecuteRequest(req);
             }
         }
+    }
+    
+    /**
+     * Checks if any of the provided replicas is dead, and notifies the master place
+     * Returns true if any replica is dead
+     **/
+    private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
+        var result:Boolean = true;
+        val deadReplicas = Utils.getDeadReplicas(replicas); 
+        if (VERBOSE) Utils.console(moduleName, "notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
+        if (deadReplicas.size() != 0) {
+            val notifyList = new HashSet[Long]();
+            for (newDead in deadReplicas) {
+                if (!notifiedDeadReplicas.contains(newDead)) {
+                    notifyList.add(newDead);
+                    notifiedDeadReplicas.add(newDead);
+                }
+            }            
+            if (notifyList.size() > 0)
+                async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
+            else
+                if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
+        }
+        else
+            result = false;
+        return result;
     }
 }
