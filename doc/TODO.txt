@@ -10,11 +10,11 @@ Dead Places Handling:
  - Dead Leader           (DONE - not tested)
  - Dead Deputy Leader    (DONE - not tested)
  - Dead Replica          (DONE - tested)
- - Dead ReplicaClient    (DONE - not tested)
+ - Dead ReplicaClient    (DONE - tested)
  
 TimeOut Handling:
  - Replica waiting for Replica Client    (DONE) 
- - ReplicaClient waiting for Replica
+ - ReplicaClient waiting for Replica     (DONE)
  - ReplicaClient waiting for migration   (DONE - tested)    
  - Leader waiting for replicas to copy partitions
  
@@ -25,25 +25,27 @@ Serialization:
 Caching:
   - Repeated put operations due to conflicts, cache the values for next retries!!!!!
   
-  
 Test Cases:
- - All Places Increment All Keys in random order
+ - All Places Increment All Keys in random order   (DONE)
  - Each Place puts and gets its own data
  - Performance Benchmarking
  
- 
-- Migration:
-  How to suspend transactions while migrating????
+Migration:   
+ - How to suspend transactions while migrating????   (DONE)
+       If any UPDATE transaction exist, wait till they complete
   
 - Before issuing a request, if replicas are dead,  make the user wait till migration is complete !!!!
 Should we better throw an exception here?
 no, because the application will keep repeating the request multiple times and getting exceptions
 better hold the request
 
+Invalid DataStore:
+   - no actions should be done on an invalid data store
 
 Assumptions:
 - no place failure until the data store is first initialized
 - leader and deputy leader will not die at the same time
+- migration leader does not die while migrating partitions
 
 Statistics Collection:
 - Store statistics about the number of aborts and the reason (dead place, timeout, conflict) 
