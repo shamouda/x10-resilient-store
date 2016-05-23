@@ -244,6 +244,7 @@ public class Replica {
     }
     
     public def abortNoResponse(transId:Long, responseGR:GlobalRef[MapRequest]) {
+        if (VERBOSE) Utils.console(moduleName, "calling abortNoResponse for transactionId["+transId+"] ...");
         try{
             transactionsLock.lock();
             var transLog:Transaction = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
@@ -255,14 +256,13 @@ public class Replica {
                         transLog = transactions.getOrThrow(TRANS_COMMITED).transMap.remove(transId);
                         if (transLog != null)
                             throw new CommitedTransactionCanNotBeAbortedException();
-                        else
-                            throw new TransactionNotFoundException();
+                        else { // transaction not found, this can be due to processing an abort message before an add message                            
+                            if (VERBOSE) Utils.console(moduleName, "FATAL error: abortNoResponse transactionId["+transId+"] not found!!!  Transaction aborted before being added  ...");
+                        }
                     }
                 }
             }
-            
-            if (transLog != null)
-                transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
+            transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
         }
         finally {
             transactionsLock.unlock();
