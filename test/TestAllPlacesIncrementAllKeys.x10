@@ -10,11 +10,12 @@ import x10.util.ArrayList;
  * 
  * 
  * Test commands: 
- * cd tests; make 
- * DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./default.o
+ * cd tests
+ * make TestAllPlacesIncrementAllKeys
+ * DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o
  * 
  * -- kill place 3:
- * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./default.o 3
+ * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o 3
  */
 public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
@@ -39,12 +40,11 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 				if (here.id == placeToKill){
 					killIteration = Math.abs(rnd.nextLong()) % keyIndexList.size();
 				}
+				
 				for (var i:Long = 0 ; i < keysCount ; i++) {
-					
 					if (i == killIteration) {
 						async System.killHere();
 					}
-
 					val index = Math.abs(rnd.nextLong()) % keyIndexList.size();
 					val keyIndex = keyIndexList.get(index);
 					val nextKey = KEYS_RAIL(keyIndex);
@@ -74,7 +74,6 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 					if (!keySuccess)
 						Console.OUT.println(here + "key["+nextKey+"]  all retries failed ...");
 					keyIndexList.removeAt(index);
-					
 				}
 			}			
 		}catch(ex2:Exception) {
