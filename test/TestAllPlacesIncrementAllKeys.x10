@@ -3,6 +3,7 @@ import harness.x10Test;
 import x10.util.resilient.map.*;
 import x10.util.Random;
 import x10.util.ArrayList;
+import x10.util.Timer;
 
 /**
  * Test case where each place is required to increment all keys in a ResilientMap,
@@ -14,8 +15,14 @@ import x10.util.ArrayList;
  * make TestAllPlacesIncrementAllKeys
  * DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o
  * 
- * -- kill place 3:
+ * -- kill place 3:  (Place 3 is: Replica and ReplicaClient )
  * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o 3
+ * 
+ * -- kill place 3:  (Place 3 is: LEADER)
+ * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 3
+ * 
+ * -- kill place 4 (Place 4 is Deputy Leader)
+ * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 4
  */
 public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
@@ -32,43 +39,42 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 				for (i in 0..(KEYS_RAIL.size-1))
 					keyIndexList.add(i);
 				
-				val rnd = new Random(here.id);              
+				val rnd = new Random(Timer.milliTime());              
 				val keysCount = KEYS_RAIL.size;
 				
-				var killIteration:Long = -1;
-				
 				if (here.id == placeToKill){
-					killIteration = Math.abs(rnd.nextLong()) % keyIndexList.size();
+				    Console.OUT.println("Killing " + here);
+                    System.killHere();
 				}
 				
 				for (var i:Long = 0 ; i < keysCount ; i++) {
-					if (i == killIteration) {
-						async System.killHere();
-					}
 					val index = Math.abs(rnd.nextLong()) % keyIndexList.size();
 					val keyIndex = keyIndexList.get(index);
 					val nextKey = KEYS_RAIL(keyIndex);
 					var keySuccess:Boolean = false;
+					var oldValue:Any;
+					var newValue:Any;
+					
 					for (var r:Long = 0 ; r < hm.retryMaximum(); r++) {
-						/*sleep before retry ...*/
-						if (r > 0)
-							System.sleep(10);
-						
 						val txId = hm.startTransaction();
 						try{
 							val x = hm.get(txId, nextKey);
+							oldValue = x;
 							if (x == null) {
 								hm.put(txId, nextKey, 1);
+								newValue = 1;
 							}
 							else {
 								hm.put(txId, nextKey, (x as Long)+1);
+								newValue = (x as Long)+1;
 							}
 							hm.commitTransaction(txId);
+							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] ...");
 							keySuccess = true;
 							break;
 						}
 						catch (ex:Exception) {
-							hm.abortTransaction(txId);
+							hm.abortTransactionAndSleep(txId);
 						}
 					}
 					if (!keySuccess)
@@ -86,7 +92,7 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 		for (key in KEYS_RAIL) {
 			val foundValue = hm.get(key) as Long;
 			if (foundValue != expectedValue) {
-				Console.OUT.println("Invalid value for key ["+key+"]   expectedValue["+Place.numPlaces()+"]  foundValue["+foundValue+"] ...");
+				Console.OUT.println("Invalid value for key ["+key+"]   expectedValue["+expectedValue+"]  foundValue["+foundValue+"] ...");
 				valid = false;
 			}
 		}

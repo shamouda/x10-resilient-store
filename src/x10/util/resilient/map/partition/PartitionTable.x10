@@ -9,6 +9,7 @@ import x10.util.resilient.map.exception.ReplicationFailureException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.concurrent.AtomicLong;
+import x10.util.resilient.map.common.Topology;
 
 /*
  * The partition table maps each partition to the places that contain it.

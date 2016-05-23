@@ -3,7 +3,7 @@ package x10.util.resilient.map.migration;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.HashSet;
 import x10.util.ArrayList;
-import x10.util.resilient.map.partition.Topology;
+import x10.util.resilient.map.common.Topology;
 import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.common.Utils;
@@ -49,17 +49,18 @@ public class MigrationHandler {
     public def processRequests() {
         if (VERBOSE) Utils.console(moduleName, "processing migration requests ...");
         var nextReq:DeadPlaceNotification = nextRequest();
-        var newDeadPlaces:Boolean = false;
+        var updateLeader:Boolean = false;
         val impactedClients = new HashSet[Long](); 
         while(nextReq != null){
             if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
             
-            newDeadPlaces = false;
+            var newDeadPlaces:Boolean = false;
             //update the topology to re-generate a new partition table
             for (p in nextReq.deadPlaces){
                 if (!topology.isDeadPlace(p)) {
                     topology.addDeadPlace(p);
                     newDeadPlaces = true;
+                    updateLeader = true;
                 }
             }
             
@@ -73,8 +74,9 @@ public class MigrationHandler {
                 nextReq = nextRequest();
             }
         }       
+        if (updateLeader)
+            DataStore.getInstance().updateLeader(topology, partitionTable);        
         
-        DataStore.getInstance().updateLeader(topology, partitionTable);        
         DataStore.getInstance().updatePlaces(impactedClients);
     }
     

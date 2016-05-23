@@ -7,8 +7,8 @@ Distributed Commit:
  - No need to abort a Replica that voted NO for commit 
  
 Dead Places Handling:
- - Dead Leader           (DONE - not tested)
- - Dead Deputy Leader    (DONE - not tested)
+ - Dead Leader           (DONE - tested)
+ - Dead Deputy Leader    (DONE - tested)  unable to reproduce issue #3 
  - Dead Replica          (DONE - tested)
  - Dead ReplicaClient    (DONE - tested)
  
@@ -47,5 +47,8 @@ Assumptions:
 - leader and deputy leader will not die at the same time
 - migration leader does not die while migrating partitions
 
+
+======================
 Statistics Collection:
+======================
 - Store statistics about the number of aborts and the reason (dead place, timeout, conflict) 

@@ -38,10 +38,16 @@ public interface ResilientMap {
      */
     public def commitTransaction(transId:Long):void;
     
-    /***
-     * throws an exception if rollback failed  (this should not fail)
+    /**
+     * aborts a transaction, exceptions are hiden
      */
     public def abortTransaction(transId:Long):void;
+    
+    
+    /**
+     * aborts a transaction and sleep for a random time that is less than (ABORT_SLEEP_MILLIS_MAX)
+     */
+    public def abortTransactionAndSleep(transId:Long):void;
     
     /**
      * 

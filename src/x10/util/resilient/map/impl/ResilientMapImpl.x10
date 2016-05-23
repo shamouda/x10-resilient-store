@@ -8,8 +8,8 @@ import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.TransactionAbortedException;
 import x10.util.resilient.map.ResilientMap;
 import x10.util.resilient.map.DataStore;
-
-
+import x10.util.Random;
+import x10.util.Timer;
 /***
  * This class should not contain heavy objects because it is transferable between places
  * Place specific data should be obtained from the DataStore class
@@ -19,8 +19,11 @@ public class ResilientMapImpl implements ResilientMap {
     public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val RETRY_MAX = Utils.getEnvLong("TRANS_RETRY_MAX", Place.numPlaces());
     
+    public static val ABORT_SLEEP_MILLIS_MAX = Utils.getEnvLong("ABORT_SLEEP_MILLIS_MAX", 20);
+    
     private val name:String;
     private val timeoutMillis:Long;
+    private val rnd = new Random(Timer.milliTime());
     
     public def this(name:String, timeoutMillis:Long) {
         this.name = name;
@@ -52,14 +55,9 @@ public class ResilientMapImpl implements ResilientMap {
             } catch(ex:Exception) {
                 commitException = ex;
                 if (VERBOSE) ex.printStackTrace();
-                try {
                     abortTransaction(txId);                    
-                }catch(abortEx:Exception) {
-                    if (VERBOSE) abortEx.printStackTrace();
-                }
             }
             attempt ++;
-            System.sleep(10);
         } while (attempt < RETRY_MAX);
         
         if (!succeeded)
@@ -123,12 +121,21 @@ public class ResilientMapImpl implements ResilientMap {
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
         request.lock.await();
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
-        /*
-        We don't expect abort to throw an exception
-        if (!request.isSuccessful())
-            throw request.outException;
-        */
     }
+    
+    
+    /***
+     * throws an exception if rollback failed  (this should not fail)
+     */
+    public def abortTransactionAndSleep(transId:Long) {
+        val request = new MapRequest(transId, MapRequest.REQ_ABORT, name, timeoutMillis);
+        DataStore.getInstance().executor().asyncExecuteRequest(request);        
+        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
+        request.lock.await();
+        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        nextRandomSleep();
+    }
+    
     
     /**
      * 
@@ -183,5 +190,11 @@ public class ResilientMapImpl implements ResilientMap {
             return request.outValue;
         else
             throw request.outException;
+    }
+    
+    private def nextRandomSleep():Long {
+        val time = Math.abs(rnd.nextLong()) % ABORT_SLEEP_MILLIS_MAX;
+        if (VERBOSE) Utils.console(moduleName, "sleeping for " + time + "ms");
+        return time;
     }
 }

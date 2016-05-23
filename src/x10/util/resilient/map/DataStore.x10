@@ -8,7 +8,7 @@ import x10.util.concurrent.AtomicLong;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.impl.ResilientMapImpl;
 import x10.util.resilient.map.partition.PartitionTable;
-import x10.util.resilient.map.partition.Topology;
+import x10.util.resilient.map.common.Topology;
 import x10.util.resilient.map.impl.Replica;
 import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
@@ -21,6 +21,8 @@ public class DataStore {
     public static val VERBOSE = Utils.getEnvLong("DATA_STORE_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val REPLICATION_FACTOR = Utils.getEnvLong("REPLICATION_FACTOR", 2);
     public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
+    public static val LEADER_NODE = Utils.getEnvLong("DATA_STORE_LEADER_NODE", 0);
+    
     
     /*the data store will be invalid if:
      * - failure happended during initialization
@@ -80,10 +82,10 @@ public class DataStore {
                         throw new TopologyCreationFailedException();
                 
                     val partitionsCount = topology.getPlacesCount();
-                    val leaderNodeIndex = 0;
+                    val leaderNodeIndex = LEADER_NODE;
                     val placeIndex = 0;
                     leaderPlace       = topology.getPlaceByIndex(leaderNodeIndex     , placeIndex);
-                    deputyLeaderPlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+                    deputyLeaderPlace = topology.getPlaceByIndex(((leaderNodeIndex+1) % topology.getNodesCount()) , placeIndex);
                     partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
                     partitionTable.createPartitionTable(topology);
                     if (VERBOSE && here.id == 0)
@@ -220,7 +222,7 @@ public class DataStore {
         	val tmpLeader = leaderPlace;
         	val tmpTopology = topology;        	
             at (deputyLeaderPlace) {
-                updateClient (tmpLeader, here, tmpTopology);
+                DataStore.getInstance().updateClient (tmpLeader, here, tmpTopology);
             }
         }
     }
@@ -234,8 +236,13 @@ public class DataStore {
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
-        finish for (targetClient in places) at (Place(targetClient)) async {
-            DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
+        finish for (targetClient in places) {
+            //leader and deputyLeader are updated separately by updateLeader(....) 
+            if (targetClient == tmpLeader.id || targetClient == tmpDeputyLeader.id)
+                continue;
+            at (Place(targetClient)) async {
+                DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
+            }
         }
     }
 
@@ -244,11 +251,14 @@ public class DataStore {
      * No need to pass in the partition table, it can be re-created using the topology object
      **/
     public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
+        val oldDeputyLeader = this.deputyLeaderPlace;
+        val oldLeader = this.leaderPlace;
+        
         this.leaderPlace = leader;
         this.deputyLeaderPlace = deputyLeader;
         this.topology.update(topology);
         this.partitionTable.createPartitionTable(this.topology);
-        if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated ...");
+        if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");
     }
     
     /**
@@ -259,8 +269,8 @@ public class DataStore {
         val leaderNodeIndex = topology.getNodeIndex(here.id);
         val nodesCount = topology.getNodesCount();
         val placeIndex = 0;
-        for (var i:Long = leaderNodeIndex+1; i < nodesCount; i++) {
-            val candidatePlace = topology.getPlaceByIndex(leaderNodeIndex + 1 , placeIndex);
+        for (var i:Long = 1; i < nodesCount; i++) {
+            val candidatePlace = topology.getPlaceByIndex(((leaderNodeIndex+i) % nodesCount) , placeIndex);
             if (!candidatePlace.isDead()) {
                 newDeputyLeader = candidatePlace;
                 break;
