@@ -1,8 +1,3 @@
-###################################################
-# Source and target file
-###################################################
-target_list 	= TestAllPlacesIncrementAllKeys.x10
-
 # build path
 build_path	= ../build
 
@@ -16,10 +11,8 @@ X10RTIMPL = sockets
 ###################################################
 # Build
 ###################################################
-default	:	 
-	$(X10CXX) -g -x10rt $(X10RTIMPL) $(X10_FLAG) $(target_list) -o $@.o
-
-run		: run_java
+%	:	 
+	$(X10CXX) -g -x10rt $(X10RTIMPL) $(X10_FLAG) $@.x10 -o $@.o
 
 clean	:	
 	rm -r *.o $(build_path)
