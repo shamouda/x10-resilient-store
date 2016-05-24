@@ -21,6 +21,8 @@ import x10.util.concurrent.AtomicBoolean;
  * 
  * -- run in resilient mode with default parameters 
  * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o
+ * 
+ * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
  */
 public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
