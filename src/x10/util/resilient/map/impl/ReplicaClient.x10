@@ -123,16 +123,17 @@ public class ReplicaClient {
             return;
         }
         
-        val submit = asyncWaitForResponse(request, replicas); 
-        if (VERBOSE) Utils.console(moduleName, "submit= " + submit);
-        if (submit) {
-            submitAsyncExecuteAbort(request, replicas);
-        }
-        else {
+        val allReplicasActive = asyncWaitForResponse(request, replicas); 
+        if (VERBOSE) Utils.console(moduleName, "allReplicasActive= " + allReplicasActive);        
+        submitAsyncExecuteAbort(request, replicas);
+        
+        if (!allReplicasActive) {
             val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
             request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
             if (VERBOSE) Utils.console(moduleName, "complete request with dead place exception= " + request.toString());
-        }        
+        }
+        else
+            request.completeRequest(null);
     }
     
     /************************  Functions to send requests to Replicas  *****************************/
@@ -218,16 +219,17 @@ public class ReplicaClient {
         var exception:Exception = null;
         for (placeId in replicas) {
             try{
-                at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().abortNoResponse(transId, gr);
-                }
+            	if (!Place(placeId).isDead()) {
+            		at (Place(placeId)) async {
+                    	DataStore.getInstance().getReplica().abortNoResponse(transId, gr);
+                	}
+            	}
             }
             catch (ex:Exception) {
                 exception = ex;
             }
         }
-        //Ignore exception
-        request.completeRequest(null);
+        
     }
     
     /************************  Functions to Add and Monitor Requests  *****************************/
