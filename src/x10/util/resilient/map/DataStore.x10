@@ -237,8 +237,8 @@ public class DataStore {
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
         finish for (targetClient in places) {
-            //leader and deputyLeader are updated separately by updateLeader(....) 
-            if (targetClient == tmpLeader.id || targetClient == tmpDeputyLeader.id)
+            //leader is updated separately by updateLeader(....) 
+            if (targetClient == tmpLeader.id)
                 continue;
             at (Place(targetClient)) async {
                 DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
