@@ -13,12 +13,14 @@ import x10.util.Timer;
  * Test commands: 
  * cd tests
  * make TestAllPlacesIncrementAllKeys
+ * 
+ * --without killing places
  * DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o
  * 
  * -- kill place 3:  (Place 3 is: Replica and ReplicaClient )
  * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o 3
  * 
- * -- kill place 3:  (Place 3 is: LEADER)
+ * -- kill place 3:  (Place 3 is a Leader)
  * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 3
  * 
  * -- kill place 4 (Place 4 is Deputy Leader)
@@ -39,7 +41,7 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
 				for (i in 0..(KEYS_RAIL.size-1))
 					keyIndexList.add(i);
 				
-				val rnd = new Random(Timer.milliTime());              
+				val rnd = new Random(Timer.milliTime()+here.id);              
 				val keysCount = KEYS_RAIL.size;
 				
 				if (here.id == placeToKill){
