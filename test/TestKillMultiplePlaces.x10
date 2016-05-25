@@ -45,7 +45,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		
 		val keysCount = KEYS_RAIL.size;		
 		val countsPLH = PlaceLocalHandle.make[Rail[Long]](Place.places(), ()=>new Rail[Long](keysCount) );		
-		val hm = DataStore.getInstance().makeResilientMap("MapA", 100);		
+		val hm = DataStore.getInstance().makeResilientMap("MapA", 1000);		
 		val tmpMaxIterations = maxIterations;
 		var valid:Boolean = true;
 		try{
