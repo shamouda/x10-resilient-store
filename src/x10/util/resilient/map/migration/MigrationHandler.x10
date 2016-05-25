@@ -29,6 +29,17 @@ public class MigrationHandler {
         this.topology = topology.clone();
     }
     
+    public def updateDeputyLeaderMigrationHandler(topology:Topology, partitionTable:PartitionTable) {
+    	try{
+            lock.lock();
+            this.topology.update(topology);
+            this.partitionTable.createPartitionTable(this.topology);
+    	}
+    	finally{
+    		lock.unlock();
+    	}
+    }
+    
     public def addRequest(clientPlace:Long, deadPlaces:HashSet[Long]) {
         if (VERBOSE) Utils.console(moduleName, "adding dead place notification from client ["+clientPlace+"]");
         try{
@@ -77,17 +88,10 @@ public class MigrationHandler {
                 nextReq = nextRequest();
                 curReq++;
             }
-            
         }       
-        
-        try{
-            lock.lock();
-            if (updateLeader)
-                DataStore.getInstance().updateLeader(topology, partitionTable);        
-            DataStore.getInstance().updatePlaces(impactedClients);
-        }finally {
-            lock.unlock();
-        }
+        if (updateLeader)
+        	DataStore.getInstance().updateLeader(topology, partitionTable);        
+        DataStore.getInstance().updatePlaces(impactedClients);
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
@@ -142,7 +146,7 @@ public class MigrationHandler {
             
         } while (!allComplete);
         
-        var success:Boolean = false;
+        var success:Boolean = true;
         for (req in requests) {
             if (!req.isComplete() && req.isTimeOut(timeoutLimit)) {
                 success = false;
