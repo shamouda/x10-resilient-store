@@ -51,6 +51,8 @@ public class MigrationHandler {
         var nextReq:DeadPlaceNotification = nextRequest();
         var updateLeader:Boolean = false;
         val impactedClients = new HashSet[Long](); 
+        var prevReq:Long = -1;
+        var curReq:Long = 0;
         while(nextReq != null){
             if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
             
@@ -65,19 +67,27 @@ public class MigrationHandler {
             }
             
             var success:Boolean = true;
-            if (newDeadPlaces)
+            if (newDeadPlaces || prevReq == curReq)
                 success = migratePartitions();
             
+            prevReq = curReq;
             if (success) {
                 impactedClients.addAll(nextReq.impactedClients);
                 /*get next request if the current one is successful*/
                 nextReq = nextRequest();
+                curReq++;
             }
+            
         }       
-        if (updateLeader)
-            DataStore.getInstance().updateLeader(topology, partitionTable);        
         
-        DataStore.getInstance().updatePlaces(impactedClients);
+        try{
+            lock.lock();
+            if (updateLeader)
+                DataStore.getInstance().updateLeader(topology, partitionTable);        
+            DataStore.getInstance().updatePlaces(impactedClients);
+        }finally {
+            lock.unlock();
+        }
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
@@ -111,17 +121,16 @@ public class MigrationHandler {
         return success;
     }
     
-    //TODO: add timeout limit
     private def waitForMigrationCompletion(requests:ArrayList[MigrationRequest], timeoutLimit:Long):Boolean {
         var allComplete:Boolean = true;
         do {
             allComplete = true;
             for (req in requests) {
-                if (!req.isComplete()) {
+                val timeOutFlag = req.isTimeOut(timeoutLimit);
+                if (!req.isComplete() && !timeOutFlag) {
+                    if (VERBOSE)  Utils.console(moduleName, "migration request {"+req.toString()+"} is not complete!!! isComplete["+req.isComplete() +"] isTimeOut["+timeOutFlag+"] ...");
                     allComplete = false;
-                    if (req.isTimeOut(timeoutLimit)){
-                        break;
-                    }
+                    break;
                 }
             }
             
@@ -133,7 +142,14 @@ public class MigrationHandler {
             
         } while (!allComplete);
         
-        return allComplete;
+        var success:Boolean = false;
+        for (req in requests) {
+            if (!req.isComplete() && req.isTimeOut(timeoutLimit)) {
+                success = false;
+                break;
+            }
+        }
+        return success;
     }
     
     public def isMigrating() {
