@@ -114,9 +114,22 @@ public class DataStore {
     
     public def getReplica() = replica;
     public def executor() = executor;
+    
+    /**
+     * Returns the partition table. 
+     * Called only by a MigrationHandler
+     **/
     public def getPartitionTable() = partitionTable;
+    
     public def getMigrationHandler() = migrationHandler;
-    public def isLeader() = here.id == leaderPlace.id;
+    
+    public def isLeader():Boolean {
+    	var result:Boolean = false;
+        lock.lock();
+    	result = here.id == leaderPlace.id;
+    	lock.unlock();
+    	return result;
+    }
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
@@ -188,8 +201,15 @@ public class DataStore {
             if (VERBOSE) Utils.console(moduleName, "reporting dead places to DEPUTY LEADER: " + targetPlace);
         }
         else {
-            valid = false;
-            throw new InvalidDataStoreException();
+        	if (VERBOSE) Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for the leader");
+        	val newLeaderId = searchForLeader();
+        	if (newLeaderId == -1) {
+        		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found to re-partition the data store and fix it");
+        		valid = false;
+        		throw new InvalidDataStoreException();
+        	}
+        	else
+        		targetPlace = Place(newLeaderId);
         }
         
         val clientPlaceId = here.id;
@@ -200,25 +220,35 @@ public class DataStore {
     
     
     public def updateLeader(topology:Topology, partitionTable:PartitionTable) {
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status ...");
-        this.topology.update(topology);
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
-        this.partitionTable.update(partitionTable);
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
+    	var changeDeputyLeader:Boolean = false;
+    	try{
+    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status (waiting for lock) ...");
+    		lock.lock();    		
+    		leaderPlace = here;
+    		
+    		this.topology.update(topology);    		
+    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
+    		
+    		this.partitionTable.update(partitionTable);    		
+    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
         
-        var changeDeputyLeader:Boolean = false;
-        if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
-        	changeDeputyLeader = true;
-        }        
-        else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {
-            leaderPlace = here;
-            changeDeputyLeader = true;
-            if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
-        }        
+    		
+    		if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
+    			changeDeputyLeader = true;
+    		}        
+    		else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {            
+    			changeDeputyLeader = true;
+    			if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
+    		}
+    		
+    		if (changeDeputyLeader)
+    			deputyLeaderPlace = findNewDeputyLeader();
+    	}finally {
+    		lock.unlock();
+    	}
         
-        if (changeDeputyLeader) {
+    	if (changeDeputyLeader) {
         	if (VERBOSE) Utils.console(moduleName, "Changing the deputy leader ...");
-        	deputyLeaderPlace = findNewDeputyLeader();
         	val tmpLeader = leaderPlace;
         	val tmpTopology = topology;        	
             at (deputyLeaderPlace) {
@@ -229,17 +259,20 @@ public class DataStore {
     
     /**
      * This function should be called only form the leader or deputy leader places
-     * It updates the state of other places with the same state at the leader or deputy leader
+     * It updates the state of other places with the same state at the leader or deputy leader.
+     * Only one thread (migration handler thread) will be accessing this method at any time.
      **/
     public def updatePlaces(places:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ...");
+        if (VERBOSE) Utils.console(moduleName, "updatePlaces: impacted client places ["+Utils.hashSetToString(places)+"] ...");
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
         finish for (targetClient in places) {
             //leader is updated separately by updateLeader(....) 
-            if (targetClient == tmpLeader.id)
+            if (targetClient == tmpLeader.id) {
+            	Utils.console(moduleName, "updatePlaces: Ignore updating client place ["+Place(targetClient)+"] because it is the leader ...");
                 continue;
+            }
             
             if (!Place(targetClient).isDead()) {
                 at (Place(targetClient)) async {
@@ -247,7 +280,7 @@ public class DataStore {
                 }
             }
             else if (VERBOSE) {
-                Utils.console(moduleName, "Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
+                Utils.console(moduleName, "updatePlaces: Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
             }
         }
     }
@@ -257,15 +290,27 @@ public class DataStore {
      * No need to pass in the partition table, it can be re-created using the topology object
      **/
     public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
-        if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status ...");
-        val oldDeputyLeader = this.deputyLeaderPlace;
-        val oldLeader = this.leaderPlace;
+    	try{
+    		if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status, waiting for lock ...");
+    		lock.lock();
+    		val oldDeputyLeader = this.deputyLeaderPlace;
+    		val oldLeader = this.leaderPlace;
+    		this.leaderPlace = leader;
+    		this.deputyLeaderPlace = deputyLeader;
+    		this.topology.update(topology);
+    		this.partitionTable.createPartitionTable(this.topology);
         
-        this.leaderPlace = leader;
-        this.deputyLeaderPlace = deputyLeader;
-        this.topology.update(topology);
-        this.partitionTable.createPartitionTable(this.topology);
-        if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");
+    		if (here.id == deputyLeader.id){
+    			if (migrationHandler == null) {
+    				migrationHandler = new MigrationHandler(topology, partitionTable);
+    			}
+    			else
+    				migrationHandler.updateDeputyLeaderMigrationHandler(topology, partitionTable);
+    		}
+    		if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");
+    	} finally {
+    		lock.unlock();
+    	}
     }
     
     /**
@@ -286,4 +331,35 @@ public class DataStore {
         return newDeputyLeader;
     }
     
+    
+    
+    public def searchForLeader():Long {
+    	if (VERBOSE) Utils.console(moduleName, "Searching for a leader, waiting for lock ...");    	
+    	var foundLeaderPlaceId:Long = -1;
+        var deputyLeaderId:Long = -1;
+    	var deputyLeaderNodeIndex:Long = -1;
+    	
+    	try {
+    		lock.lock();    		
+    		val nodesCount = topology.getNodesCount();
+    		deputyLeaderId = this.deputyLeaderPlace.id;
+    		deputyLeaderNodeIndex = topology.getNodeIndex(deputyLeaderId);
+    		val placeIndex = 0;
+    		for (var i:Long = 1; i < nodesCount; i++) {
+    			val candidatePlace = topology.getPlaceByIndex(((deputyLeaderNodeIndex+i) % nodesCount) , placeIndex);
+    			if (!candidatePlace.isDead()) {
+    				val isLeader = at (candidatePlace) DataStore.getInstance().isLeader();
+    				if (VERBOSE) Utils.console(moduleName, "Is " + candidatePlace + " a Leader? " + isLeader);
+    				if (isLeader) {
+    					foundLeaderPlaceId = candidatePlace.id;
+    					break;
+    				}
+    			}
+    		}
+    	}finally {
+    		lock.unlock();
+    	}
+    
+    	return foundLeaderPlaceId;
+    }
 }
