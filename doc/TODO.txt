@@ -46,7 +46,7 @@ Assumptions:
 - no place failure until the data store is first initialized
 - leader and deputy leader will not die at the same time
 - migration leader does not die while migrating partitions
-
+- Place.isDead() will return the same at all places!!!!
 
 ======================
 Statistics Collection:
