@@ -1,4 +1,4 @@
-# x10-resilient-store
+# X10 Resilient Store
 
 This project provides X10 users with a resilient distributed hash map, that can tolerate the loss of multiple places.
 The map is accessible to applications through two classes `x10.util.resilient.map.DataStore` and `x10.util.resilient.map.ResilientMap`.
