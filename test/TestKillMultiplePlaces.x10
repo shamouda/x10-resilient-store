@@ -36,6 +36,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
     
     val killFlagPLH = PlaceLocalHandle.make[AtomicBoolean](Place.places(), ()=>new AtomicBoolean(false) );	
     
+    var killedPlacesStr:String = "";
 	public def run(): Boolean {
 		
 		if (x10.xrx.Runtime.RESILIENT_MODE > 0 && killPeriodInMillis != -1) {
@@ -75,7 +76,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 					var oldValue:Any;
 					var newValue:Any;					
 					var r:Long = 0;
-				    while(true) {
+				    while(DataStore.getInstance().isValid()) {
 				    	if (r == hm.retryMaximum())
 				    		Console.OUT.println("Warning: " + here + " has exceeded the max number of retries  r=" + r 
 				    							+ " max=" +  hm.retryMaximum() + "  while updating key["+nextKey+"] ");
@@ -107,6 +108,10 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		}
 		
 		complete.set(true);
+		
+		if (!DataStore.getInstance().isValid()) {
+			return false;
+		}
 		
 		val remainingPlaces = Place.places().filterDeadPlaces();
 		val team = new Team(remainingPlaces);
@@ -148,6 +153,8 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 				valid = false;
 			}
 		}
+		
+		Console.OUT.println("Killed Places: " + killedPlacesStr);
         return valid;
 	}
 	
@@ -169,7 +176,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 				if (victim == 0)
 					victim = 1;
 				
-				if (killFlagPLH().get())
+				if (Place(victim).isDead())
 					victim = -1; // try another place
 				else 
 					break;
@@ -177,7 +184,9 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 				count++;
 			}while(count < Place.numPlaces());
 			
-			if (victim != -1){				
+			if (victim != -1){	
+				killedPlacesCount++;
+				killedPlacesStr += victim + ",";
 				at (Place(victim)) {
 					killFlagPLH().set(true);
 				}
