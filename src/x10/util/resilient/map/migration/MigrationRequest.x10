@@ -23,7 +23,12 @@ public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newR
     }
 
     public def isComplete() = completed;
-    public def isTimeOut(limit:Long) = (Timer.milliTime()-startTimeMillis) > limit;
+    public def isTimeOut(limit:Long):Boolean {
+        val curTime = Timer.milliTime();
+        val elapsedTime = curTime - startTimeMillis;
+        if (VERBOSE) Utils.console(moduleName, "Timeout limit ["+limit+"]  startTime["+startTimeMillis+"]  elapsedTime["+elapsedTime+"]   result ["+(elapsedTime > limit)+"] ...");
+        return elapsedTime > limit;
+    }
     
     public def toString():String {
         var str:String = "partitionId:"+partitionId + "=> old[";
