@@ -232,7 +232,7 @@ public class DataStore {
      * It updates the state of other places with the same state at the leader or deputy leader
      **/
     public def updatePlaces(places:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ...");
+        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ...");
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
@@ -240,8 +240,14 @@ public class DataStore {
             //leader is updated separately by updateLeader(....) 
             if (targetClient == tmpLeader.id)
                 continue;
-            at (Place(targetClient)) async {
-                DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
+            
+            if (!Place(targetClient).isDead()) {
+                at (Place(targetClient)) async {
+                    DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
+                }
+            }
+            else if (VERBOSE) {
+                Utils.console(moduleName, "Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
             }
         }
     }
@@ -251,6 +257,7 @@ public class DataStore {
      * No need to pass in the partition table, it can be re-created using the topology object
      **/
     public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
+        if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status ...");
         val oldDeputyLeader = this.deputyLeaderPlace;
         val oldLeader = this.leaderPlace;
         
