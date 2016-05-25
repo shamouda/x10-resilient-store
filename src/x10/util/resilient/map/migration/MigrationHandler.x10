@@ -24,16 +24,20 @@ public class MigrationHandler {
     private val partitionTable:PartitionTable;
     private val topology:Topology;
     
+    private var tmpPartitionTable:PartitionTable;    
     public def this(topology:Topology, partitionTable:PartitionTable) {
         this.partitionTable = partitionTable.clone();
         this.topology = topology.clone();
+        
+        this.tmpPartitionTable = partitionTable.clone(); //emulates the DataStore's partition table 
     }
     
     public def updateDeputyLeaderMigrationHandler(topology:Topology, partitionTable:PartitionTable) {
     	try{
             lock.lock();
             this.topology.update(topology);
-            this.partitionTable.createPartitionTable(this.topology);
+            this.partitionTable.update(partitionTable);
+            this.tmpPartitionTable.update(partitionTable);
     	}
     	finally{
     		lock.unlock();
@@ -78,11 +82,13 @@ public class MigrationHandler {
             }
             
             var success:Boolean = true;
-            if (newDeadPlaces || prevReq == curReq)
+            if (newDeadPlaces || prevReq == curReq) {
                 success = migratePartitions();
+            }
             
             prevReq = curReq;
             if (success) {
+            	tmpPartitionTable.update(partitionTable);  
                 impactedClients.addAll(nextReq.impactedClients);
                 /*get next request if the current one is successful*/
                 nextReq = nextRequest();
@@ -98,10 +104,11 @@ public class MigrationHandler {
     private def migratePartitions():Boolean {
         var success:Boolean = true;
         partitionTable.createPartitionTable(topology);
-        val oldPartitionTable = DataStore.getInstance().getPartitionTable();
+        val oldPartitionTable = tmpPartitionTable;
         //1. Compare the old and new parition tables and generate migration requests
         val migrationRequests = oldPartitionTable.generateMigrationRequests(partitionTable);
         
+        var newDeadPlaces:Boolean = false;
         //2. Apply the migration requests (copy from sources to destinations)
         for (req in migrationRequests) {
             if (VERBOSE) Utils.console(moduleName, "Handling migration request: " + req.toString());
@@ -111,17 +118,37 @@ public class MigrationHandler {
                 val partitionId = req.partitionId;
                 val gr = GlobalRef[MigrationRequest](req);
                 if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... ");
-                req.start();
-                at (Place(src)) async {
-                    DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
+                
+                if (Place(src).isDead()) {
+                	newDeadPlaces = true;
+                	if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"]  SOURCE IS DEAD ... ");
+                	topology.addDeadPlace(src);
+                	for (tmpReq in migrationRequests) {
+                		tmpReq.start(); 
+                		tmpReq.complete(false);
+                	}
+                	break;
+                }
+                else {
+                	req.start(); 
+                	at (Place(src)) async {
+                		DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
+                	}
                 }
             }
             catch(ex:Exception) {
                 ex.printStackTrace();
+                req.complete(false);   
             }
         }
-        success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
-        if (VERBOSE) Utils.console(moduleName, "Migration completed with successStatus = ["+success+"] ...");
+        if (newDeadPlaces) {
+        	success = false;
+        }
+        else {
+        	success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+        }
+        
+        if (VERBOSE) Utils.console(moduleName, "Migration completed with successStatus = ["+success+"] ...");        	
         return success;
     }
     
@@ -148,7 +175,7 @@ public class MigrationHandler {
         
         var success:Boolean = true;
         for (req in requests) {
-            if (!req.isComplete() && req.isTimeOut(timeoutLimit)) {
+            if (!req.isSuccessful() || (!req.isComplete() && req.isTimeOut(timeoutLimit) ) ) {
                 success = false;
                 break;
             }
