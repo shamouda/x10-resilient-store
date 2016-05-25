@@ -238,6 +238,12 @@ public class ReplicaClient {
      * Returns true if all replicas are active
      * */
     private def asyncWaitForResponse(req:MapRequest, replicas:HashSet[Long]):Boolean {
+    	
+    	if (!DataStore.getInstance().isValid()) {
+    		Utils.console(moduleName, "DataStore is invalid, no more requests will be added ...");
+    		return false;
+    	}
+    	
         var result:Boolean = true;
         try{
             lock.lock();            
@@ -283,8 +289,7 @@ public class ReplicaClient {
      *  - check for pendingMigration requests, and issues them after migration is complete
      **/
     private def checkPendingTransactions() {
-        while (timerOn) {
-            
+        while (timerOn) {            
             //requests that were pending until migration completes
             val resubmitList = new ArrayList[MapRequest]();
             
@@ -352,9 +357,11 @@ public class ReplicaClient {
                 lock.unlock();
             }
             
-            //resubmit the requests that were pending on migration or on commit confirmation
-            for (req in resubmitList) {
-                asyncExecuteRequest(req);
+            if (DataStore.getInstance().isValid()) {
+            	//resubmit the requests that were pending on migration or on commit confirmation
+            	for (req in resubmitList) {
+            		asyncExecuteRequest(req);
+            	}
             }
         }
     }
