@@ -511,13 +511,20 @@ public class Replica {
                         if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition ready to migrate ...");
                         
                         val maps =  partition.getMaps();
-                        finish for (placeId in destPlaces) at (Place(placeId)) async {
-                            //NOTE: using verbose causes this to hang
-                            DataStore.getInstance().getReplica().addPartition(partitionId, maps);
+                        var success:Boolean = false;
+                        try{
+                        	finish for (placeId in destPlaces) at (Place(placeId)) async {
+                        		//NOTE: using verbose causes this to hang
+                        		DataStore.getInstance().getReplica().addPartition(partitionId, maps);
+                        	}
+                        	success = true;
+                        }catch(ex:Exception) {
+                        	success = false;
                         }
                     
+                        val successVal = success;
                         at (gr.home) {
-                            gr().complete();
+                            gr().complete(successVal);
                         }
                     }finally {
                         partitionsLock.unlock();
