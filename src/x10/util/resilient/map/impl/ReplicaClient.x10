@@ -360,6 +360,8 @@ public class ReplicaClient {
     }
     
     /**
+     * TODO: move this function to DataStore because we need the leader
+     * 
      * Checks if any of the provided replicas is dead, and notifies the master place
      * Returns true if any replica is dead
      **/
