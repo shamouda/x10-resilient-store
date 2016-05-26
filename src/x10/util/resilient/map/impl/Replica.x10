@@ -67,14 +67,18 @@ public class Replica {
     }
     
     private def getVersionValue(partitionId:Long, mapName:String, key:Any):VersionValue {
+    	if (VERBOSE) Utils.console(moduleName, "getVersionValue  partitionId["+partitionId+"] key["+key+"] ...");
         var verValue:VersionValue = null;
         try{
             partitionsLock.lock();
-            val partition = partitions.getOrThrow(partitionId);
-            verValue = partition.getV(mapName, key);
+            verValue = partitions.getOrThrow(partitionId).getV(mapName, key);
+        }
+        catch(ex:Exception) {
+        	Console.OUT.println("getVersionValue  exception: " + ex.getMessage());
         } finally{
             partitionsLock.unlock();
         }
+        if (VERBOSE) Utils.console(moduleName, "getVersionValue  partitionId["+partitionId+"] key["+key+"] completed...");
         return verValue;
     }
     
@@ -483,21 +487,22 @@ public class Replica {
     }
        
     /**
-     * Migrating a partition to here
+     * Migrating distination
      **/
     public def addPartition(id:Long, maps:HashMap[String, HashMap[Any,VersionValue]]) {
         if (VERBOSE) Utils.console(moduleName, "Adding partition , waiting for partitions lock ...");
         try{
-            partitionsLock.lock();
-            val partition = new Partition(id, maps);
-            partitions.put(id, partition);
-        }
-        finally{
-            partitionsLock.unlock();
+        	partitionsLock.lock();
+        	partitions.put(id, new Partition(id, maps));
+        } finally {
+        	partitionsLock.unlock();
         }
         if (VERBOSE) Utils.console(moduleName, "Adding partition succeeded ...");
     }
     
+    /**
+     * Migration source.
+     * */
     public def copyPartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
         if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] ...");
         do {
@@ -505,29 +510,32 @@ public class Replica {
                 transactionsLock.lock();
                 if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ...");
                 if (!isPartitionUsedForUpdate(partitionId)) {
-                    partitionsLock.lock();
+                    var partition:Partition = null;
+                	try{
+                		partitionsLock.lock();
+                		partition = partitions.getOrThrow(partitionId);
+                	}finally{
+                		partitionsLock.unlock();
+                	}
+                	
+                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition ready to migrate ...");                    
+                    val maps =  partition.getMaps();
+                    var success:Boolean = false;
                     try{
-                        val partition = partitions.getOrThrow(partitionId);
-                        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition ready to migrate ...");
-                        
-                        val maps =  partition.getMaps();
-                        var success:Boolean = false;
-                        try{
-                        	finish for (placeId in destPlaces) at (Place(placeId)) async {
-                        		//NOTE: using verbose causes this to hang
-                        		DataStore.getInstance().getReplica().addPartition(partitionId, maps);
-                        	}
-                        	success = true;
-                        }catch(ex:Exception) {
-                        	success = false;
-                        }
-                    
-                        val successVal = success;
-                        at (gr.home) {
-                            gr().complete(successVal);
-                        }
-                    }finally {
-                        partitionsLock.unlock();
+                    	finish for (placeId in destPlaces) at (Place(placeId)) async {
+                    		Console.OUT.println("Reached here " + here);
+                    		//NOTE: using verbose causes this to hang
+                    		DataStore.getInstance().getReplica().addPartition(partitionId, maps);
+                    	}
+                    	success = true;
+                    }catch(ex:Exception) {
+                    	ex.printStackTrace();
+                    	success = false;
+                    }
+                
+                    val successVal = success;
+                    at (gr.home) {
+                        gr().complete(successVal);
                     }
                     break;
                 }
