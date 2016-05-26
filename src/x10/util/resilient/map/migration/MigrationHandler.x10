@@ -7,6 +7,7 @@ import x10.util.resilient.map.common.Topology;
 import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.common.Utils;
+import x10.util.Timer;
 /*
  * Responsible for receiving dead place notifications and updating the partition table
  * An object of this class exists only at the Leader and DeputyLeader places
@@ -28,7 +29,6 @@ public class MigrationHandler {
     public def this(topology:Topology, partitionTable:PartitionTable) {
         this.partitionTable = partitionTable.clone();
         this.topology = topology.clone();
-        
         this.tmpPartitionTable = partitionTable.clone(); //emulates the DataStore's partition table 
     }
     
@@ -83,7 +83,9 @@ public class MigrationHandler {
             
             var success:Boolean = true;
             if (newDeadPlaces || prevReq == curReq) {
+            	val startTime = Timer.milliTime();
                 success = migratePartitions();
+                if (VERBOSE) Utils.console(moduleName, "MIGRATING PARTITIONS Took "+(Timer.milliTime() - startTime)+"ms  ...");
             }
             
             prevReq = curReq;
@@ -95,9 +97,16 @@ public class MigrationHandler {
                 curReq++;
             }
         }       
-        if (updateLeader)
-        	DataStore.getInstance().updateLeader(topology, partitionTable);        
-        DataStore.getInstance().updatePlaces(impactedClients);
+        
+        try{
+        	if (updateLeader)
+        		DataStore.getInstance().updateLeader(topology, partitionTable);        
+        	DataStore.getInstance().updatePlaces(impactedClients);
+        	if (VERBOSE) Utils.console(moduleName, "MIGRATION COMPLETED SUCCESSFULLY ...");
+        }catch(ex:Exception){
+        	ex.printStackTrace();
+        	if (VERBOSE) Utils.console(moduleName, "MIGRATION COMPLETED WITH ERRORS ...");
+        }
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
@@ -130,17 +139,19 @@ public class MigrationHandler {
                 	break;
                 }
                 else {
+                	if (VERBOSE) Utils.console(moduleName, "Copying partition moving to source ["+src+"] ...");
                 	req.start(); 
                 	at (Place(src)) async {
-                		DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
+                		DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);
                 	}
                 }
             }
             catch(ex:Exception) {
                 ex.printStackTrace();
-                req.complete(false);   
+                req.complete(false);
             }
         }
+        
         if (newDeadPlaces) {
         	success = false;
         }
@@ -178,7 +189,7 @@ public class MigrationHandler {
                 break;
             
             if (VERBOSE) Utils.console(moduleName, "waiting for migration to complete ...");
-            System.threadSleep(10);
+            System.threadSleep(25);
             
         } while (!allComplete);
         
