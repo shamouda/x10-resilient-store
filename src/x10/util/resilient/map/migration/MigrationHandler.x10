@@ -146,8 +146,17 @@ public class MigrationHandler {
         }
         else {
         	success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+        	if (!success) {
+        	    for (req in migrationRequests) {
+                    for (dst in req.newReplicas) {
+                        if (Place(dst).isDead()) {
+                            if (VERBOSE) Utils.console(moduleName, "Found dead destination " + Place(dst));
+                            topology.addDeadPlace(dst);
+                        }
+                    }
+                }
+        	}
         }
-        
         if (VERBOSE) Utils.console(moduleName, "Migration completed with successStatus = ["+success+"] ...");        	
         return success;
     }
