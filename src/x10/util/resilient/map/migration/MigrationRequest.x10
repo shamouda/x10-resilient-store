@@ -59,6 +59,7 @@ public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newR
         for (y in newReplicas)
              str += y + ",";
         str += "] ";
+        str += " completed["+completed+"] success["+success+"]"; 
         return str;
     }
 }
