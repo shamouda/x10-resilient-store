@@ -293,7 +293,7 @@ public class ReplicaClient {
             //requests that were pending until migration completes
             val resubmitList = new ArrayList[MapRequest]();
             
-            System.threadSleep(10);
+            System.threadSleep(25);
             try{
                 lock.lock();
                 var i:Long;
