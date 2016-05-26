@@ -7,7 +7,7 @@ import x10.util.resilient.map.common.Topology;
 import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.common.Utils;
-import x10.util.Timer;
+import x10.util.resilient.map.exception.InvalidDataStoreException;
 /*
  * Responsible for receiving dead place notifications and updating the partition table
  * An object of this class exists only at the Leader and DeputyLeader places
@@ -25,11 +25,10 @@ public class MigrationHandler {
     private val partitionTable:PartitionTable;
     private val topology:Topology;
     
-    private var tmpPartitionTable:PartitionTable;    
+    private var valid:Boolean = true;
     public def this(topology:Topology, partitionTable:PartitionTable) {
         this.partitionTable = partitionTable.clone();
         this.topology = topology.clone();
-        this.tmpPartitionTable = partitionTable.clone(); //emulates the DataStore's partition table 
     }
     
     public def updateDeputyLeaderMigrationHandler(topology:Topology, partitionTable:PartitionTable) {
@@ -37,8 +36,7 @@ public class MigrationHandler {
             lock.lock();
             this.topology.update(topology);
             this.partitionTable.update(partitionTable);
-            this.tmpPartitionTable.update(partitionTable);
-    	}
+       	}
     	finally{
     		lock.unlock();
     	}
@@ -61,13 +59,14 @@ public class MigrationHandler {
         }
     }
     
-    public def processRequests() {
+    public def processRequests() {    	
         if (VERBOSE) Utils.console(moduleName, "processing migration requests ...");
         var nextReq:DeadPlaceNotification = nextRequest();
         var updateLeader:Boolean = false;
         val impactedClients = new HashSet[Long](); 
         var prevReq:Long = -1;
         var curReq:Long = 0;
+        var result:PartitionsMigrationResult = null;
         while(nextReq != null){
             if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
             
@@ -81,16 +80,29 @@ public class MigrationHandler {
                 }
             }
             
+            if (result != null) {
+                for (p in result.deadPlaces){
+                    if (!topology.isDeadPlace(p)) {
+                        topology.addDeadPlace(p);
+                        newDeadPlaces = true;
+                        updateLeader = true;
+                    }
+                }           	
+            }
+
             var success:Boolean = true;
             if (newDeadPlaces || prevReq == curReq) {
-            	val startTime = Timer.milliTime();
-                success = migratePartitions();
-                if (VERBOSE) Utils.console(moduleName, "MIGRATING PARTITIONS Took "+(Timer.milliTime() - startTime)+"ms  ...");
+            	try{
+            		result = migratePartitions();
+            		success = result.success;
+            	}catch(ex:Exception) {
+            		valid = false;
+            		Utils.console(moduleName, "Invalid migration handler exception["+ex.getMessage()+"]");
+            	}
             }
             
             prevReq = curReq;
-            if (success) {
-            	tmpPartitionTable.update(partitionTable);  
+            if (success || !valid) {
                 impactedClients.addAll(nextReq.impactedClients);
                 /*get next request if the current one is successful*/
                 nextReq = nextRequest();
@@ -99,25 +111,28 @@ public class MigrationHandler {
         }       
         
         try{
-        	if (updateLeader)
-        		DataStore.getInstance().updateLeader(topology, partitionTable);        
-        	DataStore.getInstance().updatePlaces(impactedClients);
-        	if (VERBOSE) Utils.console(moduleName, "MIGRATION COMPLETED SUCCESSFULLY ...");
-        }catch(ex:Exception){
-        	ex.printStackTrace();
-        	if (VERBOSE) Utils.console(moduleName, "MIGRATION COMPLETED WITH ERRORS ...");
+            lock.lock();
+            if (updateLeader)
+                DataStore.getInstance().updateLeader(topology, partitionTable);        
+            DataStore.getInstance().updatePlaces(impactedClients, valid);
+        } finally {
+            lock.unlock();
         }
+    	
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
-    private def migratePartitions():Boolean {
+    private def migratePartitions():PartitionsMigrationResult {    	
+    	if (VERBOSE) Utils.console(moduleName, "migratePartitions() started valid["+valid+"]...");
+    	if (!valid)
+    		throw new InvalidDataStoreException();
+    	
         var success:Boolean = true;
         partitionTable.createPartitionTable(topology);
-        val oldPartitionTable = tmpPartitionTable;
+        val oldPartitionTable = DataStore.getInstance().getPartitionTable();
         //1. Compare the old and new parition tables and generate migration requests
         val migrationRequests = oldPartitionTable.generateMigrationRequests(partitionTable);
         
-        var newDeadPlaces:Boolean = false;
         //2. Apply the migration requests (copy from sources to destinations)
         for (req in migrationRequests) {
             if (VERBOSE) Utils.console(moduleName, "Handling migration request: " + req.toString());
@@ -127,49 +142,33 @@ public class MigrationHandler {
                 val partitionId = req.partitionId;
                 val gr = GlobalRef[MigrationRequest](req);
                 if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... ");
-                
-                if (Place(src).isDead()) {
-                	newDeadPlaces = true;
-                	if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"]  SOURCE IS DEAD ... ");
-                	topology.addDeadPlace(src);
-                	for (tmpReq in migrationRequests) {
-                		tmpReq.start(); 
-                		tmpReq.complete(false);
-                	}
-                	break;
-                }
-                else {
-                	if (VERBOSE) Utils.console(moduleName, "Copying partition moving to source ["+src+"] ...");
-                	req.start(); 
+                req.start();
+                if (!Place(src).isDead()) {
                 	at (Place(src)) async {
-                		DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);
+                		DataStore.getInstance().getReplica().copyPartitionsTo(partitionId, destinations, gr);                        
                 	}
                 }
             }
             catch(ex:Exception) {
                 ex.printStackTrace();
-                req.complete(false);
             }
         }
-        
-        if (newDeadPlaces) {
-        	success = false;
-        }
-        else {
-        	success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
-        	if (!success) {
-        	    for (req in migrationRequests) {
-                    for (dst in req.newReplicas) {
-                        if (Place(dst).isDead()) {
-                            if (VERBOSE) Utils.console(moduleName, "Found dead destination " + Place(dst));
-                            topology.addDeadPlace(dst);
-                        }
-                    }
-                }
+        success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+        val newDeadPlaces = new HashSet[Long]();
+        for (req in migrationRequests) {
+        	for (src in req.oldReplicas){
+        		if (Place(src).isDead()){
+        			newDeadPlaces.add(src);
+        		}
+        	}
+        	for (dst in req.newReplicas){
+        		if (Place(dst).isDead()){
+        			newDeadPlaces.add(dst);
+        		}
         	}
         }
-        if (VERBOSE) Utils.console(moduleName, "Migration completed with successStatus = ["+success+"] ...");        	
-        return success;
+        if (VERBOSE) Utils.console(moduleName, "Migration completed with success=["+success+"] , newDeadPlaces are ["+Utils.hashSetToString(newDeadPlaces)+"] ...");
+        return new PartitionsMigrationResult(success, newDeadPlaces);
     }
     
     private def waitForMigrationCompletion(requests:ArrayList[MigrationRequest], timeoutLimit:Long):Boolean {
@@ -189,13 +188,13 @@ public class MigrationHandler {
                 break;
             
             if (VERBOSE) Utils.console(moduleName, "waiting for migration to complete ...");
-            System.threadSleep(25);
+            System.threadSleep(10);
             
-        } while (!allComplete);
+        } while (!allComplete && valid);
         
         var success:Boolean = true;
         for (req in requests) {
-            if (!req.isSuccessful() || (!req.isComplete() && req.isTimeOut(timeoutLimit) ) ) {
+            if (!req.isComplete() && req.isTimeOut(timeoutLimit)) {
                 success = false;
                 break;
             }
@@ -257,4 +256,7 @@ class DeadPlaceNotification (impactedClients:HashSet[Long], deadPlaces:HashSet[L
 	}
 	
 }
+
+
+class PartitionsMigrationResult(success:Boolean, deadPlaces:HashSet[Long]) {}
 

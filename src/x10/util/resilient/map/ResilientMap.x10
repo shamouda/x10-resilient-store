@@ -73,5 +73,8 @@ public interface ResilientMap {
      * Returns the maximum number of allowed trials when a transaction fails
      * */
     public def retryMaximum():Long;
+    
+    
+    public def isValid():Boolean;
         
 }

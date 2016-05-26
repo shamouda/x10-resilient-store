@@ -76,7 +76,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 					var oldValue:Any;
 					var newValue:Any;					
 					var r:Long = 0;
-				    while(DataStore.getInstance().isValid()) {
+				    while(hm.isValid()) {
 				    	if (r == hm.retryMaximum())
 				    		Console.OUT.println("Warning: " + here + " has exceeded the max number of retries  r=" + r 
 				    							+ " max=" +  hm.retryMaximum() + "  while updating key["+nextKey+"] ");
@@ -107,12 +107,11 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 			ex2.printStackTrace();			
 		}
 		
-		complete.set(true);
-		
-		if (!DataStore.getInstance().isValid()) {
+		if (!hm.isValid())
 			return false;
-		}
 		
+		complete.set(true);
+				
 		val remainingPlaces = Place.places().filterDeadPlaces();
 		val team = new Team(remainingPlaces);
 		val sumGR = GlobalRef(new Rail[Long](keysCount)); 

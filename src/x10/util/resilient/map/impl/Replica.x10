@@ -39,6 +39,7 @@ public class Replica {
     
     //transaction_status::transactions
     private val transactions:HashMap[Int,TransactionsMap];
+    private val migratingPartitions:HashSet[Long];
     private val transactionsLock:SimpleLatch;
     
     private val partitions:HashMap[Long,Partition];
@@ -48,6 +49,7 @@ public class Replica {
     
     public def this(partitionIds:HashSet[Long]) {
         partitions = new HashMap[Long,Partition]();
+        migratingPartitions = new HashSet[Long]();
         createPartitions(partitionIds);
         transactionsLock = new SimpleLatch();
         partitionsLock = new SimpleLatch();
@@ -67,18 +69,14 @@ public class Replica {
     }
     
     private def getVersionValue(partitionId:Long, mapName:String, key:Any):VersionValue {
-    	if (VERBOSE) Utils.console(moduleName, "getVersionValue  partitionId["+partitionId+"] key["+key+"] ...");
         var verValue:VersionValue = null;
         try{
             partitionsLock.lock();
-            verValue = partitions.getOrThrow(partitionId).getV(mapName, key);
-        }
-        catch(ex:Exception) {
-        	Console.OUT.println("getVersionValue  exception: " + ex.getMessage());
+            val partition = partitions.getOrThrow(partitionId);
+            verValue = partition.getV(mapName, key);
         } finally{
             partitionsLock.unlock();
         }
-        if (VERBOSE) Utils.console(moduleName, "getVersionValue  partitionId["+partitionId+"] key["+key+"] completed...");
         return verValue;
     }
     
@@ -333,7 +331,8 @@ public class Replica {
             transactionsLock.lock();
             
             if (!conflictingWithReadyTransaction(transLog)
-                && sameInitialVersions(mapName, transLog)) {
+                && sameInitialVersions(mapName, transLog)
+                && !conflictingWithMigratingPartition(transLog)) {
                 val conflictReport = getConflictingActiveTransactions(transLog);
                 if (conflictReport != null) {
                     if (conflictReport.maxTransId == transLog.transId) {
@@ -443,6 +442,17 @@ public class Replica {
             
     }
     
+    private def conflictingWithMigratingPartition(transLog:Transaction):Boolean {
+        var result:Boolean = false;
+        for (partitionId in migratingPartitions) { 
+            if (transLog.isPartitionUsedForUpdate(partitionId)) {
+                result = true;
+                break;
+            }
+        }
+        return result;
+    }
+    
     /**
      * Abort readyToCommit transactions if their client is dead
      **/
@@ -487,67 +497,85 @@ public class Replica {
     }
        
     /**
-     * Migrating distination
+     * Migrating a partition to here
      **/
     public def addPartition(id:Long, maps:HashMap[String, HashMap[Any,VersionValue]]) {
-        if (VERBOSE) Utils.console(moduleName, "Adding partition , waiting for partitions lock ...");
+        if (VERBOSE) Utils.console(moduleName, "Adding partition["+id+"] , waiting for partitions lock ...");
         try{
-        	partitionsLock.lock();
-        	partitions.put(id, new Partition(id, maps));
-        } finally {
-        	partitionsLock.unlock();
+            partitionsLock.lock();
+            val partition = new Partition(id, maps);
+            partitions.put(id, partition);
         }
-        if (VERBOSE) Utils.console(moduleName, "Adding partition succeeded ...");
+        finally{
+            partitionsLock.unlock();
+        }
+        if (VERBOSE) Utils.console(moduleName, "Adding partition["+id+"] succeeded ...");
     }
     
-    /**
-     * Migration source.
-     * */
     public def copyPartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
         if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] ...");
+        
+        var partition:Partition = null;
+        try{
+        	partitionsLock.lock();
+        	partition = partitions.getOrThrow(partitionId);
+        } finally {
+            partitionsLock.unlock();
+        } 
+        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained reference to partition["+partitionId+"] ...");
+        
         do {
-            try{
-                transactionsLock.lock();
-                if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ...");
-                if (!isPartitionUsedForUpdate(partitionId)) {
-                    var partition:Partition = null;
-                	try{
-                		partitionsLock.lock();
-                		partition = partitions.getOrThrow(partitionId);
-                	}finally{
-                		partitionsLock.unlock();
+        	var conflict:Boolean = false;
+        	try{
+        		transactionsLock.lock();
+        		if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ...");
+        		conflict = isPartitionUsedForUpdate(partitionId);
+        		if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - conflict = "+conflict+" ...");
+        		if (!conflict) {
+        			migratingPartitions.add(partitionId);
+        			if (VERBOSE) Utils.console(moduleName, "Adding partition ["+partitionId+"] to migList ... ");
+        		}
+        	}
+        	finally{
+        		transactionsLock.unlock();
+        	}
+        	
+            if (!conflict) {
+                val maps =  partition.getMaps();
+                try{
+                	finish for (placeId in destPlaces)	{
+                		if (!Place(placeId).isDead()) {
+                			at (Place(placeId)) async {
+                				//NOTE: using verbose causes this to hang
+                				DataStore.getInstance().getReplica().addPartition(partitionId, maps);
+                			}
+                		}
                 	}
                 	
-                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition ready to migrate ...");                    
-                    val maps =  partition.getMaps();
-                    var success:Boolean = false;
-                    try{
-                    	finish for (placeId in destPlaces) at (Place(placeId)) async {
-                    		Console.OUT.println("Reached here " + here);
-                    		//NOTE: using verbose causes this to hang
-                    		DataStore.getInstance().getReplica().addPartition(partitionId, maps);
-                    	}
-                    	success = true;
-                    }catch(ex:Exception) {
-                    	ex.printStackTrace();
-                    	success = false;
+                	at (gr.home) async {
+                    	gr().complete();
                     }
+                }catch(ex:Exception) {
+                	ex.printStackTrace();
+                }
                 
-                    val successVal = success;
-                    at (gr.home) {
-                        gr().complete(successVal);
-                    }
-                    break;
+                if (VERBOSE) Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList ... ");
+                try {
+                    transactionsLock.lock();
+                    migratingPartitions.remove(partitionId);
                 }
-                else{
-                    if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER...");
+                finally {
+                    transactionsLock.unlock();
                 }
+                if (VERBOSE) Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList SUCCEEDED ...");
+                
+                break;
             }
-            finally{
-                transactionsLock.unlock();
+            else{
+                if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER...");
             }
             
-             System.threadSleep(10);
+             System.threadSleep(25);
         }
         while(true);
         

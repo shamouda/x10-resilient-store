@@ -32,6 +32,8 @@ public class ResilientMapImpl implements ResilientMap {
     
     public def retryMaximum() = RETRY_MAX;
     
+    public def isValid() = DataStore.getInstance().isValid();
+    
     public def tryOperation(requestType:Int,key:Any, value:Any):Any {
         var attempt:Long = 0;
         var result:Any = null;

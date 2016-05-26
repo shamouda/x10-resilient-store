@@ -5,7 +5,6 @@ import x10.util.concurrent.SimpleLatch;
 import x10.compiler.Inline;
 import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
-import x10.util.concurrent.AtomicBoolean;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.impl.ResilientMapImpl;
 import x10.util.resilient.map.partition.PartitionTable;
@@ -27,9 +26,8 @@ public class DataStore {
     
     /*the data store will be invalid if:
      * - failure happended during initialization
-     * - some partitions are permanantly lost due to loss of both their primary and secondary partitions
-     * - leader and deputy leader are dead*/
-    private var valid:AtomicBoolean = new AtomicBoolean(true);
+     * - some partitions are permanantly lost due to loss of both their primary and secondary partitions*/
+    private var valid:Boolean = true;
 
     //takes over migration tasks
     private var leaderPlace:Place;
@@ -103,7 +101,7 @@ public class DataStore {
                        if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
                 }catch(ex:Exception) {
                     initialized = true;
-                    valid.set(false);
+                    valid = false;
                     Utils.console(moduleName, "Initialization failed ...");
                     ex.printStackTrace();
                 }
@@ -116,24 +114,11 @@ public class DataStore {
     
     public def getReplica() = replica;
     public def executor() = executor;
-    
-    /**
-     * Returns the partition table. 
-     * Called only by a MigrationHandler
-     **/
     public def getPartitionTable() = partitionTable;
-    
     public def getMigrationHandler() = migrationHandler;
-    
-    public def isLeader():Boolean {
-    	var result:Boolean = false;
-        lock.lock();
-    	result = here.id == leaderPlace.id;
-    	lock.unlock();
-    	return result;
-    }
-    
-    public def isValid() = valid.get();
+    public def isLeader() = here.id == leaderPlace.id;
+    public def isDeputyLeader() = here.id == deputyLeaderPlace.id;
+    public def isValid() = valid;
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
@@ -159,7 +144,7 @@ public class DataStore {
     
     //should be called by one place
     public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
-        if (!DataStore.getInstance().valid.get())
+        if (!DataStore.getInstance().valid)
             throw new InvalidDataStoreException();
         
         var mapObj:ResilientMap = userMaps.getOrElse(name,null);
@@ -209,7 +194,7 @@ public class DataStore {
         	val newLeaderId = searchForLeader();
         	if (newLeaderId == -1) {
         		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found to re-partition the data store and fix it");
-        		valid.set(false);
+        		valid = false;
         		throw new InvalidDataStoreException();
         	}
         	else
@@ -224,65 +209,70 @@ public class DataStore {
     
     
     public def updateLeader(topology:Topology, partitionTable:PartitionTable) {
-    	var changeDeputyLeader:Boolean = false;
-    	try{
-    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status (waiting for lock) ...");
-    		lock.lock();   		
-    		
-    		this.topology.update(topology);    		
-    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
-    		
-    		this.partitionTable.update(partitionTable);    		
-    		if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
-        
-    		
-    		if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
-    			changeDeputyLeader = true;
-    		}        
-    		else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {
-    			changeDeputyLeader = true;
-    			leaderPlace = here;
-    			if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
-    		}
-    		
-    		if (changeDeputyLeader) {
-    			deputyLeaderPlace = findNewDeputyLeader();
-    			if (VERBOSE) Utils.console(moduleName, "Changing the deputy leader to ["+deputyLeaderPlace+"] ...");
-    			val tmpLeader = leaderPlace;
-    			val tmpTopology = topology;        	
-    			at (deputyLeaderPlace) {
-    				DataStore.getInstance().updateClient (tmpLeader, here, tmpTopology);
-    			}
-    		}
-    	}finally {
-    		lock.unlock();
+    	if (!DataStore.getInstance().valid) {
+    		throw new InvalidDataStoreException();
     	}
+    	
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status ...");
+        this.topology.update(topology);
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
+        this.partitionTable.update(partitionTable);
+        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
+        
+        var changeDeputyLeader:Boolean = false;
+        if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
+        	changeDeputyLeader = true;
+        }        
+        else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {
+            leaderPlace = here;
+            changeDeputyLeader = true;
+            if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
+        }        
+        
+        if (changeDeputyLeader) {
+        	if (VERBOSE) Utils.console(moduleName, "Changing the deputy leader ...");
+        	deputyLeaderPlace = findNewDeputyLeader();
+        	val tmpLeader = leaderPlace;
+        	val tmpTopology = topology;        	
+            at (deputyLeaderPlace) {
+                DataStore.getInstance().updateClient (tmpLeader, here, tmpTopology);
+            }
+        }
     }
     
     /**
      * This function should be called only form the leader or deputy leader places
-     * It updates the state of other places with the same state at the leader or deputy leader.
-     * Only one thread (migration handler thread) will be accessing this method at any time.
+     * It updates the state of other places with the same state at the leader or deputy leader
      **/
-    public def updatePlaces(places:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "updatePlaces: impacted client places ["+Utils.hashSetToString(places)+"] ...");
+    public def updatePlaces(places:HashSet[Long], valid:Boolean) {
+    	if (!DataStore.getInstance().valid) {
+    		throw new InvalidDataStoreException();
+    	}
+    	
+        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ...");
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
         finish for (targetClient in places) {
             //leader is updated separately by updateLeader(....) 
-            if (targetClient == tmpLeader.id) {
-            	Utils.console(moduleName, "updatePlaces: Ignore updating client place ["+Place(targetClient)+"] because it is the leader ...");
+            if (targetClient == tmpLeader.id)
                 continue;
-            }
             
-            if (!Place(targetClient).isDead()) {
-                at (Place(targetClient)) async {
-                    DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
-                }
+            if (!Place(targetClient).isDead()) { 
+            	if (valid) {
+            		at (Place(targetClient)) async {
+                		DataStore.getInstance().updateClient(tmpLeader, tmpDeputyLeader, tmpTopology);
+            		}
+            	}
+            	else {
+            		at (Place(targetClient)) async {
+            			DataStore.getInstance().valid = false;
+            		}
+            		
+            	}
             }
             else if (VERBOSE) {
-                Utils.console(moduleName, "updatePlaces: Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
+                Utils.console(moduleName, "Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
             }
         }
     }
@@ -292,27 +282,22 @@ public class DataStore {
      * No need to pass in the partition table, it can be re-created using the topology object
      **/
     public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
-    	try{
-    		if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status, waiting for lock ...");
-    		lock.lock();
-    		val oldDeputyLeader = this.deputyLeaderPlace;
-    		val oldLeader = this.leaderPlace;
-    		this.leaderPlace = leader;
-    		this.deputyLeaderPlace = deputyLeader;
-    		this.topology.update(topology);
-    		this.partitionTable.createPartitionTable(this.topology);
+        if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status ...");
+        val oldDeputyLeader = this.deputyLeaderPlace;
+        val oldLeader = this.leaderPlace;
         
-    		if (here.id == deputyLeader.id){
-    			if (migrationHandler == null) {
-    				migrationHandler = new MigrationHandler(topology, partitionTable);
-    			}
-    			else
-    				migrationHandler.updateDeputyLeaderMigrationHandler(topology, partitionTable);
-    		}
-    		if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");
-    	} finally {
-    		lock.unlock();
+        this.leaderPlace = leader;
+        this.deputyLeaderPlace = deputyLeader;
+        this.topology.update(topology);
+        this.partitionTable.createPartitionTable(this.topology);
+        
+   		if (here.id == deputyLeader.id){
+   			if (migrationHandler == null)
+   				migrationHandler = new MigrationHandler(topology, partitionTable);
+   			else
+   				migrationHandler.updateDeputyLeaderMigrationHandler(topology, partitionTable);
     	}
+    	if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");        
     }
     
     /**
@@ -320,14 +305,11 @@ public class DataStore {
      **/
     public def findNewDeputyLeader():Place {
         var newDeputyLeader:Place = here;        
-        val leaderNodeIndex = topology.getNodeIndex(here.id);        
+        val leaderNodeIndex = topology.getNodeIndex(here.id);
         val nodesCount = topology.getNodesCount();
-        if (VERBOSE) Utils.console(moduleName, "findNewDeputyLeader: leaderNodeIndex="+leaderNodeIndex + "  nodesCount=" + nodesCount);
         val placeIndex = 0;
         for (var i:Long = 1; i < nodesCount; i++) {
-        	val nextNodeIndex = (leaderNodeIndex+i) % nodesCount ;        	
-            val candidatePlace = topology.getPlaceByIndex(nextNodeIndex , placeIndex);
-            if (VERBOSE) Utils.console(moduleName, "findNewDeputyLeader2: nextNodeIndex="+nextNodeIndex + "  candidatePlace=" + candidatePlace);
+            val candidatePlace = topology.getPlaceByIndex(((leaderNodeIndex+i) % nodesCount) , placeIndex);
             if (!candidatePlace.isDead()) {
                 newDeputyLeader = candidatePlace;
                 break;
@@ -336,6 +318,7 @@ public class DataStore {
         return newDeputyLeader;
     }
 
+    //Search for a leader of a deputy leader
     public def searchForLeader():Long {
     	if (VERBOSE) Utils.console(moduleName, "searchForLeader: waiting for lock ...");    	
     	var foundLeaderPlaceId:Long = -1;
@@ -371,3 +354,5 @@ public class DataStore {
     	return foundLeaderPlaceId;
     }
 }
+
+class LeadershipStatus (isLeade:Boolean, isDeputyLeader:Boolean) {} 

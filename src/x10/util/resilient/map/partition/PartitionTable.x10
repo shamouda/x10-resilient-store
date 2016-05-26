@@ -194,7 +194,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         val result = new ArrayList[MigrationRequest]();
         try {
             lock.lock();
-            if (VERBOSE) Utils.console(moduleName, "generateMigrationRequests obtained lock");
+            Console.OUT.println("Acquired PartitionTable lock ...");
             for (var p:Long = 0; p < partitionsCount; p++) {
                 val hostPlaces = new HashSet[Long]();
                 val newPlaces = new HashSet[Long]();
@@ -213,7 +213,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                 }
                 
                 if (hostPlaces.size() == 0) {
-                    if (VERBOSE) Utils.console(moduleName, "FATAL generateMigrationRequests  hostPlaces.size = 0");
+                	if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException");
                     throw new InvalidDataStoreException();
                 }
                 
@@ -222,6 +222,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             }
         } finally {
             lock.unlock();
+            Console.OUT.println("Released PartitionTable lock ...");
         }
         
         if (VERBOSE) {

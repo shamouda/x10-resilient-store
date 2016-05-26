@@ -34,6 +34,8 @@ public class ReplicaClient {
     
     private var timerOn:Boolean = false;
     
+    private var valid:Boolean = true;
+    
     public def this(partitionTable:PartitionTable) {
         this.partitionTable = partitionTable;
         pendingRequests = new ArrayList[MapRequest]();
@@ -52,6 +54,9 @@ public class ReplicaClient {
     }
     
     public def asyncExecuteRequest(request:MapRequest) {
+    	if (!valid)
+    		return;
+    	
         if (Utils.KILL_PLACE_POINT == Utils.POINT_BEGIN_ASYNC_EXEC_REQUEST)
             Utils.asyncKillPlace();
         
@@ -139,7 +144,7 @@ public class ReplicaClient {
     /************************  Functions to send requests to Replicas  *****************************/
     
     private def submitSingleKeyRequest(request:MapRequest, replicas:HashSet[Long], partitionId:Long) {
-        if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());    
+           
         val key = request.inKey;
         val value = request.inValue;
         val mapName = request.mapName;
@@ -151,13 +156,16 @@ public class ReplicaClient {
         
         var exception:Exception = null;
         for (placeId in replicas) {
+        	if (VERBOSE) Utils.console(moduleName, "SubmittingToPlace["+Place(placeId)+"] request: " + request.toString() ); 
             try{
                 at (Place(placeId)) async {
+                	Console.OUT.println("SubmittingToPlace - Reached " + here);
                     DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, clientId, partitionId, transId, requestType, key, value, gr);
                 }
             }
             catch (ex:Exception) {
                 exception = ex;
+                Utils.console(moduleName, "exception while submitting ["+ex.getMessage()+"]  request: " + request.toString() );
                 break;
             }
         }
@@ -238,11 +246,8 @@ public class ReplicaClient {
      * Returns true if all replicas are active
      * */
     private def asyncWaitForResponse(req:MapRequest, replicas:HashSet[Long]):Boolean {
-    	
-    	if (!DataStore.getInstance().isValid()) {
-    		Utils.console(moduleName, "DataStore is invalid, no more requests will be added ...");
+    	if (!valid)
     		return false;
-    	}
     	
         var result:Boolean = true;
         try{
@@ -273,6 +278,10 @@ public class ReplicaClient {
                 async checkPendingTransactions();
             }
         }
+        catch(ex:Exception) {
+        	valid = false;
+        	Utils.console(moduleName, "Exception while adding request " + req.toString() + "  exception:" + ex.getMessage());
+        }
         finally{
             lock.unlock();
         }
@@ -289,11 +298,11 @@ public class ReplicaClient {
      *  - check for pendingMigration requests, and issues them after migration is complete
      **/
     private def checkPendingTransactions() {
-        while (timerOn) {            
+        while (timerOn && valid) {            
             //requests that were pending until migration completes
             val resubmitList = new ArrayList[MapRequest]();
             
-            System.threadSleep(25);
+            System.threadSleep(10);
             try{
                 lock.lock();
                 var i:Long;
@@ -357,11 +366,9 @@ public class ReplicaClient {
                 lock.unlock();
             }
             
-            if (DataStore.getInstance().isValid()) {
-            	//resubmit the requests that were pending on migration or on commit confirmation
-            	for (req in resubmitList) {
-            		asyncExecuteRequest(req);
-            	}
+            //resubmit the requests that were pending on migration or on commit confirmation
+            for (req in resubmitList) {
+                asyncExecuteRequest(req);
             }
         }
     }
@@ -385,7 +392,7 @@ public class ReplicaClient {
                 }
             }            
             if (notifyList.size() > 0)
-                async DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
+                DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
             else
                 if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
         }
