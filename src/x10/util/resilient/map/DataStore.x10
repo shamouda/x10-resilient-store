@@ -245,10 +245,6 @@ public class DataStore {
      * It updates the state of other places with the same state at the leader or deputy leader
      **/
     public def updatePlaces(places:HashSet[Long], valid:Boolean) {
-    	if (!DataStore.getInstance().valid) {
-    		throw new InvalidDataStoreException();
-    	}
-    	
         if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ...");
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
@@ -265,8 +261,10 @@ public class DataStore {
             		}
             	}
             	else {
+            	    DataStore.getInstance().valid = false;
             		at (Place(targetClient)) async {
             			DataStore.getInstance().valid = false;
+            			Utils.console(moduleName, "Updating impacted client places -> setting valid = false ...");
             		}
             		
             	}
