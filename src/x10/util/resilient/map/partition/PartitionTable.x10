@@ -213,7 +213,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                 }
                 
                 if (hostPlaces.size() == 0) {
-                	if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException");
+                	if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException  - partition ["+p+"] has no host places");
                     throw new InvalidDataStoreException();
                 }
                 
