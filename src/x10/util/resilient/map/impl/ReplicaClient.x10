@@ -11,6 +11,7 @@ import x10.util.resilient.map.partition.PartitionReplicas;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
+import x10.util.Team;
 
 /**
  * The ReplicaClient receives MapRequests from ResilientMapImpl an execute them on relevant Replicas
@@ -18,6 +19,7 @@ import x10.util.resilient.map.exception.CommitVotingFailedException;
 public class ReplicaClient {
     private val moduleName = "ReplicaClient";
     public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+    public static val TIMEOUT_FOR_RENOTIFYING_DEAD_PLACES = Utils.getEnvLong("TIMEOUT_FOR_RENOTIFYING_DEAD_PLACES", 500) ;
     
     /*Copy of the parition table*/
     private var partitionTable:PartitionTable;
@@ -29,6 +31,8 @@ public class ReplicaClient {
     private val transReplicas:HashMap[Long,HashSet[Long]];
     
     private val notifiedDeadReplicas = new ArrayList[Long]();
+    private var lastDeadPlaceNotificationTime:Long;
+    
     
     private val lock:SimpleLatch;
     
@@ -54,8 +58,10 @@ public class ReplicaClient {
     }
     
     public def asyncExecuteRequest(request:MapRequest) {
-    	if (!valid)
+    	if (!valid) {
+    	    if (VERBOSE) Utils.console(moduleName, "asyncExecuteRequest: Invalid ReplicaClient ...");
     		return;
+    	}
     	
         if (Utils.KILL_PLACE_POINT == Utils.POINT_BEGIN_ASYNC_EXEC_REQUEST)
             Utils.asyncKillPlace();
@@ -306,7 +312,7 @@ public class ReplicaClient {
             try{
                 lock.lock();
                 var i:Long;
-                if (VERBOSE) Utils.console(moduleName, "Check pending transactions new iteration ...");
+                if (VERBOSE) Utils.console(moduleName, "checkPendingTransactions: new iteration ...");
                 
                 for (i = 0; i< pendingRequests.size(); i++){
                     val mapReq = pendingRequests.get(i);
@@ -366,10 +372,13 @@ public class ReplicaClient {
                 lock.unlock();
             }
             
-            //resubmit the requests that were pending on migration or on commit confirmation
-            for (req in resubmitList) {
-                asyncExecuteRequest(req);
+            if (valid) {
+                //resubmit the requests that were pending on migration or on commit confirmation
+                for (req in resubmitList) {
+                    asyncExecuteRequest(req);
+                }
             }
+            else if (VERBOSE) Utils.console(moduleName, "checkPendingTransactions: Invalid ReplicaClient ...");
         }
     }
     
@@ -391,8 +400,11 @@ public class ReplicaClient {
                     notifiedDeadReplicas.add(newDead);
                 }
             }            
-            if (notifyList.size() > 0)
+            if (notifyList.size() > 0 || 
+                Timer.milliTime() - lastDeadPlaceNotificationTime > TIMEOUT_FOR_RENOTIFYING_DEAD_PLACES) {
+                lastDeadPlaceNotificationTime = Timer.milliTime();
                 DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
+            }
             else
                 if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
         }
