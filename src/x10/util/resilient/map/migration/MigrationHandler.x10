@@ -112,7 +112,7 @@ public class MigrationHandler {
         
         try{
             lock.lock();
-            if (updateLeader)
+            if (updateLeader && valid)
                 DataStore.getInstance().updateLeader(topology, partitionTable);        
             DataStore.getInstance().updatePlaces(impactedClients, valid);
         } finally {
@@ -124,8 +124,10 @@ public class MigrationHandler {
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
     private def migratePartitions():PartitionsMigrationResult {    	
     	if (VERBOSE) Utils.console(moduleName, "migratePartitions() started valid["+valid+"]...");
-    	if (!valid)
+    	if (!valid) {
+    	    if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException  handler is invalid ...");
     		throw new InvalidDataStoreException();
+    	}
     	
         var success:Boolean = true;
         partitionTable.createPartitionTable(topology);
