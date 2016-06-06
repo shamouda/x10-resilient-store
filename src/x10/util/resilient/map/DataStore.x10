@@ -120,6 +120,10 @@ public class DataStore {
     public def isDeputyLeader() = here.id == deputyLeaderPlace.id;
     public def isValid() = valid;
     
+    public def invalidate() {
+    	valid = false;
+    }
+    
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
         if (here.id == 0) {
@@ -177,6 +181,40 @@ public class DataStore {
         topology.printTopology();
     }        
    
+    public def leaderCoordinateTransaction(transId:Long, replicas:HashSet[Long]) {
+    	 if (VERBOSE) Utils.console(moduleName,"leaderCoordinateTransaction: transId["+transId+"] replicas[" + Utils.hashSetToString(replicas) +"] ...");
+         var targetPlace:Place;
+         if (!leaderPlace.isDead()) {
+             targetPlace = leaderPlace;
+             if (VERBOSE) Utils.console(moduleName, "elected coordinator is LEADER: " + targetPlace);
+         }
+         else if (!deputyLeaderPlace.isDead()) {
+             targetPlace = deputyLeaderPlace;
+             if (VERBOSE) Utils.console(moduleName, "elected coordinator is DEPUTY LEADER: " + targetPlace);
+         }
+         else {
+         	if (VERBOSE) Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for a leader to coordinate transId ["+transId+"]");
+         	val newLeaderId = searchForLeader();
+         	if (newLeaderId == -1) {
+         		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found coordinate transaction ["+transId+"]");
+         		//TODO: report to the replica
+         		valid = false;
+         		throw new InvalidDataStoreException();
+         	}
+         	else
+         		targetPlace = Place(newLeaderId);
+         }
+         
+         val clientPlaceId = here.id;
+         at (targetPlace) async {
+             val request = new MapRequest(transId, MapRequest.REQ_3PC_PREPARE_COMMIT_NEW_COORDINATOR, name, timeoutMillis);
+             request.setReplicationInfo(replicas, true);
+             DataStore.getInstance().executor().asyncExecuteRequest(request);
+             if (VERBOSE) Utils.console(moduleName, "prepareCommitNewCoordinator["+transId+"]  { await ... ");
+             request.lock.await();
+             if (VERBOSE) Utils.console(moduleName, "prepareCommitNewCoordinator["+transId+"]          ... released }    Success="+request.isSuccessful());             
+         }
+    }
     
     public def clientNotifyDeadPlaces(places:HashSet[Long]) {
         if (VERBOSE) Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places));

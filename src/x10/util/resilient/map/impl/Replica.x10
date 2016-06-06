@@ -27,9 +27,11 @@ public class Replica {
 
     /**Transaction Status**/
     public static val TRANS_ACTIVE:Int = 0n;
-    public static val TRANS_READY_TO_COMMIT:Int = 1n;
-    public static val TRANS_COMMITED:Int = 2n;
-    public static val TRANS_ABORTED:Int = 3n;
+    public static val TRANS_WAITING:Int = 1n;
+    public static val TRANS_PRE_COMMIT:Int = 2n;
+    public static val TRANS_COMMITED:Int = 3n;
+    public static val TRANS_ABORTED:Int = 4n;
+    public static val TRANS_BLOCKED:Int = -5n; // Used in 2PC to mark transactions that lost their coordinator
     
     public static val READY_YES:Long = 1;
     public static val READY_NO:Long = 0;
@@ -45,6 +47,8 @@ public class Replica {
     private val partitions:HashMap[Long,Partition];
     private val partitionsLock:SimpleLatch;
     
+    private val notifiedTransactions = new ArrayList[Long]();
+    
     private var timerOn:Boolean = false;
     
     public def this(partitionIds:HashSet[Long]) {
@@ -55,9 +59,11 @@ public class Replica {
         partitionsLock = new SimpleLatch();
         transactions = new HashMap[Int,TransactionsMap]();
         transactions.put(TRANS_ACTIVE, new TransactionsMap());
-        transactions.put(TRANS_READY_TO_COMMIT, new TransactionsMap());
+        transactions.put(TRANS_WAITING, new TransactionsMap());
+        transactions.put(TRANS_PRE_COMMIT, new TransactionsMap());
         transactions.put(TRANS_COMMITED, new TransactionsMap());
         transactions.put(TRANS_ABORTED, new TransactionsMap());
+        transactions.put(TRANS_BLOCKED, new TransactionsMap());
     }
     
     private def createPartitions(partitionIds:HashSet[Long]) {
@@ -81,15 +87,15 @@ public class Replica {
     }
     
     
-    public def submitSingleKeyRequest(mapName:String, clientId:Long, partitionId:Long, transId:Long, requestType:Int, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
+    public def submitSingleKeyRequest(mapName:String, clientId:Long, partitionId:Long, transId:Long, requestType:Int, key:Any, value:Any, replicas:HashSet[Long], responseGR:GlobalRef[MapRequest]) {
          switch(requestType) {
-            case MapRequest.REQ_GET: get(mapName, clientId, partitionId, transId, key, value, responseGR); break;
-            case MapRequest.REQ_PUT: put(mapName, clientId, partitionId, transId, key, value, responseGR); break;
-            case MapRequest.REQ_DELETE: delete(mapName, clientId, partitionId, transId, key, responseGR); break;
+            case MapRequest.REQ_GET: get(mapName, clientId, partitionId, transId, key, value, replicas, responseGR); break;
+            case MapRequest.REQ_PUT: put(mapName, clientId, partitionId, transId, key, value, replicas, responseGR); break;
+            case MapRequest.REQ_DELETE: delete(mapName, clientId, partitionId, transId, key, replicas, responseGR); break;
         }
     }
     
-    public def get(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {
+    public def get(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, value:Any, replicas:HashSet[Long], responseGR:GlobalRef[MapRequest]) {
         val transLog = getOrAddActiveTransaction(transId, clientId);
         val replicaId = here.id;
         if (transLog == null) {
@@ -122,7 +128,7 @@ public class Replica {
         }
     }
     
-    public def put(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, value:Any, responseGR:GlobalRef[MapRequest]) {        
+    public def put(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, value:Any, replicas:HashSet[Long], responseGR:GlobalRef[MapRequest]) {        
         val transLog = getOrAddActiveTransaction(transId, clientId);
         val replicaId = here.id;
         if (transLog == null) {
@@ -157,7 +163,7 @@ public class Replica {
         }
     }
     
-    public def delete(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, responseGR:GlobalRef[MapRequest]) {
+    public def delete(mapName:String, clientId:Long, partitionId:Long, transId:Long, key:Any, replicas:HashSet[Long], responseGR:GlobalRef[MapRequest]) {
         val transLog = getOrAddActiveTransaction(transId, clientId);
         val replicaId = here.id;
         if (transLog == null) {
@@ -211,7 +217,7 @@ public class Replica {
     
     
     public def commitNoResponse(mapName:String, transId:Long, responseGR:GlobalRef[MapRequest]) {   
-        val transLog = getTransactionLog(TRANS_READY_TO_COMMIT, transId);
+        val transLog = getTransactionLog(TRANS_WAITING, transId);
         val cache = transLog.getKeysCache();
         val keysIter = cache.keySet().iterator();
 
@@ -238,7 +244,7 @@ public class Replica {
         
         try{
             transactionsLock.lock();
-            transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+            transactions.getOrThrow(TRANS_WAITING).transMap.remove(transId);
             transactions.getOrThrow(TRANS_COMMITED).transMap.put(transId, DUMMY_TRANSACTION);
         }finally {
             transactionsLock.unlock();
@@ -251,7 +257,7 @@ public class Replica {
             transactionsLock.lock();
             var transLog:Transaction = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
             if (transLog == null) {
-                transLog = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+                transLog = transactions.getOrThrow(TRANS_WAITING).transMap.remove(transId);
                 if (transLog == null) {
                     transLog = transactions.getOrThrow(TRANS_ABORTED).transMap.remove(transId);
                     if (transLog == null) {
@@ -271,14 +277,14 @@ public class Replica {
         }
     }
     
-    private def getOrAddActiveTransaction(transId:Long, clientId:Long):Transaction {
+    private def getOrAddActiveTransaction(transId:Long, clientId:Long, replicas:HashSet[Long]):Transaction {
     	if (VERBOSE) Utils.console(moduleName, "getOrAddActiveTransaction transId["+transId+"] clientId["+clientId+"] ...");
         var result:Transaction = null;
         try{
             transactionsLock.lock();
             result = transactions.getOrThrow(TRANS_ACTIVE).transMap.getOrElse(transId,null);
             if (result == null) {
-                val x = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.getOrElse(transId,null);
+                val x = transactions.getOrThrow(TRANS_WAITING).transMap.getOrElse(transId,null);
                 val y = transactions.getOrThrow(TRANS_COMMITED).transMap.getOrElse(transId,null);
                 val z = transactions.getOrThrow(TRANS_ABORTED).transMap.getOrElse(transId,null);
                 
@@ -287,9 +293,12 @@ public class Replica {
                     transactions.getOrThrow(TRANS_ACTIVE).transMap.put(transId,result);
                     if (!timerOn) {
                     	timerOn = true;
-                        async checkDeadReplicaClient();
+                        async checkDeadTransCoordinator();
                     }
                 }
+            }
+            if (result != null && !Utils.isTwoPhaseCommit()) {
+            	result.replicas.addAll(replicas);
             }
         }
         finally {
@@ -330,7 +339,7 @@ public class Replica {
         try{
             transactionsLock.lock();
             
-            if (!conflictingWithReadyTransaction(transLog)
+            if (!conflictingWithWaitingTransaction(transLog)
                 && sameInitialVersions(mapName, transLog)
                 && !conflictingWithMigratingPartition(transLog)) {
                 val conflictReport = getConflictingActiveTransactions(transLog);
@@ -358,10 +367,10 @@ public class Replica {
             
             if (ready){
                 val myTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transLog.transId);
-                transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.put(transLog.transId, myTrans);
+                transactions.getOrThrow(TRANS_WAITING).transMap.put(transLog.transId, myTrans);
                 if (!timerOn) {
                 	timerOn = true;
-                    async checkDeadReplicaClient();
+                    async checkDeadTransCoordinator();
                 }
             }
         }finally {
@@ -370,9 +379,9 @@ public class Replica {
         return ready;
     }
     
-    private def conflictingWithReadyTransaction(transLog:Transaction):Boolean {
+    private def conflictingWithWaitingTransaction(transLog:Transaction):Boolean {
         var result:Boolean = false;
-        val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
+        val readyTransMap = transactions.getOrThrow(TRANS_WAITING).transMap;
         val iter = readyTransMap.keySet().iterator();
         while (iter.hasNext()) {
             val otherTransId = iter.next();
@@ -454,37 +463,85 @@ public class Replica {
     }
     
     /**
-     * Abort readyToCommit transactions if their client is dead
+     * Check if any of a transaction coordinator is dead.
+     * In 2-phase commit:
+     *      Active -> Abort
+     *      Waiting -> Block!!  (mark the data store as invalid)
+     *      
+     * In 3-phase commit:
+     *      Active -> Abort
+     *      Waiting -> Elect a new coordinator to complete the transaction     * 
      **/
-    public def checkDeadReplicaClient() {
+    public def checkDeadTransCoordinator() {
         while (timerOn) {
             System.threadSleep(100);
-            if (VERBOSE) Utils.console(moduleName, "checkDeadReplicaClient new iteration ...");
+            if (VERBOSE) Utils.console(moduleName, "checkDeadTransCoordinator new iteration ...");
             try{
                 transactionsLock.lock();
-                val activeAndReadyToCommit = combineActiveAndReadyToCommitTransactions();
-                
-                //activeAndReadyToCommit.printKeys();
-                
-                val transMap = activeAndReadyToCommit.transMap;
-                val iter = transMap.keySet().iterator();
+                /**Active transactions (same behaviour for 2-PC and 3-PC) **/
+                val activeTrans =  transactions.getOrThrow(TRANS_ACTIVE).transMap;
+                //activeTrans.printKeys();
+                val iter = activeTrans.keySet().iterator();
                 while (iter.hasNext()) {
                     val transId = iter.next();
-                    val curTrans = transMap.getOrThrow(transId);
-                    
-                    
+                    val curTrans = activeTrans.getOrThrow(transId);                    
                     if (VERBOSE) Utils.console(moduleName, "check transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
                     
-                    if (Place(curTrans.clientPlaceId).isDead()) {
-                        transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.remove(transId);
+                    if (Place(curTrans.clientPlaceId).isDead()) {                        
                         transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
                         transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
-                        
                         if (VERBOSE) Utils.console(moduleName, "Aborting transaction ["+transId+"] because client ["+Place(curTrans.clientPlaceId)+"] died ...");
                     }
                 }
                 
-                val readyTransMap = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap;
+               
+                /**Waiting transactions (2-PC block, 3-PC elect new coordinator) **/
+                val waitingTrans =  transactions.getOrThrow(TRANS_WAITING).transMap;               
+                val iterWaiting = waitingTrans.keySet().iterator();
+                while (iterWaiting.hasNext()) {
+                    val transId = iterWaiting.next();
+                    
+                    //check if we already detected a dead coordinator for this transaction
+                    if (notifiedTransactions.contains(transId))
+                    	continue;
+                   
+                    val curTrans = waitingTrans.getOrThrow(transId);                    
+                    if (VERBOSE) Utils.console(moduleName, "check transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
+                    if (Place(curTrans.clientPlaceId).isDead()) {
+                    	if (Utils.isTwoPhaseCommit ()) {
+                    		transactions.getOrThrow(TRANS_WAITING).transMap.remove(transId);
+                    		transactions.getOrThrow(TRANS_BLOCKED).transMap.put(transId, DUMMY_TRANSACTION);
+                    		if (VERBOSE) Utils.console(moduleName, "Transaction ["+transId+"] BLOCKED because client ["+Place(curTrans.clientPlaceId)+"] died ...");
+                    		DataStore.getInstance().invalidate();
+                    		timerOn = false;
+                    		break;
+                    	}
+                    	else {
+                    		notifiedTransactions.add(transId);
+                        	async DataStore.getInstance().leaderCoordinateTransaction(transId, curTrans.replicas);
+                        }
+                    }
+                }
+                
+                /**Waiting transactions (2-PC block, 3-PC elect new coordinator) **/
+                val preCommitTrans =  transactions.getOrThrow(TRANS_PRE_COMMIT).transMap;               
+                val iterPreCommit = preCommitTrans.keySet().iterator();
+                while (iterPreCommit.hasNext()) {
+                    val transId = iterPreCommit.next();
+                    
+                    //check if we already detected a dead coordinator for this transaction
+                    if (notifiedTransactions.contains(transId))
+                    	continue;
+                   
+                    val curTrans = preCommitTrans.getOrThrow(transId);                    
+                    if (VERBOSE) Utils.console(moduleName, "check transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
+                    if (Place(curTrans.clientPlaceId).isDead()) {                    	
+                    	notifiedTransactions.add(transId);
+                        async DataStore.getInstance().leaderCoordinateTransaction(transId, curTrans.replicas);                        
+                    }
+                }
+                 
+                val readyTransMap = transactions.getOrThrow(TRANS_WAITING).transMap;
                 val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
                 if (readyTransMap.size() == 0 && activeTransMap.size() == 0){
                     timerOn = false;
@@ -602,7 +659,7 @@ public class Replica {
     private def combineActiveAndReadyToCommitTransactions():TransactionsMap {
     	val combined = new TransactionsMap();
     	combined.addAll(transactions.getOrThrow(TRANS_ACTIVE));
-    	combined.addAll(transactions.getOrThrow(TRANS_READY_TO_COMMIT));
+    	combined.addAll(transactions.getOrThrow(TRANS_WAITING));
     	return combined;
     }
 

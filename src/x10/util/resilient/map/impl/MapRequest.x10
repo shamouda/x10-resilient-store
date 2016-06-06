@@ -50,6 +50,10 @@ public class MapRequest {
     /*Processing start time. It is a var because the request can be resubmitted with a new time*/
     public var startTimeMillis:Long;
     
+    
+    /**3PC variables*/
+    public var replicaLocalState:Rail[Int];
+    
     public def this(transId:Long, reqType:Int, mapName:String, timeoutMillis:Long) {
         this.id = idSequence.incrementAndGet();
         this.transactionId = transId;
@@ -61,10 +65,20 @@ public class MapRequest {
         this.replicaResponse = new ArrayList[Any]();
     }
     
-    public def setReplicationInfo(replicas:HashSet[Long]) {
+    public def setReplicationInfo(replicas:HashSet[Long], initLocalStateRail:Boolean) {
         this.replicas = replicas;
         if (replicas != null)
             this.lateReplicas = replicas.clone();
+        if (initLocalStateRail){
+        	replicaLocalState = new Rail[Int] (replicas.size, -1);
+        	/*expected values
+        	DEAD = -1000n;
+    		TRANS_WAITING:Int = 1n;
+    		TRANS_PRE_COMMIT:Int = 2n;
+    		TRANS_COMMITED:Int = 3n;
+    		TRANS_ABORTED:Int = 4n;
+        	*/
+        }
     }
     
     public def addReplicaResponse(output:Any, exception:Exception, replicaPlaceId:Long) {
@@ -101,7 +115,6 @@ public class MapRequest {
         if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] adding vote response ["+vote+"] ...");
         try {
             responseLock.lock();
-            
             if (requestStatus == STATUS_COMPLETED) {
                 if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] VOTE IGNORED ...");
                 return;
@@ -111,10 +124,9 @@ public class MapRequest {
             lateReplicas.remove(replicaPlaceId);
             
             if (vote == 0)
-                commitStatus = CANCELL_COMMIT;
-            else if (lateReplicas.size() == 0 && commitStatus != CANCELL_COMMIT) //vote==1
-                commitStatus = CONFIRM_COMMIT;
-            
+                commitStatus = ABORT_2PC;
+            else if (lateReplicas.size() == 0 && commitStatus != ABORT_2PC) //vote==1
+                commitStatus = COMMIT_2PC;
 
             if (VERBOSE) {
                 var str:String = "";
@@ -129,7 +141,42 @@ public class MapRequest {
         if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response completed ...");
     }
     
-    public def getRequestDeadReplicas():HashSet[Long] {        
+    
+    public def setReplicaLocalState(state:Int, replicaIndex:Long) {
+    	val replicaPlaceId = replicas.getAt(replicaIndex);
+    	if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] localState ["+state+"] ...");
+        try {
+            responseLock.lock();
+            if (requestStatus == STATUS_COMPLETED) {
+                if (VERBOSE) Utils.console(moduleName, "TransId["+transactionId+"] From ["+replicaPlaceId+"] localState response IGNORED ...");
+                return;
+            }
+            
+            replicaLocalState(replicaIndex) = state;
+            lateReplicas.remove(replicaPlaceId);
+            
+            if (state == TRANS_COMMITED)
+            	commitStatus = COMMIT_3PC;
+            else if (state == TRANS_ABORTED)
+            	commitStatus = ABORT_3PC;
+            else if (lateReplicas.size() == 0) {
+                commitStatus = CONFIRM_COMMIT;
+            }
+
+            if (VERBOSE) {
+                var str:String = "";
+                for (x in lateReplicas)
+                    str += x + ",";
+                Utils.console(moduleName, "TransId["+transactionId+"] Waiting for votes from places ["+str+"] commitStatus is["+commitStatusDesc(commitStatus)+"] ");
+            }
+        }
+        finally {
+            responseLock.unlock();
+        }
+        if (VERBOSE) Utils.console(moduleName, "From ["+replicaPlaceId+"] adding vote response completed ...");
+    }
+    
+    public def getRequestDeadReplicas():HashSet[Long] {
         val result = new HashSet[Long]();
         try {
             responseLock.lock();
@@ -209,11 +256,20 @@ public class MapRequest {
     public static val REQ_COMMIT:Int = 5n;
     public static val REQ_ABORT:Int = 6n;
     
+    public static val REQ_3PC_PREPARE_COMMIT_NEW_COORDINATOR=7n;
+    
     //Two phase commit status//
     public static val UNUSED_COMMIT:Int = 0n;
-    public static val CONFIRM_COMMIT:Int = 1n;
-    public static val CANCELL_COMMIT:Int = 2n;
-    public static val CONFIRMATION_SENT:Int = 3n;
+    public static val COMMIT_2PC:Int = 1n;
+    public static val ABORT_2PC:Int = 2n;
+    
+    
+    public static val PRE_COMMIT_3PC:Int = 3n;
+    public static val COMMIT_3PC:Int = 4n;
+    public static val ABORT_3PC:Int = 5n;
+
+    public static val CONFIRMATION_SENT:Int = 6n;
+    
     
     //Request status//
     public static val STATUS_STARTED:Int = 1n;

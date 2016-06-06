@@ -24,6 +24,11 @@ public class Transaction {
     /* The client which issued the transaction. If the client dies, the Replica will abort all its transactions*/
     public val clientPlaceId:Long;
     
+    /*All replicas involved in this transaction. 
+     * Used only when the coordinator dies and a new coordinator is 
+     * elected to complete the transaction*/
+    public val replicas:HashSet[Long] = new HashSet[Long]();
+    
     public def this(transId:Long, startTimeMillis:Long, clientPlaceId:Long){
         this.transId = transId;
         this.startTimeMillis = startTimeMillis;

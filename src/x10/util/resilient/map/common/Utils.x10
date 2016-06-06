@@ -8,6 +8,10 @@ public class Utils {
     
     private static val sequence:AtomicLong = new AtomicLong();
     
+    public static val COMMIT_PROTOCOL = Utils.getEnvLong("COMMIT_PROTOCOL", THREE_PHASE_COMMIT);    
+    public static val THREE_PHASE_COMMIT = 0;
+    public static val TWO_PHASE_COMMIT = 1;
+    
     public static def getEnvLong(name:String, defaultVal:Long) {
         val env = System.getenv(name);
         val v = (env!=null) ? Long.parseLong(env) : defaultVal;
@@ -64,4 +68,7 @@ public class Utils {
             }
         }catch(ex:Exception) {}
     }
+    
+    public static def isTwoPhaseCommit() = COMMIT_PROTOCOL == TWO_PHASE_COMMIT;
+    
 }
