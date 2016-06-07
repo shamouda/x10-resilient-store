@@ -7,6 +7,9 @@ import x10.util.Timer;
 import x10.util.Team;
 import x10.util.concurrent.AtomicBoolean;
 
+import x10.util.Option;
+import x10.util.OptionsParser;
+
 /**
  * This test is expected to run for long time, and with large number of places (~ >20).
  * Each place runs a long loop in which it increments the value of a randomly selected key from A to Z at each iteration. 
@@ -227,9 +230,40 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		    return;	
 		}
 		
-		var maxIteration:Long = Long.MAX_VALUE;		
-		var killedPlacesPercentage:Float = 0.5F;
-		var enableConflict:Boolean = true;
+		
+        val opts = new OptionsParser(args, [
+            Option("h","help","this information"),
+            Option("v","verify","verify the results")
+            ], [
+            Option("m","maxIterations","iterations count per place"),
+            Option("c","conflit","enable conflicts between places"),
+            Option("p","killPercentage","Percentage of killed places"),            
+            ]);
+
+                                        if (opts.filteredArgs().size!=0) {
+                                            Console.ERR.println("Unexpected arguments: "+opts.filteredArgs());
+                                            Console.ERR.println("Use -h or --help.");
+                                            System.setExitCode(1n);
+                                            return;
+                                        }
+                                        if (opts.wantsUsageOnly("Options:\n")) {
+                                            return;
+                                        }
+
+                                        val inputFile = opts("f", "");
+                                        var mX:Long = opts("m", 10);
+                                        var nX:Long = opts("n", 10);
+                                        var nonzeroDensity:Float = opts("d", 0.9f);
+                                        val verify = opts("v");
+                                        val print = opts("p");
+                                        val iterations = opts("i", 2n);
+                                        val skipPlaces = opts("s", 0n);
+                                        
+		
+		val maxIteration:Long = opts("m", Long.MAX_VALUE);
+        val enableConflict:Boolean = opts("c", true);
+		var killedPlacesPercentage:Float = opts("p", 0.5F);
+		
 		
 		var killPeriodInMillis:Long = -1;
 		if (x10.xrx.Runtime.RESILIENT_MODE > 0)
