@@ -14,6 +14,7 @@ import x10.util.resilient.map.impl.ReplicaClient;
 import x10.util.resilient.map.exception.TopologyCreationFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.resilient.map.migration.MigrationHandler;
+import x10.util.resilient.map.transaction.TransactionRecoveryManager;
 
 //creates the local datastore instance  (one per place)
 public class DataStore {
@@ -59,6 +60,9 @@ public class DataStore {
     
     private var migrationHandler:MigrationHandler;
     
+    private var transactionRecoveryManager:TransactionRecoveryManager;
+    
+    
     private def this() {
         userMaps = new HashMap[String,ResilientMap]();
     }
@@ -93,12 +97,14 @@ public class DataStore {
                     replica = new Replica(partitionTable.getPlacePartitions(here.id));
                     executor = new ReplicaClient(partitionTable);
                     
-                    if (here.id == leaderPlace.id || here.id == deputyLeaderPlace.id)
+                    if (here.id == leaderPlace.id || here.id == deputyLeaderPlace.id) {
                         migrationHandler = new MigrationHandler(topology, partitionTable);
+                        transactionRecoveryManager = new TransactionRecoveryManager();
+                    }
                     
-                       initialized = true;
+                    initialized = true;
         
-                       if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
+                    if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
                 }catch(ex:Exception) {
                     initialized = true;
                     valid = false;
@@ -116,13 +122,10 @@ public class DataStore {
     public def executor() = executor;
     public def getPartitionTable() = partitionTable;
     public def getMigrationHandler() = migrationHandler;
+    public def getTransactionRecoveryManager() = transactionRecoveryManager;
     public def isLeader() = here.id == leaderPlace.id;
     public def isDeputyLeader() = here.id == deputyLeaderPlace.id;
     public def isValid() = valid;
-    
-    public def invalidate() {
-    	valid = false;
-    }
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {
@@ -181,67 +184,53 @@ public class DataStore {
         topology.printTopology();
     }        
    
-    public def leaderCoordinateTransaction(transId:Long, replicas:HashSet[Long]) {
-    	 if (VERBOSE) Utils.console(moduleName,"leaderCoordinateTransaction: transId["+transId+"] replicas[" + Utils.hashSetToString(replicas) +"] ...");
-         var targetPlace:Place;
-         if (!leaderPlace.isDead()) {
-             targetPlace = leaderPlace;
-             if (VERBOSE) Utils.console(moduleName, "elected coordinator is LEADER: " + targetPlace);
-         }
-         else if (!deputyLeaderPlace.isDead()) {
-             targetPlace = deputyLeaderPlace;
-             if (VERBOSE) Utils.console(moduleName, "elected coordinator is DEPUTY LEADER: " + targetPlace);
-         }
-         else {
-         	if (VERBOSE) Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for a leader to coordinate transId ["+transId+"]");
-         	val newLeaderId = searchForLeader();
-         	if (newLeaderId == -1) {
-         		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found coordinate transaction ["+transId+"]");
-         		//TODO: report to the replica
-         		valid = false;
-         		throw new InvalidDataStoreException();
-         	}
-         	else
-         		targetPlace = Place(newLeaderId);
-         }
-         
-         val clientPlaceId = here.id;
-         at (targetPlace) async {
-             val request = new MapRequest(transId, MapRequest.REQ_3PC_PREPARE_COMMIT_NEW_COORDINATOR, name, timeoutMillis);
-             request.setReplicationInfo(replicas, true);
-             DataStore.getInstance().executor().asyncExecuteRequest(request);
-             if (VERBOSE) Utils.console(moduleName, "prepareCommitNewCoordinator["+transId+"]  { await ... ");
-             request.lock.await();
-             if (VERBOSE) Utils.console(moduleName, "prepareCommitNewCoordinator["+transId+"]          ... released }    Success="+request.isSuccessful());             
-         }
-    }
-    
-    public def clientNotifyDeadPlaces(places:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places));
+    public def getLeaderOrDeputyLeader() {
+        if (VERBOSE) Utils.console(moduleName,"getLeaderOrDeputyLeader");
         var targetPlace:Place;
         if (!leaderPlace.isDead()) {
             targetPlace = leaderPlace;
-            if (VERBOSE) Utils.console(moduleName, "reporting dead places to LEADER: " + targetPlace);
+            if (VERBOSE) Utils.console(moduleName, "Found LEADER: " + targetPlace);
         }
         else if (!deputyLeaderPlace.isDead()) {
             targetPlace = deputyLeaderPlace;
-            if (VERBOSE) Utils.console(moduleName, "reporting dead places to DEPUTY LEADER: " + targetPlace);
+            if (VERBOSE) Utils.console(moduleName, "Found DEPUTY LEADER: " + targetPlace);
         }
         else {
         	if (VERBOSE) Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for the leader");
         	val newLeaderId = searchForLeader();
         	if (newLeaderId == -1) {
-        		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found to re-partition the data store and fix it");
+        		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found");
         		valid = false;
         		throw new InvalidDataStoreException();
         	}
-        	else
+        	else {
         		targetPlace = Place(newLeaderId);
+        		if (VERBOSE) Utils.console(moduleName, "After searching found LEADER: " + targetPlace);
+        	}
         }
+        
+        return targetPlace;
+    }
+    
+    /*Invoked by ReplicaClient to notify the death of some replicas, which requires migration*/
+    public def clientNotifyDeadPlaces(places:HashSet[Long]) {
+        if (VERBOSE) Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places));
+        val targetPlace = getLeaderOrDeputyLeader();
         
         val clientPlaceId = here.id;
         at (targetPlace) async {
             DataStore.getInstance().getMigrationHandler().addRequest(clientPlaceId, places);
+        }
+    }
+    
+    /*Invoked by Replica to notify the death of a ReplicaClient, which requires transaction recovery*/
+    public def clientRequestTransactionRecovery(transactionId:Long, replicas:HashSet[Long]) {
+        if (VERBOSE) Utils.console(moduleName,"clientRequestTransactionRecovery: TransactionId["+transactionId+"] replicas:" + Utils.hashSetToString(replicas));
+        val targetPlace = getLeaderOrDeputyLeader();
+        
+        val clientPlaceId = here.id;
+        at (targetPlace) async {
+            DataStore.getInstance().getTransactionRecoveryManager().addRequest(clientPlaceId, transactionId, replicas);
         }
     }
     
@@ -332,6 +321,9 @@ public class DataStore {
    				migrationHandler = new MigrationHandler(topology, partitionTable);
    			else
    				migrationHandler.updateDeputyLeaderMigrationHandler(topology, partitionTable);
+   			
+   			if (transactionRecoveryManager == null)
+   				transactionRecoveryManager = new TransactionRecoveryManager();
     	}
     	if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");        
     }
@@ -354,7 +346,8 @@ public class DataStore {
         return newDeputyLeader;
     }
 
-    //Search for a leader of a deputy leader
+    //Search for a leader
+    //TODO: get a deputy leader if leader not found
     public def searchForLeader():Long {
     	if (VERBOSE) Utils.console(moduleName, "searchForLeader: waiting for lock ...");    	
     	var foundLeaderPlaceId:Long = -1;

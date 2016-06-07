@@ -2,6 +2,7 @@ package x10.util.resilient.map.transaction;
 
 import x10.util.HashMap;
 import x10.util.ArrayList;
+import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 
 /*
@@ -22,17 +23,27 @@ public class Transaction {
     private val startTimeMillis:Long;
     
     /* The client which issued the transaction. If the client dies, the Replica will abort all its transactions*/
-    public val clientPlaceId:Long;
+    public var clientPlaceId:Long;
+    
+    public var lastRequestRecoveryTime:Long = 0;
+    
+    /*The map name*/
+    public val mapName:String;
     
     /*All replicas involved in this transaction. 
      * Used only when the coordinator dies and a new coordinator is 
      * elected to complete the transaction*/
     public val replicas:HashSet[Long] = new HashSet[Long]();
     
-    public def this(transId:Long, startTimeMillis:Long, clientPlaceId:Long){
+    public def this(transId:Long, startTimeMillis:Long, clientPlaceId:Long, mapName:String){
         this.transId = transId;
         this.startTimeMillis = startTimeMillis;
         this.clientPlaceId = clientPlaceId;
+        this.mapName = mapName;
+    }
+    
+    public def updateClient(newClientPlaceId:Long) {
+    	this.clientPlaceId = newClientPlaceId;
     }
     
     /*Logs a 'get' operation on a key. If the key was not used before by the transaction, a new log record is created for that key*/

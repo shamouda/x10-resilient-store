@@ -8,10 +8,6 @@ public class Utils {
     
     private static val sequence:AtomicLong = new AtomicLong();
     
-    public static val COMMIT_PROTOCOL = Utils.getEnvLong("COMMIT_PROTOCOL", THREE_PHASE_COMMIT);    
-    public static val THREE_PHASE_COMMIT = 0;
-    public static val TWO_PHASE_COMMIT = 1;
-    
     public static def getEnvLong(name:String, defaultVal:Long) {
         val env = System.getenv(name);
         val v = (env!=null) ? Long.parseLong(env) : defaultVal;
@@ -53,8 +49,10 @@ public class Utils {
         return result;
     }
     
-    public static val KILL_PLACE = Utils.getEnvLong("KILL_PLACE", -1);
-    public static val KILL_PLACE_POINT = Utils.getEnvLong("KILL_PLACE_POINT", -1);
+    public static val KILL_PLACE = getEnvLong("KILL_PLACE", -1);
+    public static val KILL_PLACE_POINT = getEnvLong("KILL_PLACE_POINT", -1);
+    public static val TIMEOUT_TO_RENOTIFY_LEADER = getEnvLong("TIMEOUT_TO_RENOTIFY_LEADER", 500) ;
+    
     public static val POINT_BEGIN_ASYNC_EXEC_REQUEST = 1;
     
     public static def asyncKillPlace() {
@@ -68,7 +66,4 @@ public class Utils {
             }
         }catch(ex:Exception) {}
     }
-    
-    public static def isTwoPhaseCommit() = COMMIT_PROTOCOL == TWO_PHASE_COMMIT;
-    
 }

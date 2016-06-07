@@ -104,8 +104,6 @@ public class ResilientMapImpl implements ResilientMap {
      */
     public def commitTransaction(transId:Long) {        
         val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name, timeoutMillis);
-        //if (VERBOSE) Utils.console(moduleName, "THE COMMIT REQ = " + request.toString());
-        
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
         if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]  { await ... ");
         request.lock.await();
@@ -115,7 +113,7 @@ public class ResilientMapImpl implements ResilientMap {
     }
     
     /***
-     * throws an exception if rollback failed  (this should not fail)
+     * No exceptions thrown
      */
     public def abortTransaction(transId:Long) {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name, timeoutMillis);

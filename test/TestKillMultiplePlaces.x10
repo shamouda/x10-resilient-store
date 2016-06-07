@@ -25,6 +25,8 @@ import x10.util.concurrent.AtomicBoolean;
  * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
  * 
  * MIGRATION_TIMEOUT_LIMIT=1000 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
+ * 
+ * KILL_WHILE_COMMIT_PLACE_ID=1 KILL_WHILE_COMMIT_TRANS_COUNT=3 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
  */
 public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
@@ -52,7 +54,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		val tmpMaxIterations = maxIterations;
 		var valid:Boolean = true;
 		try{
-			finish for (p in Place.places()) at (p) async {		
+			finish for (p in Place.places()) at (p) async {
 				val rnd = new Random(Timer.milliTime()+here.id);
 				for (var i:Long = 0 ; i < tmpMaxIterations ; i++) {
 					
@@ -94,7 +96,7 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 							}
 							hm.commitTransaction(txId);
 							atomic countsPLH()(keyIndex)++;
-							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] ...");
+							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] tx["+txId+"] ...");
 							break;
 						}
 						catch (ex:Exception) {
@@ -175,7 +177,14 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 				if (victim == 0)
 					victim = 1;
 				
-				if (Place(victim).isDead())
+				var consideredDead:Boolean = false;
+				try{
+					consideredDead = at (Place(victim)) killFlagPLH().get();
+				}catch(ex:Exception) {
+					consideredDead = true;
+				}
+				
+				if (consideredDead)
 					victim = -1; // try another place
 				else 
 					break;
@@ -215,4 +224,16 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		Console.OUT.println("Starting [TestKillMultiplePlaces] with maxIterations = " + maxIteration  + " killPeriod = " + killPeriodInMillis);
 		new TestKillMultiplePlaces(maxIteration, killPeriodInMillis).execute();
 	}
+}
+
+
+class LocalState {
+	val keyUpdateCount:Rail[Long];
+    var totalIterations:Long;
+    val iterationTime = new ArrayList[Long]();
+    
+	public def this(keysCount:Long) {
+		keyUpdateCount = new Rail[Long](keysCount);
+	}
+	
 }
