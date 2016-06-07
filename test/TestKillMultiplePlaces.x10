@@ -27,8 +27,11 @@ import x10.util.concurrent.AtomicBoolean;
  * MIGRATION_TIMEOUT_LIMIT=1000 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
  * 
  * KILL_WHILE_COMMIT_PLACE_ID=1 KILL_WHILE_COMMIT_TRANS_COUNT=3 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
+ * 
+ * --no conflict
+ * MIGRATION_TIMEOUT_LIMIT=1000 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o 100 500
  */
-public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long) extends x10Test {
+public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long, killedPlacesPercentage:Float, enableConflict:Boolean) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
                              "H", "I", "J", "K", "L", "M", "N", 
                              "O", "P", "Q", "R", "S", "T", "U", 
@@ -40,7 +43,6 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
     
     var killedPlacesStr:String = "";
 	public def run(): Boolean {
-		
 		if (x10.xrx.Runtime.RESILIENT_MODE > 0 && killPeriodInMillis != -1) {
 			Console.OUT.println("=========Running in Resilient Mode===========");
 			async killPlaces();
@@ -49,7 +51,9 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 			Console.OUT.println("=========Running in NonResilient Mode===========");
 		
 		val keysCount = KEYS_RAIL.size;		
-		val countsPLH = PlaceLocalHandle.make[Rail[Long]](Place.places(), ()=>new Rail[Long](keysCount) );		
+		val localStatePLH = PlaceLocalHandle.make[LocalState](Place.places(), ()=>new LocalState(keysCount) );		
+		val localStatesOfDeadPlacesGR = GlobalRef(new ArrayList[LocalState]());
+		
 		val hm = DataStore.getInstance().makeResilientMap("MapA", 1000);		
 		val tmpMaxIterations = maxIterations;
 		var valid:Boolean = true;
@@ -57,27 +61,29 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 			finish for (p in Place.places()) at (p) async {
 				val rnd = new Random(Timer.milliTime()+here.id);
 				for (var i:Long = 0 ; i < tmpMaxIterations ; i++) {
+					localStatePLH().totalIterations = i;
 					
 					if (killFlagPLH().get()) {
 						//because this place should die now, I will copy its counts to place 0 for test validation
-						val myCounts = countsPLH();						
+						val myLocalState = localStatePLH();
+						myLocalState.killedAtIteration = i;
 						at (Place(0)) {
-							atomic {
-								for (var m:Long = 0; m < keysCount; m++){
-									countsPLH()(m) += myCounts(m);
-								}
-							}
+							atomic localStatesOfDeadPlacesGR().add(myLocalState);
 						}
 						Console.OUT.println("Killing " + here);						
 						System.killHere();
 					}
 					
-					
 					val keyIndex = Math.abs(rnd.nextLong()) % keysCount;
-					val nextKey = KEYS_RAIL(keyIndex);
+					var tmpKey:String = KEYS_RAIL(keyIndex);
+					if (!enableConflict) //append place id to key to avoid conflict between places
+						tmpKey += here.id;
+					val nextKey = tmpKey;
+					
 					var oldValue:Any;
 					var newValue:Any;					
 					var r:Long = 0;
+					val startIteration = Timer.milliTime();
 				    while(hm.isValid()) {
 				    	if (r == hm.retryMaximum())
 				    		Console.OUT.println("Warning: " + here + " has exceeded the max number of retries  r=" + r 
@@ -95,7 +101,9 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 								newValue = (x as Long)+1;
 							}
 							hm.commitTransaction(txId);
-							atomic countsPLH()(keyIndex)++;
+							
+							localStatePLH().iterationTime.add(Timer.milliTime()-startIteration);
+							localStatePLH().keyUpdateCount(keyIndex)++;							
 							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] tx["+txId+"] ...");
 							break;
 						}
@@ -103,6 +111,12 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 							hm.abortTransactionAndSleep(txId);
 						}
 					}					
+				}
+				val myLocalState = localStatePLH();
+				myLocalState.killedAtIteration = -1;
+				myLocalState.totalIterations++;
+				at (Place(0)) {
+					atomic localStatesOfDeadPlacesGR().add(myLocalState);
 				}
 			}			
 		}catch(ex2:Exception) {
@@ -113,42 +127,43 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 			return false;
 		
 		complete.set(true);
-				
-		val remainingPlaces = Place.places().filterDeadPlaces();
-		val team = new Team(remainingPlaces);
-		val sumGR = GlobalRef(new Rail[Long](keysCount)); 
-		finish for (p in Place.places()) at (p) async {		
-			val src = countsPLH();
-			var dst:Rail[Long] = null;
-			if (here.id == 0)
-				dst = sumGR();
-			else
-				dst = new Rail[Long](keysCount);
-			if (VERBOSE) {
-				var srcCountStr:String = "";
-				for (var i:Long = 0; i < keysCount; i++) {
-					srcCountStr += "[" + KEYS_RAIL(i) + ":" + src(i) + "] ; ";			
-				}
-				Console.OUT.println( here + "==" + srcCountStr);
-			}
-			team.allreduce(src, 0, dst, 0, keysCount, Team.ADD);
-		}
 		
 		
 		/**Validate at place 0***/
-		if (VERBOSE) {
-			var dstCountStr:String = "";
+		val sumKeysCount = new Rail[Long](keysCount);
+		var maxIterations:Long = -1;
+		for (localState in localStatesOfDeadPlacesGR()){
+			Console.OUT.println(localState.toString());
 			for (var i:Long = 0; i < keysCount; i++) {
-				dstCountStr += "[" + KEYS_RAIL(i) + ":" + sumGR()(i) + "] ; ";	
+				sumKeysCount(i) += localState.keyUpdateCount(i);
 			}
-			Console.OUT.println("Total ==" + dstCountStr);
+			if (maxIterations < localState.totalIterations)
+				maxIterations = localState.totalIterations;
 		}
-			
+		
+		val sumTimePerIteration = new Rail[Long](maxIterations);
+		val sumCountPerIteration = new Rail[Long](maxIterations);
+		val averageTimePerIteration = new Rail[Float](maxIterations);
+		for (localState in localStatesOfDeadPlacesGR()){
+			for (var i:Long = 0; i < localState.totalIterations; i++) {
+				sumTimePerIteration(i) += localState.iterationTime.get(i);
+				sumCountPerIteration(i)++;
+			}
+		}
+		
+		var avgStr:String = "";
+		for (var i:Long = 0; i < maxIterations; i++) {
+			averageTimePerIteration(i) = ((sumTimePerIteration(i) as Float)/sumCountPerIteration(i));
+			avgStr += Math.round(averageTimePerIteration(i))  + ",";
+		}
+		
+		Console.OUT.println("AverageTime: " + avgStr);
+	
 		for (var i:Long = 0; i < keysCount; i++) {
 			val key = KEYS_RAIL(i);
-			val tmpValue = hm.get(key);			
+			val tmpValue = hm.get(key);
 			var foundValue:Long = tmpValue == null? 0 : tmpValue as Long;
-			val expectedValue = sumGR()(i);
+			val expectedValue = sumKeysCount(i);
 			if (foundValue != expectedValue) {
 				Console.OUT.println("Invalid value for key ["+key+"]   expectedValue["+expectedValue+"]  foundValue["+foundValue+"] ...");
 				valid = false;
@@ -163,8 +178,8 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 	private def killPlaces() {
 		var killedPlacesCount:Long = 0;
 	
-		while (!complete.get() && killedPlacesCount < Place.numPlaces()/2) {
-			Console.OUT.println("Place Hammer started ...");
+		while (!complete.get() && (killedPlacesCount as Float)/Place.numPlaces() < killedPlacesPercentage ) {
+			Console.OUT.println("Place Hammer started  reached("+(killedPlacesCount as Float)/Place.numPlaces()+") ...");
 			
 			System.sleep(killPeriodInMillis);
 			val rnd = new Random(Timer.milliTime()+here.id);
@@ -202,8 +217,9 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		}
 	}
 
+	//TODO: for statistical analysis, we need to be able to repeat the same scenario multiple times
 	/*
-	 * args: <optional_place_to_kill> 
+	 * args: <optional_place_to_kill>  <kill_period> <percentage_of_killed_places> <enable_conflict>
 	 **/
 	public static def main(var args: Rail[String]): void {
 		if (Place.numPlaces() < 3) {
@@ -211,7 +227,9 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 		    return;	
 		}
 		
-		var maxIteration:Long = Long.MAX_VALUE;
+		var maxIteration:Long = Long.MAX_VALUE;		
+		var killedPlacesPercentage:Float = 0.5F;
+		var enableConflict:Boolean = true;
 		
 		var killPeriodInMillis:Long = -1;
 		if (x10.xrx.Runtime.RESILIENT_MODE > 0)
@@ -221,19 +239,45 @@ public class TestKillMultiplePlaces (maxIterations:Long, killPeriodInMillis:Long
 			maxIteration = Long.parseLong(args(0));
 			killPeriodInMillis = Long.parseLong(args(1));
 		}
+		else if (args.size == 3) {
+			maxIteration = Long.parseLong(args(0));
+			killPeriodInMillis = Long.parseLong(args(1));
+			killedPlacesPercentage = Float.parseFloat(args(2));
+		}
+		else if (args.size == 4) {
+			maxIteration = Long.parseLong(args(0));
+			killPeriodInMillis = Long.parseLong(args(1));
+			killedPlacesPercentage = Float.parseFloat(args(2));
+			enableConflict = Long.parseLong(args(3)) == 1;
+		}
+		
 		Console.OUT.println("Starting [TestKillMultiplePlaces] with maxIterations = " + maxIteration  + " killPeriod = " + killPeriodInMillis);
-		new TestKillMultiplePlaces(maxIteration, killPeriodInMillis).execute();
+		new TestKillMultiplePlaces(maxIteration, killPeriodInMillis, killedPlacesPercentage, enableConflict).execute();
 	}
 }
 
 
 class LocalState {
+	val placeId:Long;
 	val keyUpdateCount:Rail[Long];
     var totalIterations:Long;
     val iterationTime = new ArrayList[Long]();
+    var killedAtIteration:Long;
     
 	public def this(keysCount:Long) {
 		keyUpdateCount = new Rail[Long](keysCount);
+		placeId = here.id;
 	}
 	
+	public def toString():String {
+		var str:String = "Place("+placeId+"): totalIters["+totalIterations+"] killedAtIter["+killedAtIteration+"] ";
+	    str += "IterationTime[" ;
+	    for (x in iterationTime)
+	    	str += x + ",";
+	    str += "]  keyUpdateCount[";
+	    for (x in keyUpdateCount)
+	    	str += x + ",";
+	    str += "]";
+		return str;
+	}
 }
