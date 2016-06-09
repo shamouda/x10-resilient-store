@@ -51,7 +51,7 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 		val keysCount = KEYS_RAIL.size;		
 		val localStatePLH = PlaceLocalHandle.make[LocalState](Place.places(), ()=>new LocalState() );		
 		val localStatesOfDeadPlacesGR = GlobalRef(new ArrayList[LocalState]());
-		val hm = DataStore.getInstance().makeResilientMap("MapA", 1000);		
+		val hm = DataStore.getInstance().makeResilientMap("MapA", 5000);		
 		val tmpMaxIterations = maxIterations;
 		var valid:Boolean = true;
 		val map = createVictimMap(victimPlaces, victimIterations);
