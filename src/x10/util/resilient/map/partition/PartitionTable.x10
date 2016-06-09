@@ -194,7 +194,6 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         val result = new ArrayList[MigrationRequest]();
         try {
             lock.lock();
-            Console.OUT.println("Acquired PartitionTable lock ...");
             for (var p:Long = 0; p < partitionsCount; p++) {
                 val hostPlaces = new HashSet[Long]();
                 val newPlaces = new HashSet[Long]();
@@ -222,7 +221,6 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             }
         } finally {
             lock.unlock();
-            Console.OUT.println("Released PartitionTable lock ...");
         }
         
         if (VERBOSE) {
