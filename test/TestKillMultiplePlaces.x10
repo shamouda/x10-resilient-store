@@ -40,7 +40,6 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
     
     val killFlagPLH = PlaceLocalHandle.make[AtomicBoolean](Place.places(), ()=>new AtomicBoolean(false) );	
     
-    var killedPlacesStr:String = "";
 	public def run(): Boolean {
 		if (x10.xrx.Runtime.RESILIENT_MODE > 0 && killPeriodInMillis != -1 && victimIterations.equals("")) {
 			Console.OUT.println("=========Starting random iteration place hammer===========");
@@ -183,7 +182,6 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 		        }
 		    }
 		}
-		Console.OUT.println("Killed Places: " + killedPlacesStr);
 		Console.OUT.println("Place Kill Iter: " + placeKillIter);
 		Console.OUT.println("Elapsed Time (ms):" + elapsedTime);
         return valid;
@@ -234,7 +232,6 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 			if (victim != -1){	
 			    victimIndex++;
 				killedPlacesCount++;
-				killedPlacesStr += victim + ",";
 				at (Place(victim)) {
 					killFlagPLH().set(true);
 				}
