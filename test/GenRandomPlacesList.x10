@@ -1,6 +1,8 @@
 import x10.util.Random;
 import x10.util.ArrayList;
 import x10.util.Timer;
+import x10.util.Option;
+import x10.util.OptionsParser;
 
 public class GenRandomPlacesList {	
 	private static def findVictimPlaces(placesCount:Long, iterationsCount:Long) {
@@ -36,9 +38,20 @@ public class GenRandomPlacesList {
         
         
 	}
-
+	/*
+	 * ./GenRandomPlacesList.o -p 16 -i 32
+	 * */
 	public static def main(var args: Rail[String]): void {
-	    findVictimPlaces(250, 500);
+		val opts = new OptionsParser(args, [
+		    Option("h","help","this information")
+		    ], [
+		    Option("p","places","places"),
+		    Option("i","iterations","iterations")
+		    ]);
+		                         		
+		val p = opts("p", Long.MAX_VALUE);
+		val i = opts("i", Long.MAX_VALUE);
+	    findVictimPlaces(p, i);
 	}
 }
 

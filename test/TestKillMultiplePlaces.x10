@@ -103,7 +103,7 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 							localStatePLH().iterationTime.add(Timer.milliTime()-startIteration);
 							val currentCount = localStatePLH().keyUpdateCount.getOrElse(nextKey, 0);
 							localStatePLH().keyUpdateCount.put(nextKey, currentCount+1);							
-							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] tx["+txId+"] ...");
+//							Console.OUT.println(here + "key["+nextKey+"]  Updated from ["+oldValue+"]  to ["+newValue+"] tx["+txId+"] ...");
 							break;
 						}
 						catch (ex:Exception) {
@@ -247,7 +247,6 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 	    val map = new HashMap[Long,Long]();
 	    for (var i:Long = 0; i < placesRail.size; i++) {
 	        map.put(Long.parseLong(placesRail(i)), Long.parseLong(victimsRail(i)));
-	        Console.OUT.println(placesRail(i) + "===" + victimsRail(i));
 	    }
 	    return map;
 	}
