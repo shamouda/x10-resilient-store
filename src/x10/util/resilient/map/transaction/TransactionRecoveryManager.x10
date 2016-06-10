@@ -87,7 +87,7 @@ public class TransactionRecoveryManager {
     }
     
     public def commitTransaction(transId:Long, replicas:HashSet[Long]) {        
-        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, null, -1);
+        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, null);
         request.setReplicationInfo(replicas);
         request.enableCommitRecovery();
         DataStore.getInstance().executor().asyncExecuteRequest(request);
@@ -99,7 +99,7 @@ public class TransactionRecoveryManager {
     }
     
     public def abortTransaction(transId:Long, replicas:HashSet[Long]) {
-        val request = new MapRequest(transId, MapRequest.REQ_ABORT, null, -1);
+        val request = new MapRequest(transId, MapRequest.REQ_ABORT, null);
         request.setReplicationInfo(replicas);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "Recover_abortTransaction["+transId+"]  { await ... ");

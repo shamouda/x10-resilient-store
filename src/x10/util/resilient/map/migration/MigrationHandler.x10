@@ -15,7 +15,8 @@ import x10.util.resilient.map.exception.InvalidDataStoreException;
 public class MigrationHandler {
     private val moduleName = "MigrationHandler";
     public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-    public static val MIGRATION_TIMEOUT_LIMIT = Utils.getEnvLong("MIGRATION_TIMEOUT_LIMIT", 100);
+    public static val MIGRATION_TIMEOUT = Utils.getEnvLong("MIGRATION_TIMEOUT", 1000);
+    public static val MIGRATION_SLEEP = Utils.getEnvLong("MIGRATION_SLEEP", 100);
     
     private val pendingRequests = new ArrayList[DeadPlaceNotification]();
     private var migrating:Boolean = false;
@@ -155,7 +156,7 @@ public class MigrationHandler {
                 ex.printStackTrace();
             }
         }
-        success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT_LIMIT);
+        success = waitForMigrationCompletion(migrationRequests, MIGRATION_TIMEOUT);
         val newDeadPlaces = new HashSet[Long]();
         for (req in migrationRequests) {
         	for (src in req.oldReplicas){
@@ -190,7 +191,7 @@ public class MigrationHandler {
                 break;
             
             if (VERBOSE) Utils.console(moduleName, "waiting for migration to complete ...");
-            System.threadSleep(10);
+            System.threadSleep(MIGRATION_SLEEP);
             
         } while (!allComplete && valid);
         

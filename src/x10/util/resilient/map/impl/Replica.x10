@@ -24,7 +24,8 @@ import x10.util.resilient.map.DataStore;
 public class Replica {
     private val moduleName = "Replica("+here.id+")";
     public static val VERBOSE = Utils.getEnvLong("REPLICA_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-    
+    public static val REPLICA_SLEEP = Utils.getEnvLong("REPLICA_SLEEP", 100);
+    public static val MIGRATION_CONFLICT_SLEEP = Utils.getEnvLong("MIGRATION_CONFLICT_SLEEP", 100);
     
     /**Transaction Status**/
     public static val TRANS_ACTIVE:Int = 0n;
@@ -510,7 +511,7 @@ public class Replica {
      **/
     public def checkDeadReplicaClient() {
         while (timerOn) {
-            System.threadSleep(100);
+            System.threadSleep(REPLICA_SLEEP);
             if (VERBOSE) Utils.console(moduleName, "checkDeadReplicaClient new iteration ...");
             try{
                 transactionsLock.lock();
@@ -643,7 +644,7 @@ public class Replica {
                 if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER...");
             }
             
-             System.threadSleep(25);
+            System.threadSleep(MIGRATION_CONFLICT_SLEEP);
         }
         while(true);
         

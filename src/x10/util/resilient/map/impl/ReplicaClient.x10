@@ -18,7 +18,9 @@ import x10.util.Team;
  **/
 public class ReplicaClient {
     private val moduleName = "ReplicaClient";
-    public static val VERBOSE = Utils.getEnvLong("REPL_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+    public static val VERBOSE = Utils.getEnvLong("REPLICA_CLIENT_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
+    public static val REPLICA_CLIENT_SLEEP = Utils.getEnvLong("REPLICA_CLIENT_SLEEP", 100);    
+    public static val REQUEST_TIMEOUT = Utils.getEnvLong("REQUEST_TIMEOUT", 100) ;
     
     public static val KILL_WHILE_COMMIT_PLACE_ID = Utils.getEnvLong("KILL_WHILE_COMMIT_PLACE_ID", -1);
     public static val KILL_WHILE_COMMIT_TRANS_COUNT = Utils.getEnvLong("KILL_WHILE_COMMIT_TRANS_COUNT", -1);
@@ -337,7 +339,7 @@ public class ReplicaClient {
             //requests that were pending until migration completes
             val resubmitList = new ArrayList[MapRequest]();
             
-            System.threadSleep(10);
+            System.threadSleep(REPLICA_CLIENT_SLEEP);
             try{
                 lock.lock();
                 var i:Long;
@@ -374,7 +376,7 @@ public class ReplicaClient {
                         }
                     }
                     if (checkTimeout) {
-                        if (Timer.milliTime() - mapReq.startTimeMillis > mapReq.timeoutMillis) {
+                        if (Timer.milliTime() - mapReq.startTimeMillis > REQUEST_TIMEOUT) {
                             mapReq.completeRequest(new RequestTimeoutException());    
                             mapReq.lock.release();
                             pendingRequests.removeAt(i);
@@ -390,7 +392,6 @@ public class ReplicaClient {
                             }
                         }
                     }
-                    
                 }//for loop on pendingRequests
                 
                 if (pendingRequests.size() == 0){

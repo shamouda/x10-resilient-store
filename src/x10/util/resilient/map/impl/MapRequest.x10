@@ -9,13 +9,12 @@ import x10.util.resilient.map.common.Utils;
 public class MapRequest {
     private val moduleName = "MapRequest";
     public static val VERBOSE = Utils.getEnvLong("MAP_REQ_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-    public static val REQUEST_TIMEOUT = Utils.getEnvLong("DS_REQUEST_TIMEOUT", 100) ;
+
     
     public val id:Long;
     private static val idSequence = new AtomicLong();
     
     public val mapName:String;
-    public val timeoutMillis:Long;
     public val transactionId:Long;
     public var requestType:Int;    
     
@@ -53,15 +52,11 @@ public class MapRequest {
     
     public var commitRecovery:Boolean = false;
     
-    public def this(transId:Long, reqType:Int, mapName:String, timeoutMillis:Long) {
+    public def this(transId:Long, reqType:Int, mapName:String) {
         this.id = idSequence.incrementAndGet();
         this.transactionId = transId;
         this.requestType = reqType;
         this.mapName = mapName;
-        if (timeoutMillis != -1)
-        	this.timeoutMillis = timeoutMillis;
-        else
-        	this.timeoutMillis = REQUEST_TIMEOUT;
         this.lock = new SimpleLatch();
         this.responseLock = new SimpleLatch();
         this.replicaResponse = new ArrayList[Any]();

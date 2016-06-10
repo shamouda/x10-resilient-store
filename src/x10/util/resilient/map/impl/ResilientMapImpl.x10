@@ -22,12 +22,10 @@ public class ResilientMapImpl implements ResilientMap {
     public static val ABORT_SLEEP_MILLIS_MAX = Utils.getEnvLong("ABORT_SLEEP_MILLIS_MAX", 20);
     
     private val name:String;
-    private val timeoutMillis:Long;
     private val rnd = new Random(Timer.milliTime());
     
-    public def this(name:String, timeoutMillis:Long) {
-        this.name = name;
-        this.timeoutMillis = timeoutMillis;   
+    public def this(name:String) {
+        this.name = name;   
     }
     
     public def retryMaximum() = RETRY_MAX;
@@ -103,7 +101,7 @@ public class ResilientMapImpl implements ResilientMap {
      * throws an exception if commit failed
      */
     public def commitTransaction(transId:Long) {        
-        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
         if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]  { await ... ");
         request.lock.await();
@@ -116,7 +114,7 @@ public class ResilientMapImpl implements ResilientMap {
      * No exceptions thrown
      */
     public def abortTransaction(transId:Long) {
-        val request = new MapRequest(transId, MapRequest.REQ_ABORT, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
         request.lock.await();
@@ -128,7 +126,7 @@ public class ResilientMapImpl implements ResilientMap {
      * throws an exception if rollback failed  (this should not fail)
      */
     public def abortTransactionAndSleep(transId:Long) {
-        val request = new MapRequest(transId, MapRequest.REQ_ABORT, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
         request.lock.await();
@@ -143,7 +141,7 @@ public class ResilientMapImpl implements ResilientMap {
      * returns the current value
      **/
     public def get(transId:Long, key:Any):Any {
-        val request = new MapRequest(transId, MapRequest.REQ_GET, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_GET, name);
         request.inKey = key;
         
         async DataStore.getInstance().executor().asyncExecuteRequest(request);
@@ -162,7 +160,7 @@ public class ResilientMapImpl implements ResilientMap {
      * returns the old value
      **/
     public def put(transId:Long, key:Any, value:Any):Any {
-        val request = new MapRequest(transId, MapRequest.REQ_PUT, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_PUT, name);
         request.inKey = key;
         request.inValue = value;
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
@@ -180,7 +178,7 @@ public class ResilientMapImpl implements ResilientMap {
      * returns the old value
      **/
     public def delete(transId:Long,key:Any):Any {
-        val request = new MapRequest(transId, MapRequest.REQ_DELETE, name, timeoutMillis);
+        val request = new MapRequest(transId, MapRequest.REQ_DELETE, name);
         request.inKey = key;        
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]  { await ... ");

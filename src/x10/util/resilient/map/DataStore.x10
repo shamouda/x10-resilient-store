@@ -150,7 +150,7 @@ public class DataStore {
     }
     
     //should be called by one place
-    public def makeResilientMap(name:String, timeoutMillis:Long):ResilientMap {
+    public def makeResilientMap(name:String):ResilientMap {
         if (!DataStore.getInstance().valid)
             throw new InvalidDataStoreException();
         
@@ -160,19 +160,19 @@ public class DataStore {
             //"Cannot create shifted activity under a SPMD Finish",
             //a shifted activity is required for copying the topology
             finish for (p in Place.places()) at (p) async {
-                DataStore.getInstance().addApplicationMap(name, timeoutMillis);
+                DataStore.getInstance().addApplicationMap(name);
             }
         }
         return userMaps.getOrThrow(name);
     }
     
-    private def addApplicationMap(mapName:String, timeoutMillis:Long) {
+    private def addApplicationMap(mapName:String) {
         try{
             lock.lock();
             var resilientMap:ResilientMap = userMaps.getOrElse(mapName,null);
             if (resilientMap == null){
                 replica.addMap(mapName);
-                resilientMap = new ResilientMapImpl(mapName, timeoutMillis);
+                resilientMap = new ResilientMapImpl(mapName);
                 userMaps.put(mapName, resilientMap);
             }
         }finally {
