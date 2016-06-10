@@ -174,7 +174,7 @@ public class ReplicaClient {
         	if (VERBOSE) Utils.console(moduleName, "SubmittingToPlace["+Place(placeId)+"] request: " + request.toString() ); 
             try{
                 at (Place(placeId)) async {
-                	//Console.OUT.println("SubmittingToPlace - Reached " + here);
+                	Console.OUT.println("SubmittingToPlace - Reached " + here + "  transId["+transId+"] ");
                     DataStore.getInstance().getReplica().submitSingleKeyRequest(mapName, clientId, partitionId, transId, requestType, key, value, replicas, gr);
                 }
             }
