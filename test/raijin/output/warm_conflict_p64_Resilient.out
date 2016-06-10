@@ -1,0 +1,137 @@
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Place(16) [MigrationHandler] Invalid migration handler exception[null]
+Killing Place(16)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(30)
+Killing Place(27)
+Killing Place(26)
+Killing Place(10)
+Killing Place(4)
+Killing Place(13)
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(10)
+Killing Place(27)
+Killing Place(16)
+Killing Place(30)
+Killing Place(26)
+Killing Place(4)
+Killing Place(13)
+Killing Place(2)
+AverageTime: 2028.0,2412.0,2541.0,1825.0,1645.0,2022.0,2438.0,2415.0,1737.0,1692.0,2551.0,1233.0,1810.0,1921.0,2397.0,1418.0,2223.0,1615.0,1319.0,1947.0,2109.0,2192.0,1555.0,1205.0,1444.0,1236.0,1350.0,1616.0,1579.0,1036.0,1245.0,1272.0,1318.0,1701.0,1324.0,1329.0,1022.0,1137.0,764.0,1082.0,1164.0,1166.0,1006.0,1164.0,1042.0,794.0,1102.0,816.0,1225.0,958.0,789.0,906.0,621.0,803.0,664.0,679.0,868.0,913.0,1046.0,815.0,773.0,822.0,1131.0,661.0,732.0,756.0,697.0,726.0,603.0,669.0,541.0,654.0,748.0,646.0,690.0,770.0,581.0,671.0,727.0,716.0,688.0,654.0,599.0,597.0,603.0,539.0,574.0,493.0,589.0,530.0,540.0,569.0,548.0,556.0,566.0,509.0,481.0,523.0,499.0,527.0,519.0,484.0,497.0,505.0,490.0,542.0,453.0,475.0,509.0,488.0,503.0,430.0,463.0,521.0,469.0,469.0,509.0,478.0,453.0,492.0,426.0,444.0,476.0,450.0,465.0,474.0,442.0,457.0,
+Place Kill Iter: 63:30;58:35;56:55;51:50;42:40;53:95;43:75;40:90;10:70;27:80;16:45;30:85;26:105;4:65;13:100;2:60;
+Elapsed Time (ms):197405
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(16)
+Killing Place(30)
+Killing Place(27)
+Killing Place(10)
+Place(32) [MigrationHandler] Invalid migration handler exception[null]
+Killing Place(26)
+Place(32) [MigrationHandler] Invalid migration handler exception[null]
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(51)
+Killing Place(56)
+Killing Place(42)
+Killing Place(43)
+Killing Place(53)
+Killing Place(40)
+Killing Place(30)
+Killing Place(27)
+Killing Place(26)
+Killing Place(16)
+Killing Place(10)
+AverageTime: 1388.0,1399.0,1060.0,1415.0,1007.0,1130.0,862.0,1009.0,1314.0,1295.0,1547.0,1045.0,1172.0,1312.0,1432.0,875.0,1126.0,1114.0,1234.0,726.0,817.0,1167.0,859.0,892.0,940.0,1074.0,986.0,814.0,1124.0,1447.0,937.0,1004.0,1279.0,1122.0,1142.0,843.0,917.0,1342.0,996.0,998.0,1061.0,1107.0,1053.0,977.0,980.0,765.0,913.0,896.0,909.0,815.0,947.0,1110.0,993.0,795.0,664.0,801.0,771.0,813.0,810.0,937.0,748.0,1231.0,922.0,657.0,824.0,863.0,548.0,557.0,754.0,733.0,671.0,582.0,722.0,740.0,692.0,569.0,682.0,632.0,648.0,623.0,578.0,556.0,775.0,520.0,581.0,694.0,477.0,487.0,594.0,461.0,518.0,753.0,559.0,580.0,670.0,458.0,547.0,586.0,533.0,465.0,533.0,447.0,547.0,623.0,561.0,586.0,478.0,482.0,471.0,493.0,556.0,486.0,482.0,489.0,530.0,489.0,568.0,482.0,456.0,452.0,423.0,512.0,423.0,530.0,438.0,438.0,512.0,475.0,
+Place Kill Iter: 63:30;58:35;51:50;56:55;42:40;43:75;53:95;40:90;30:85;27:80;26:105;16:45;10:70;
+Elapsed Time (ms):143635
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(30)
+Killing Place(43)
+Killing Place(40)
+Killing Place(16)
+Killing Place(27)
+Killing Place(26)
+Killing Place(13)
+Killing Place(4)
+Killing Place(10)
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(27)
+Killing Place(16)
+Killing Place(30)
+Killing Place(13)
+Killing Place(26)
+Killing Place(2)
+Killing Place(10)
+Killing Place(4)
+AverageTime: 3673.0,1828.0,2522.0,1789.0,2050.0,1832.0,3152.0,2676.0,1693.0,1208.0,1565.0,1558.0,1953.0,1535.0,1343.0,1662.0,1953.0,2277.0,1551.0,2538.0,1596.0,1294.0,1202.0,1856.0,1558.0,1235.0,1515.0,1661.0,1216.0,1078.0,1327.0,1240.0,1683.0,1138.0,1001.0,1673.0,1050.0,961.0,993.0,1287.0,1070.0,1128.0,957.0,1148.0,1254.0,968.0,1165.0,1157.0,939.0,1203.0,801.0,879.0,765.0,764.0,1081.0,792.0,903.0,565.0,718.0,772.0,762.0,942.0,775.0,933.0,891.0,769.0,713.0,717.0,649.0,724.0,719.0,639.0,619.0,888.0,725.0,642.0,617.0,529.0,586.0,610.0,550.0,636.0,643.0,574.0,578.0,514.0,718.0,630.0,595.0,505.0,536.0,675.0,685.0,583.0,589.0,485.0,513.0,437.0,517.0,563.0,525.0,546.0,468.0,513.0,503.0,526.0,480.0,513.0,513.0,490.0,484.0,545.0,459.0,453.0,526.0,449.0,478.0,486.0,467.0,469.0,432.0,434.0,480.0,419.0,428.0,425.0,451.0,473.0,
+Place Kill Iter: 63:30;58:35;56:55;51:50;42:40;53:95;43:75;40:90;27:80;16:45;30:85;13:100;26:105;2:60;10:70;4:65;
+Elapsed Time (ms):197913
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(51)
+Killing Place(56)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(30)
+Killing Place(16)
+Killing Place(27)
+Killing Place(26)
+Killing Place(10)
+AverageTime: 1490.0,972.0,1244.0,1094.0,904.0,1450.0,1447.0,1214.0,1212.0,1047.0,1818.0,1184.0,891.0,1340.0,1119.0,956.0,1234.0,1107.0,1457.0,1047.0,966.0,846.0,1287.0,844.0,861.0,944.0,1071.0,676.0,824.0,971.0,927.0,832.0,1068.0,847.0,991.0,762.0,656.0,885.0,888.0,880.0,744.0,820.0,1199.0,896.0,950.0,768.0,760.0,773.0,918.0,654.0,595.0,804.0,956.0,707.0,904.0,840.0,1004.0,816.0,884.0,769.0,934.0,875.0,804.0,699.0,639.0,698.0,627.0,807.0,895.0,716.0,698.0,895.0,643.0,674.0,610.0,795.0,804.0,517.0,851.0,554.0,585.0,581.0,565.0,494.0,736.0,541.0,511.0,501.0,568.0,604.0,490.0,508.0,562.0,542.0,542.0,619.0,483.0,476.0,522.0,544.0,608.0,444.0,480.0,447.0,476.0,464.0,464.0,452.0,475.0,515.0,430.0,497.0,452.0,467.0,442.0,386.0,430.0,497.0,426.0,438.0,378.0,460.0,449.0,489.0,434.0,426.0,389.0,423.0,
+Place Kill Iter: 63:30;58:35;51:50;56:55;42:40;53:95;43:75;40:90;30:85;16:45;27:80;26:105;10:70;
+Elapsed Time (ms):131574

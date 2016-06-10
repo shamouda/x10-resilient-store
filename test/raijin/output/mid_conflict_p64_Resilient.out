@@ -1,0 +1,39 @@
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(16)
+Killing Place(40)
+Place(32) [MigrationHandler] Invalid migration handler exception[null]
+Place(32) [MigrationHandler] Invalid migration handler exception[null]
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)
+Killing Place(53)
+Killing Place(43)
+Killing Place(40)
+Killing Place(27)
+Killing Place(16)
+Killing Place(30)
+Killing Place(26)
+Killing Place(2)
+Killing Place(10)
+Killing Place(4)
+Killing Place(13)
+AverageTime: 2416.0,2652.0,2277.0,3583.0,1542.0,2073.0,3745.0,1950.0,1973.0,1523.0,1461.0,1548.0,1272.0,1682.0,1396.0,1539.0,1693.0,1241.0,1618.0,1698.0,1464.0,2411.0,1995.0,1261.0,1373.0,1513.0,1941.0,1672.0,1181.0,1133.0,1457.0,1601.0,917.0,1557.0,1018.0,862.0,1190.0,883.0,1221.0,1310.0,1137.0,1208.0,1290.0,916.0,1143.0,1127.0,1125.0,1224.0,1109.0,877.0,923.0,1199.0,1114.0,903.0,770.0,863.0,869.0,1000.0,880.0,715.0,1171.0,950.0,812.0,588.0,889.0,852.0,721.0,637.0,734.0,657.0,779.0,811.0,781.0,736.0,673.0,765.0,786.0,604.0,720.0,697.0,597.0,709.0,599.0,609.0,560.0,601.0,622.0,625.0,703.0,585.0,715.0,649.0,613.0,703.0,513.0,519.0,474.0,505.0,482.0,490.0,540.0,467.0,482.0,553.0,507.0,586.0,460.0,479.0,596.0,592.0,498.0,560.0,483.0,435.0,443.0,488.0,494.0,514.0,528.0,482.0,420.0,437.0,432.0,435.0,443.0,435.0,437.0,426.0,
+Place Kill Iter: 63:30;58:35;56:55;51:50;42:40;53:95;43:75;40:90;27:80;16:45;30:85;26:105;2:60;10:70;4:65;13:100;
+Elapsed Time (ms):196834
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=128 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(63)
+Killing Place(58)
+Killing Place(56)
+Killing Place(51)
+Killing Place(42)

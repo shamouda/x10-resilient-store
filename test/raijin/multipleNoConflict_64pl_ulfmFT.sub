@@ -1,0 +1,42 @@
+#!/bin/bash
+#PBS -P c07
+#PBS -q normal
+#PBS -l walltime=00:04:00
+#PBS -l mem=40GB
+#PBS -l wd
+#PBS -l ncpus=64
+
+source ~/prof/x1016final_ulfm1.1.profile
+
+
+APP=conflict
+places_per_socket=8
+
+pl=64
+app_iter=128
+repeat_test_runs=10
+victim_places=63,58,42,16,51,56,2,4,10,43,27,30,40,53,13,26
+victim_iters=30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105
+
+#########output folder#######
+DIR=~/data_store/output
+export OUTPUT_DIR=${DIR}
+mkdir $OUTPUT_DIR
+
+export X10_EXIT_BY_SIGKILL=1
+
+cd ~/data_store/x10-resilient-store/test
+args="-m $app_iter -c 0 -vp $victim_places -vi $victim_iters"
+output_file_name=$OUTPUT_DIR/warmNoConflict_${APP}_p${pl}_Resilient.out
+
+for repeat_count in $(seq "$repeat_test_runs");
+do
+    X10_RESILIENT_MODE=1 \
+    X10_NUM_IMMEDIATE_THREADS=1 \
+    DS_ALL_VERBOSE=0 \
+    DATA_STORE_LEADER_NODE=1 \
+    mpirun -np $((pl)) -am ft-enable-mpi --mca errmgr_rts_hnp_proc_fail_xcast_delay 0 --bind-to-core -npersocket $places_per_socket \
+    --mca btl openib,sm,self ./TestKillMultiplePlaces.o $args >> "$output_file_name"
+done
+
+

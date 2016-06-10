@@ -1,0 +1,48 @@
+Starting [TestKillMultiplePlaces]   maxIterations=64 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(23)
+Killing Place(11)
+Killing Place(28)
+Killing Place(26)
+Killing Place(5)
+Killing Place(1)
+Killing Place(2)
+Killing Place(7)
+AverageTime: 1451.0,1884.0,1953.0,1715.0,1377.0,1215.0,772.0,850.0,1118.0,1192.0,811.0,714.0,884.0,1179.0,581.0,570.0,749.0,653.0,749.0,580.0,694.0,740.0,554.0,801.0,612.0,604.0,727.0,593.0,860.0,712.0,832.0,578.0,701.0,593.0,855.0,489.0,761.0,657.0,709.0,428.0,513.0,567.0,688.0,547.0,480.0,551.0,501.0,513.0,446.0,505.0,501.0,505.0,480.0,530.0,563.0,438.0,425.0,467.0,467.0,455.0,501.0,488.0,417.0,446.0,
+Place Kill Iter: 23:10;11:15;28:30;26:40;5:5;1:20;2:35;7:25;
+Elapsed Time (ms):70705
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=64 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(5)
+Killing Place(23)
+Killing Place(28)
+Killing Place(11)
+Killing Place(26)
+Killing Place(1)
+Killing Place(7)
+Killing Place(2)
+AverageTime: 1278.0,1048.0,858.0,895.0,836.0,601.0,824.0,833.0,863.0,763.0,1041.0,1265.0,718.0,618.0,701.0,812.0,687.0,711.0,811.0,953.0,976.0,687.0,533.0,901.0,629.0,723.0,742.0,816.0,701.0,738.0,616.0,836.0,693.0,713.0,635.0,569.0,869.0,641.0,817.0,885.0,546.0,568.0,717.0,530.0,455.0,467.0,467.0,526.0,580.0,530.0,484.0,505.0,476.0,422.0,451.0,417.0,447.0,455.0,446.0,505.0,434.0,488.0,551.0,521.0,
+Place Kill Iter: 5:5;23:10;28:30;11:15;26:40;1:20;7:25;2:35;
+Elapsed Time (ms):58186
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=64 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(23)
+Killing Place(5)
+Killing Place(28)
+Killing Place(11)
+Killing Place(26)
+Killing Place(7)
+Killing Place(1)
+Killing Place(2)
+AverageTime: 1116.0,964.0,876.0,951.0,1743.0,736.0,721.0,840.0,662.0,682.0,691.0,1032.0,1055.0,1162.0,1148.0,718.0,774.0,608.0,649.0,667.0,730.0,611.0,833.0,604.0,540.0,916.0,842.0,663.0,623.0,586.0,878.0,562.0,828.0,651.0,805.0,681.0,577.0,577.0,537.0,517.0,488.0,513.0,534.0,459.0,484.0,580.0,417.0,496.0,434.0,667.0,480.0,451.0,406.0,526.0,421.0,501.0,459.0,475.0,422.0,484.0,401.0,501.0,434.0,397.0,
+Place Kill Iter: 23:10;5:5;28:30;11:15;26:40;7:25;1:20;2:35;
+Elapsed Time (ms):63193
+++++++ Test succeeded.
+Starting [TestKillMultiplePlaces]   maxIterations=64 killPeriod=100 killedPercentage=0.5 enableConflict=true
+Killing Place(5)
+Killing Place(23)
+Killing Place(11)
+Killing Place(28)
+Killing Place(26)
+Killing Place(2)
+Killing Place(1)
+Killing Place(7)
