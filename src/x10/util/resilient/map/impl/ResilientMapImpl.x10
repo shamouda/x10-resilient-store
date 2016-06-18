@@ -10,6 +10,7 @@ import x10.util.resilient.map.ResilientMap;
 import x10.util.resilient.map.DataStore;
 import x10.util.Random;
 import x10.util.Timer;
+import x10.xrx.Runtime;
 /***
  * This class should not contain heavy objects because it is transferable between places
  * Place specific data should be obtained from the DataStore class
@@ -104,7 +105,9 @@ public class ResilientMapImpl implements ResilientMap {
         val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
         if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (!request.isSuccessful())
             throw request.outException;
@@ -117,7 +120,9 @@ public class ResilientMapImpl implements ResilientMap {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
     }
     
@@ -129,7 +134,9 @@ public class ResilientMapImpl implements ResilientMap {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
         nextRandomSleep();
     }
@@ -147,7 +154,9 @@ public class ResilientMapImpl implements ResilientMap {
         async DataStore.getInstance().executor().asyncExecuteRequest(request);
         
         if (VERBOSE) Utils.console(moduleName, "get["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "get["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
@@ -165,7 +174,9 @@ public class ResilientMapImpl implements ResilientMap {
         request.inValue = value;
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "put["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "put["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
@@ -182,7 +193,9 @@ public class ResilientMapImpl implements ResilientMap {
         request.inKey = key;        
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
         if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
         request.lock.await();
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (request.isSuccessful())
             return request.outValue;
