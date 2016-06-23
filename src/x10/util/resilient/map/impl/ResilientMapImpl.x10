@@ -98,6 +98,14 @@ public class ResilientMapImpl implements ResilientMap {
         return Utils.getNextTransactionId();
     }
     
+    public def prepareCommit(transId:Long):Long {
+      //TODO: implement
+        return Utils.READY_YES;
+    }
+    
+    public def confirmCommit(transId:Long) {
+      //TODO: implement
+    }
     /***
      * throws an exception if commit failed
      */

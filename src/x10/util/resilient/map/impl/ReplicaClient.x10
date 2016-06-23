@@ -11,6 +11,7 @@ import x10.util.resilient.map.partition.PartitionReplicas;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
+import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.Team;
 
 /**
@@ -22,10 +23,6 @@ public class ReplicaClient {
     public static val REPLICA_CLIENT_SLEEP = Utils.getEnvLong("REPLICA_CLIENT_SLEEP", 100);    
     public static val REQUEST_TIMEOUT = Utils.getEnvLong("REQUEST_TIMEOUT", 100) ;
     
-    public static val KILL_WHILE_COMMIT_PLACE_ID = Utils.getEnvLong("KILL_WHILE_COMMIT_PLACE_ID", -1);
-    public static val KILL_WHILE_COMMIT_TRANS_COUNT = Utils.getEnvLong("KILL_WHILE_COMMIT_TRANS_COUNT", -1);
-    private var killCommitCount:Long = 0;
-        
     /*Copy of the parition table*/
     private var partitionTable:PartitionTable;
 
@@ -113,18 +110,15 @@ public class ReplicaClient {
     }
     
     /**
-     * Start confirm commit request
+     * Start confirm commit request.
+     * If some replicas are dead, ignore them and commit at the other active replicas.
+     * If all replicas are dead, then throw an exception and mark the DataStore as invalid 
      **/
     private def asyncExecuteConfirmCommit(request:MapRequest) {
         val replicas = request.replicas;
         request.setReplicationInfo(replicas);
-        val submit = asyncWaitForResponse(request, replicas);
-        if (submit)
-            submitAsyncConfirmCommit(request, replicas);
-        else {
-            val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
-            request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
-        } 
+        val allReplicasActive = asyncWaitForResponse(request, replicas);
+        submitAsyncConfirmCommit(request, replicas);
     }
     
     /**
@@ -139,27 +133,16 @@ public class ReplicaClient {
         	if (VERBOSE) Utils.console(moduleName, "abort successfully because replicas are null for request: " + request.toString());
             //transaction was not submitted to any replica
             request.completeRequest(null);
-            request.lock.release();
             return;
         }
         
         val allReplicasActive = asyncWaitForResponse(request, replicas); 
         if (VERBOSE) Utils.console(moduleName, "allReplicasActive= " + allReplicasActive);        
         submitAsyncExecuteAbort(request, replicas);
-        
-        if (!allReplicasActive) {
-            val deadPlaceId = Utils.getDeadReplicas(replicas).iterator().next(); 
-            request.completeRequest(new DeadPlaceException(Place(deadPlaceId)));
-            if (VERBOSE) Utils.console(moduleName, "complete request with dead place exception= " + request.toString());
-        }
-        else
-            request.completeRequest(null);
     }
     
     /************************  Functions to send requests to Replicas  *****************************/
-    
     private def submitSingleKeyRequest(request:MapRequest, replicas:HashSet[Long], partitionId:Long) {
-           
         val key = request.inKey;
         val value = request.inValue;
         val mapName = request.mapName;
@@ -220,38 +203,31 @@ public class ReplicaClient {
         val mapName = request.mapName;
         val gr = GlobalRef[MapRequest](request);
         
-        killCommitCount++;        
-        
+        var allReplicasDied:Boolean = true;
         var exception:Exception = null;
         for (placeId in replicas) {
             try{
-                at (Place(placeId)) async {
-                    DataStore.getInstance().getReplica().commitNoResponse(transId, gr);
+                if (!Place(placeId).isDead()) {
+                    allReplicasDied = false;
+                    at (Place(placeId)) async {
+                        DataStore.getInstance().getReplica().commitNoResponse(transId, gr);
+                    }
                 }
             }
             catch (ex:Exception) {
                 exception = ex;
             }
-            
-            if (KILL_WHILE_COMMIT_PLACE_ID == here.id && KILL_WHILE_COMMIT_TRANS_COUNT <= killCommitCount ) {
-            	
-            	var hereFound:Boolean = false;
-            	for (x in replicas) {
-            		if (x == here.id) {
-            			hereFound = true;
-            			break;
-            		}
-            	}
-            
-            	if (!hereFound) {
-            		Console.OUT.println("TESTING LOST CLIENT WHILE COMMITING -- Killing " + here + "  impacted replicas: " + Utils.hashSetToString(replicas));
-            		System.killHere();
-            	}
-            }
-            	
         }
-        //Ignore exceptions
-        request.completeRequest(null);
+        
+        if (allReplicasDied) {
+            valid = false;
+            DataStore.getInstance().invalidate();
+            request.completeRequest(new InvalidDataStoreException());
+        }
+        else{
+          //Ignore exceptions
+            request.completeRequest(null);
+        }
     }
     
     private def submitAsyncExecuteAbort(request:MapRequest, replicas:HashSet[Long]) {
@@ -260,10 +236,12 @@ public class ReplicaClient {
         val gr = GlobalRef[MapRequest](request);
         request.setReplicationInfo(replicas);
         
+        var allReplicasDied:Boolean = true;
         var exception:Exception = null;
         for (placeId in replicas) {
             try{
             	if (!Place(placeId).isDead()) {
+            	    allReplicasDied = false;
             		at (Place(placeId)) async {
                     	DataStore.getInstance().getReplica().abortNoResponse(transId, gr);
                 	}
@@ -274,6 +252,15 @@ public class ReplicaClient {
             }
         }
         
+        if (allReplicasDied) {
+            valid = false;
+            DataStore.getInstance().invalidate();
+            request.completeRequest(new InvalidDataStoreException());
+        }
+        else{
+          //Ignore exceptions
+            request.completeRequest(null);
+        }
     }
     
     /************************  Functions to Add and Monitor Requests  *****************************/

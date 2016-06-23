@@ -24,7 +24,6 @@ public class DataStore {
     public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
     public static val LEADER_NODE = Utils.getEnvLong("DATA_STORE_LEADER_NODE", 0);
     
-    
     /*the data store will be invalid if:
      * - failure happended during initialization
      * - some partitions are permanantly lost due to loss of both their primary and secondary partitions*/
@@ -126,6 +125,7 @@ public class DataStore {
     public def isLeader() = here.id == leaderPlace.id;
     public def isDeputyLeader() = here.id == deputyLeaderPlace.id;
     public def isValid() = valid;
+    public def invalidate() { valid = false; }
     
     //TODO: handle the possibility of having some dead places
     private static def createTopologyPlaceZeroOnly():Topology {

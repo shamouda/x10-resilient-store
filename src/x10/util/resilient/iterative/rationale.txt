@@ -1,0 +1,53 @@
+Place(3) [DataStore] Initialization done successfully ...
+Place(4) [DataStore] Initialization done successfully ...
+Place(1) [ResilientMapImpl] get[200001]  { await ...
+Place(1) [ReplicaClient] Key[W] ParitionId: 3 Replicas[4  3   ]
+Place(1) [ReplicaClient] notifyDeadPlaces: deadReplicas count is [0] ...
+Place(1) [ReplicaClient] Added Pending Request <request TransactionId[200001] ReqId[1] type[Get]  key[W]>
+Place(1) [ReplicaClient] notifyDeadPlaces: deadReplicas count is [0] ...
+Place(1) [ReplicaClient] Added Pending Request <request TransactionId[200001] ReqId[2] type[Abort]  key[null]>
+Place(1) [ReplicaClient] allReplicasActive= true
+Place(1) [ReplicaClient] Submitting request: <request TransactionId[200001] ReqId[2] type[Abort]  key[null]>
+Place(1) [ReplicaClient] SubmittingToPlace[Place(4)] request: <request TransactionId[200001] ReqId[1] type[Get]  key[W]>
+Place(1) [MapRequest] Completing request: <request TransactionId[
+
+
+
+] ReqId[2] type[Abort]  key[null]>  Exception: null
+Place(1) [ReplicaClient] SubmittingToPlace[Place(3)] request: <request TransactionId[200001] ReqId[1] type[Get]  key[W]>
+Place(1) [ResilientMapImpl] abortTransaction[200001]  { await ...
+
+
+
+Place(5) [ResilientMapImpl] get[600001]  { await ...
+Place(5) [ReplicaClient] Key[C] ParitionId: 1 Replicas[1  2   ]
+Place(5) [ReplicaClient] notifyDeadPlaces: deadReplicas count is [0] ...
+Place(5) [ReplicaClient] Added Pending Request <request TransactionId[600001] ReqId[1] type[Get]  key[C]>
+Place(2) [ResilientMapImpl] get[300001]  { await ...
+Place(0) [ReplicaClient] SubmittingToPlace[Place(1)] request: <request TransactionId[100001] ReqId[1] type[Get]  key[H]>
+Place(2) [ReplicaClient] abort successfully because replicas are null for request: <request TransactionId[300001] ReqId[2] type[Abort]  key[null]>
+Place(5) [ReplicaClient] SubmittingToPlace[Place(1)] request: <request TransactionId[600001] ReqId[1] type[Get]  key[C]>
+Place(5) [ReplicaClient] notifyDeadPlaces: deadReplicas count is [0] ...
+
+
+
+        
+        Runtime.increaseParallelism();
+        request.lock.await();
+        Runtime.decreaseParallelism(1);
+
+
+We don’t have any conflicts!!!
+So, agree first, before ready
+
+place0 - place1 - place2 - place3
+start
+put(k,v)   - - assuming no conflict
+agree?
+
+ready? commit
+ready? abort
+
+By this protocol no need for having 2 copies of the hash map
+
+what if a place dies after ready????

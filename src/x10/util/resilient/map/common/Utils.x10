@@ -6,6 +6,9 @@ import x10.util.HashSet;
 public class Utils {
     public static val VERBOSE_PLACE = Utils.getEnvLong("VERBOSE_PLACE", -1);
     
+    public static val READY_YES:Long = 1;
+    public static val READY_NO:Long = 0;
+    
     private static val sequence:AtomicLong = new AtomicLong();
     
     public static def getEnvLong(name:String, defaultVal:Long) {

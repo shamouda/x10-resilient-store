@@ -34,9 +34,24 @@ public interface ResilientMap {
     public def startTransaction():Long;
     
     /***
+     * checks if the transaction is ready to be committed 
+     * (ready = not conflicting with other transactions)
+     */
+    public def prepareCommit(transId:Long):Long;
+    
+    /***
+     * confirms a ready-to-commit transaction
+     */
+    public def confirmCommit(transId:Long):void;
+    
+    
+    /***
      * throws an exception if commit failed
      */
     public def commitTransaction(transId:Long):void;
+    
+    
+    
     
     /**
      * aborts a transaction, exceptions are hiden

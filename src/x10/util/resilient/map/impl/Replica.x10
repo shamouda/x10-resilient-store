@@ -33,8 +33,7 @@ public class Replica {
     public static val TRANS_COMMITED:Int = 2n;
     public static val TRANS_ABORTED:Int = 3n;
     
-    public static val READY_YES:Long = 1;
-    public static val READY_NO:Long = 0;
+    
     
     // Dummy transaction log used to replace aborted/commited transactions
     private static val DUMMY_TRANSACTION = new Transaction(-1, -1, -1, null); 
@@ -200,7 +199,7 @@ public class Replica {
         if (transLog == null) {
             if (VERBOSE) Utils.console(moduleName, "(ready) Transaction ["+transId+"]  is not active. Return Not Ready ...");
             at (responseGR) async {
-                responseGR().commitVote(READY_NO, replicaId);
+                responseGR().commitVote(Utils.READY_NO, replicaId);
             }
             return;
         }
@@ -211,7 +210,7 @@ public class Replica {
         else
         	ready = readyToCommit(transLog);
         
-        val vote = ready? READY_YES : READY_NO;
+        val vote = ready? Utils.READY_YES : Utils.READY_NO;
         
         at (responseGR) async {
             responseGR().commitVote(vote, replicaId);
