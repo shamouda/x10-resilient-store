@@ -292,12 +292,17 @@ public class LocalViewResilientExecutorDS {
         
         calculateTimingStatistics();
         
-        
-        val averageCheckpoint          = avergaMaxMinRails(placeTempData().placeMinCheckpoint,          placeTempData().placeMaxCheckpoint);
-        val averageCheckpointAgreement = avergaMaxMinRails(placeTempData().placeMinCheckpointAgreement, placeTempData().placeMaxCheckpointAgreement);
-        val averageRestore             = avergaMaxMinRails(placeTempData().placeMinRestore,             placeTempData().placeMaxRestore);
-        val averageRestoreAgreement    = avergaMaxMinRails(placeTempData().placeMinRestoreAgreement,    placeTempData().placeMaxRestoreAgreement);
         val averageSteps               = avergaMaxMinRails(placeTempData().placeMinStep,                placeTempData().placeMaxStep);
+        var averageCheckpoint:Rail[Double] = null;
+        var averageCheckpointAgreement:Rail[Double] = null;
+        var averageRestore:Rail[Double] = null;
+        var averageRestoreAgreement:Rail[Double] = null;
+        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
+            averageCheckpoint          = avergaMaxMinRails(placeTempData().placeMinCheckpoint,          placeTempData().placeMaxCheckpoint);
+            averageCheckpointAgreement = avergaMaxMinRails(placeTempData().placeMinCheckpointAgreement, placeTempData().placeMaxCheckpointAgreement);
+            averageRestore             = avergaMaxMinRails(placeTempData().placeMinRestore,             placeTempData().placeMaxRestore);
+            averageRestoreAgreement    = avergaMaxMinRails(placeTempData().placeMinRestoreAgreement,    placeTempData().placeMaxRestoreAgreement);
+        }
         
         
         Console.OUT.println("=========Detailed Statistics============");
@@ -307,6 +312,7 @@ public class LocalViewResilientExecutorDS {
     	Console.OUT.println("Steps-min:" + railToString(placeTempData().placeMinStep));
     	Console.OUT.println("Steps-max:" + railToString(placeTempData().placeMaxStep));
     	
+    	if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
     	Console.OUT.println("CheckpointData-avg:" + railToString(averageCheckpoint));
     	Console.OUT.println("CheckpointData-min:" + railToString(placeTempData().placeMinCheckpoint));
     	Console.OUT.println("CheckpointData-max:" + railToString(placeTempData().placeMaxCheckpoint));
@@ -322,13 +328,14 @@ public class LocalViewResilientExecutorDS {
     	Console.OUT.println("RestoreAgree-avg:" + railToString(averageRestoreAgreement));
     	Console.OUT.println("RestoreAgree-min:" + railToString(placeTempData().placeMinRestoreAgreement));
     	Console.OUT.println("RestoreAgree-max:" + railToString(placeTempData().placeMaxRestoreAgreement));
-    	
+    	}
         Console.OUT.println("=========Totals by averaging Min/Max statistics============");
         Console.OUT.println("Initialization:"      + applicationInitializationTime);
         Console.OUT.println();
         Console.OUT.println("Steps:"               + railSum(averageSteps));
         Console.OUT.println("   ---AverageSingleStep:" + (railSum(averageSteps)/averageSteps.size) );
         Console.OUT.println();
+        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
         Console.OUT.println("CheckpointData:"      + railToString(averageCheckpoint));
         Console.OUT.println("CheckpointAgreement:" + railToString(averageCheckpointAgreement)  );
         Console.OUT.println("   ---TotalCheckpointing:"+ (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) );
@@ -341,19 +348,21 @@ public class LocalViewResilientExecutorDS {
         Console.OUT.println("RestoreData:"         + railSum(averageRestore));
         Console.OUT.println("RestoreAgreement:"    + railSum(averageRestoreAgreement) );
         Console.OUT.println("   ---TotalRecovery:" + (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
-   
+        }
         Console.OUT.println("=============================");
         Console.OUT.println("Actual RunTime:" + runTime);
-        val calcTotal = applicationInitializationTime + 
-            railSum(averageSteps) + 
-            (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
+        var calcTotal:Double = applicationInitializationTime + railSum(averageSteps);
+        
+        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
+        	calcTotal += (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
             (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) );
-            
+        }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
             + "   ---Difference:" + (runTime-calcTotal));
         
         Console.OUT.println("=========Counts============");
         Console.OUT.println("StepCount:"+averageSteps.size);
+        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
         Console.OUT.println("CheckpointCount:"+averageCheckpoint.size);
         Console.OUT.println("RestoreCount:"+averageRestore.size);
         Console.OUT.println("RemakeCount:"+remakeCount);
@@ -366,19 +375,11 @@ public class LocalViewResilientExecutorDS {
             Console.OUT.println("List of final survived places are: " + str);            
         }
     }
+    }
     
     
     private def calculateTimingStatistics(){
     	finish for (place in places) at(place) async {
-            ////// checkpoint times ////////
-    		val chkCount = placeTempData().checkpointTimes.size();
-    		placeTempData().placeMaxCheckpoint = new Rail[Long](chkCount);
-    		placeTempData().placeMinCheckpoint = new Rail[Long](chkCount);
-    		val dst1max = placeTempData().placeMaxCheckpoint;
-    		val dst1min = placeTempData().placeMinCheckpoint;
-    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1max, 0, chkCount, Team.MAX);
-    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1min, 0, chkCount, Team.MIN);
-    	    
     	    ////// step times ////////
     	    val stpCount = placeTempData().stepTimes.size();
     		placeTempData().placeMaxStep = new Rail[Long](stpCount);
@@ -387,6 +388,16 @@ public class LocalViewResilientExecutorDS {
     		val dst2min = placeTempData().placeMinStep;
     	    team.allreduce(placeTempData().stepTimes.toRail(), 0, dst2max, 0, stpCount, Team.MAX);
     	    team.allreduce(placeTempData().stepTimes.toRail(), 0, dst2min, 0, stpCount, Team.MIN);
+
+    	    if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
+            ////// checkpoint times ////////
+    		val chkCount = placeTempData().checkpointTimes.size();
+    		placeTempData().placeMaxCheckpoint = new Rail[Long](chkCount);
+    		placeTempData().placeMinCheckpoint = new Rail[Long](chkCount);
+    		val dst1max = placeTempData().placeMaxCheckpoint;
+    		val dst1min = placeTempData().placeMinCheckpoint;
+    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1max, 0, chkCount, Team.MAX);
+    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1min, 0, chkCount, Team.MIN);
     	    
     	    ////// restore times ////////
     	    val restCount = placeTempData().restoreTimes.size();
@@ -417,6 +428,7 @@ public class LocalViewResilientExecutorDS {
     	    team.allreduce(placeTempData().restoreAgreementTimes.toRail(), 0, dst5min, 0, restAgreeCount, Team.MIN);
     	    
         }
+    }
     }
     
     private def processIterationException(ex:Exception) {
