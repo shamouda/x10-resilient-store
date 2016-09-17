@@ -1,0 +1,43 @@
+#!/bin/bash
+#PBS -P c07
+#PBS -q normal
+#PBS -l walltime=00:00:40
+#PBS -l mem=20GB
+#PBS -l wd
+#PBS -l ncpus=64
+
+source ~/prof/x1016final_ulfm1.1.profile
+
+
+APP=multipleconflict
+places_per_socket=8
+
+pl=64
+app_iter=128
+repeat_test_runs=4
+victim_places=13,28,27,32,7,6,30,55,12,40,48,38,24,11,50,53
+victim_iters=18,0,127,47,115,41,112,90,75,1,45,3,74,113,23,75
+
+#########output folder#######
+DIR=/home/659/ssh659/data_store/output
+export OUTPUT_DIR=${DIR}
+mkdir $OUTPUT_DIR
+
+export X10_NTHREADS=1
+export X10_EXIT_BY_SIGKILL=1
+
+cd /home/659/ssh659/data_store/x10-resilient-store/test
+args="-m $app_iter -c 1 -vp $victim_places -vi $victim_iters"
+output_file_name=$OUTPUT_DIR/${APP}_p${pl}_Resilient.out
+
+for repeat_count in $(seq "$repeat_test_runs");
+do
+    X10_RESILIENT_MODE=1 \
+    X10_NUM_IMMEDIATE_THREADS=0 \
+    X10_RESILIENT_FINISH_SMALL_ASYNC_SIZE=1024 \
+    DS_ALL_VERBOSE=0 \
+    DATA_STORE_LEADER_NODE=$((pl/2)) \
+    mpirun -np $((pl)) -am ft-enable-mpi --mca errmgr_rts_hnp_proc_fail_xcast_delay 0 --bind-to-core -npersocket $places_per_socket --mca btl openib,sm,self \
+    ./TestKillMultiplePlaces.o $args >> "$output_file_name"
+done
+

@@ -10,7 +10,7 @@ import x10.util.HashMap;
 
 import x10.util.Option;
 import x10.util.OptionsParser;
-
+import x10.util.resilient.iterative.*;
 /**
  * This test is expected to run for a long time, and with large number of places (~ >20).
  * Each place runs a long loop in which it increments the value of a randomly selected key from A to Z at each iteration. 
@@ -37,6 +37,7 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
                              "V", "W", "X", "Y", "Z"];
     private static VERBOSE = false;
     private val complete = new AtomicBoolean(false);
+    private var exec:LocalViewResilientExecutorDS;
     
     val killFlagPLH = PlaceLocalHandle.make[AtomicBoolean](Place.places(), ()=>new AtomicBoolean(false) );	
     
