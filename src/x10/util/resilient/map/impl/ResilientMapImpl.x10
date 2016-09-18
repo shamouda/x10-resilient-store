@@ -98,7 +98,7 @@ public class ResilientMapImpl implements ResilientMap {
         return Utils.getNextTransactionId();
     }
     
-    public def prepareCommit(transId:Long):Long {
+    public def prepareCommit(transId:Long):Boolean {
     	val request = new MapRequest(transId, MapRequest.REQ_PREPARE_ONLY, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
         if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]  { await ... ");
@@ -106,8 +106,12 @@ public class ResilientMapImpl implements ResilientMap {
         request.lock.await();
         Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
-        if (request.isSuccessful())
-            return request.outValue as Long;
+        if (request.isSuccessful()) {
+            if ( (request.outValue as Int) == MapRequest.CONFIRM_COMMIT)
+                return true;
+            else
+                return false;
+        }
         else
             throw request.outException;
     }

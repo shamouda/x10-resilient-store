@@ -122,12 +122,9 @@ public class MapRequest {
 
             if (lateReplicas.size() == 0) {
             	if (requestType == REQ_PREPARE_ONLY)
-                    requestStatus = STATUS_COMPLETED;                
+                    requestStatus = STATUS_COMPLETED;
                 if (outException == null)
                     outValue = commitStatus;
-                
-                Console.OUT.println("MapRequest.TransId["+transactionId+"] commitStatus=" + commitStatus + "  outValue="+outValue);
-                
             }
 
             if (VERBOSE) {
@@ -172,7 +169,10 @@ public class MapRequest {
         }
     }
     
-    public def isSuccessful() = requestStatus == STATUS_COMPLETED && outException == null;
+    public def isSuccessful():Boolean {
+        val res = requestStatus == STATUS_COMPLETED && outException == null;
+        return res;
+    }
     
     public def toString():String {
         var str:String = "";

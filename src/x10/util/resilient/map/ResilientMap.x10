@@ -37,7 +37,7 @@ public interface ResilientMap {
      * checks if the transaction is ready to be committed 
      * (ready = not conflicting with other transactions)
      */
-    public def prepareCommit(transId:Long):Long;
+    public def prepareCommit(transId:Long):Boolean;
     
     /***
      * confirms a ready-to-commit transaction
