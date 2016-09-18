@@ -546,7 +546,9 @@ public class LocalViewResilientExecutorDS {
         try{
         	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
         	if (vote == 1) {
-        	    vote = datastore.prepareCommit(txId);//throws an exception when a failure happens
+        	    if (!datastore.prepareCommit(txId))
+        	        vote = 0;
+        	    
         	    Console.OUT.println(here+"prepareCommit("+txId+") = " + vote);
         	}
         	//val success = team.agree(vote);
