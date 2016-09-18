@@ -87,7 +87,7 @@ public class TransactionRecoveryManager {
     }
     
     public def commitTransaction(transId:Long, replicas:HashSet[Long]) {        
-        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, null);
+        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_AND_COMMIT, null);
         request.setReplicationInfo(replicas);
         request.enableCommitRecovery();
         DataStore.getInstance().executor().asyncExecuteRequest(request);

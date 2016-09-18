@@ -119,7 +119,16 @@ public class MapRequest {
                 commitStatus = CANCELL_COMMIT;
             else if (lateReplicas.size() == 0 && commitStatus != CANCELL_COMMIT) //vote==1
                 commitStatus = CONFIRM_COMMIT;
-            
+
+            if (lateReplicas.size() == 0) {
+            	if (requestType == REQ_PREPARE_ONLY)
+                    requestStatus = STATUS_COMPLETED;                
+                if (outException == null)
+                    outValue = commitStatus;
+                
+                Console.OUT.println("MapRequest.TransId["+transactionId+"] commitStatus=" + commitStatus + "  outValue="+outValue);
+                
+            }
 
             if (VERBOSE) {
                 var str:String = "";
@@ -184,8 +193,9 @@ public class MapRequest {
     
     public static def typeDesc(typeId:Int):String {
         switch(typeId){
-            case REQ_PREPARE_COMMIT: return "PrepareCommit";
-            case REQ_COMMIT:          return "Commit";
+            case REQ_PREPARE_AND_COMMIT: return "PrepareANDCommit";
+            case REQ_PREPARE_ONLY: return "PrepareOnly";
+            case REQ_CONFIRM_COMMIT:          return "ConfirmCommit";
             case REQ_ABORT:          return "Abort";
             case REQ_GET:              return "Get";
             case REQ_PUT:              return "Put";
@@ -210,9 +220,10 @@ public class MapRequest {
     public static val REQ_GET:Int = 1n;
     public static val REQ_PUT:Int = 2n;
     public static val REQ_DELETE:Int = 3n;
-    public static val REQ_PREPARE_COMMIT:Int = 4n;
-    public static val REQ_COMMIT:Int = 5n;
-    public static val REQ_ABORT:Int = 6n;
+    public static val REQ_PREPARE_ONLY:Int = 4n;
+    public static val REQ_PREPARE_AND_COMMIT:Int = 5n;
+    public static val REQ_CONFIRM_COMMIT:Int = 6n;
+    public static val REQ_ABORT:Int = 7n;
     
     //Two phase commit status//
     public static val UNUSED_COMMIT:Int = 0n;

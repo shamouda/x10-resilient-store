@@ -72,8 +72,9 @@ public class ReplicaClient {
             case MapRequest.REQ_GET:    asyncExecuteSingleKeyRequest(request); break;
             case MapRequest.REQ_PUT:    asyncExecuteSingleKeyRequest(request); break;
             case MapRequest.REQ_DELETE: asyncExecuteSingleKeyRequest(request); break;
-            case MapRequest.REQ_PREPARE_COMMIT: asyncExecutePrepareCommit(request); break;
-            case MapRequest.REQ_COMMIT:         asyncExecuteConfirmCommit(request); break;
+            case MapRequest.REQ_PREPARE_ONLY: asyncExecutePrepareCommit(request); break;
+            case MapRequest.REQ_PREPARE_AND_COMMIT: asyncExecutePrepareCommit(request); break;
+            case MapRequest.REQ_CONFIRM_COMMIT: asyncExecuteConfirmCommit(request); break;
             case MapRequest.REQ_ABORT:          asyncExecuteAbort(request); break;
         }        
     }
@@ -283,11 +284,11 @@ public class ReplicaClient {
             val deadPlacesFound = notifyDeadPlaces(replicas);
             
             if (!deadPlacesFound) {
-                if (! (req.requestType == MapRequest.REQ_PREPARE_COMMIT || req.requestType == MapRequest.REQ_COMMIT || req.requestType == MapRequest.REQ_ABORT)) {
+                if (! (req.requestType == MapRequest.REQ_PREPARE_AND_COMMIT || req.requestType == MapRequest.REQ_PREPARE_ONLY || req.requestType == MapRequest.REQ_CONFIRM_COMMIT || req.requestType == MapRequest.REQ_ABORT)) {
                     //append to the transaction replicas (needed for commit)//
                     var set:HashSet[Long] = transReplicas.getOrElse(req.transactionId,new HashSet[Long]());
                     set.addAll(replicas);
-                       transReplicas.put(req.transactionId,set);
+                    transReplicas.put(req.transactionId,set);
                 }
             }
             else{
@@ -348,9 +349,9 @@ public class ReplicaClient {
                         pendingRequests.removeAt(i--);
                         checkTimeout = false;
                     }
-                    else if (mapReq.requestType == MapRequest.REQ_PREPARE_COMMIT) {
+                    else if (mapReq.requestType == MapRequest.REQ_PREPARE_AND_COMMIT) {
                         if (mapReq.commitStatus == MapRequest.CONFIRM_COMMIT) {
-                            mapReq.requestType = MapRequest.REQ_COMMIT;
+                            mapReq.requestType = MapRequest.REQ_CONFIRM_COMMIT;
                             resubmitList.add(mapReq);
                             pendingRequests.removeAt(i--);
                             checkTimeout = false;
@@ -361,7 +362,7 @@ public class ReplicaClient {
                             pendingRequests.removeAt(i--);
                             checkTimeout = false;
                         }
-                    }
+                    }                    
                     if (checkTimeout) {
                         if (Timer.milliTime() - mapReq.startTimeMillis > REQUEST_TIMEOUT) {
                             mapReq.completeRequest(new RequestTimeoutException());    

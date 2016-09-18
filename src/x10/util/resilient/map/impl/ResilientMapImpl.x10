@@ -25,7 +25,7 @@ public class ResilientMapImpl implements ResilientMap {
     private val name:String;
     private val rnd = new Random(Timer.milliTime());
     
-    public def this(name:String) {
+    public def this(name:String) {    	
         this.name = name;   
     }
     
@@ -99,24 +99,41 @@ public class ResilientMapImpl implements ResilientMap {
     }
     
     public def prepareCommit(transId:Long):Long {
-      //TODO: implement
-        return Utils.READY_YES;
+    	val request = new MapRequest(transId, MapRequest.REQ_PREPARE_ONLY, name);
+        DataStore.getInstance().executor().asyncExecuteRequest(request);   
+        if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
+        request.lock.await();
+        Runtime.decreaseParallelism(1n);
+        if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        if (request.isSuccessful())
+            return request.outValue as Long;
+        else
+            throw request.outException;
     }
     
     public def confirmCommit(transId:Long) {
-      //TODO: implement
+    	val request = new MapRequest(transId, MapRequest.REQ_CONFIRM_COMMIT, name);
+        DataStore.getInstance().executor().asyncExecuteRequest(request);   
+        if (VERBOSE) Utils.console(moduleName, "confirmCommit["+transId+"]  { await ... ");
+        Runtime.increaseParallelism();
+        request.lock.await();
+        Runtime.decreaseParallelism(1n);
+        if (VERBOSE) Utils.console(moduleName, "confirmCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        if (!request.isSuccessful())
+            throw request.outException;
     }
     /***
      * throws an exception if commit failed
      */
     public def commitTransaction(transId:Long) {        
-        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_COMMIT, name);
+        val request = new MapRequest(transId, MapRequest.REQ_PREPARE_AND_COMMIT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
-        if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]  { await ... ");
+        if (VERBOSE) Utils.console(moduleName, "prepareAndCommit["+transId+"]  { await ... ");
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "commitTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        if (VERBOSE) Utils.console(moduleName, "prepareAndCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
         if (!request.isSuccessful())
             throw request.outException;
     }

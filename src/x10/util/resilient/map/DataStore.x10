@@ -67,6 +67,7 @@ public class DataStore {
     }
     
     public static def getInstance() : DataStore {
+    	Console.OUT.println("-------------------- increasing parallelism ------------------");
         if (!instance.initialized)
             instance.init();
         return instance;

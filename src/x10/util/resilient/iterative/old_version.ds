@@ -26,18 +26,16 @@ import x10.util.resilient.map.ResilientMap;
 import x10.util.resilient.map.DataStore;
 
 /*
- * TODO:
- * -> maximum retry for restore failures
- * -> support more than 1 place failure.  when a palce dies, store.rebackup()
- * -> no need to notify place death for collectives
- * */
+ * Another version of the resilient executor that uses the X10 resilient store
+ **/
 public class LocalViewResilientExecutorDS {
+
     private var placeTempData:PlaceLocalHandle[PlaceTempData];
     private transient var places:PlaceGroup;
     private var team:Team;
     private val itersPerCheckpoint:Long;
     private var isResilient:Boolean = false;
-    // if step() are implicitly synchronized, no need for a step barrier inside the executor
+    // if step_local() are implicitly synchronized, no need for a step barrier inside the executor
     private val implicitStepSynchronization:Boolean; 
     private val VERBOSE = (System.getenv("EXECUTOR_DEBUG") != null 
                         && System.getenv("EXECUTOR_DEBUG").equals("1"));
@@ -136,11 +134,9 @@ public class LocalViewResilientExecutorDS {
         this.implicitStepSynchronization = implicitStepSynchronization;
         if (itersPerCheckpoint > 0 && x10.xrx.Runtime.RESILIENT_MODE > 0) {
             isResilient = true;
-            /*
             if (!x10.xrx.Runtime.x10rtAgreementSupport()){
             	throw new UnsupportedOperationException("This executor requires an agreement algorithm from the transport layer ...");
         	}
-        	*/
             if (VERBOSE){
             	Console.OUT.println("EXECUTOR_KILL_STEP="+KILL_STEP);
             	Console.OUT.println("EXECUTOR_KILL_STEP_PLACE="+KILL_STEP_PLACE);
@@ -234,12 +230,12 @@ public class LocalViewResilientExecutorDS {
                     var localRestoreJustDone:Boolean = false;
                     var localRestoreRequired:Boolean = tmpRestoreRequired;
                     
-                    while ( !app.isFinished() || localRestoreRequired) {
+                    while ( !app.isFinished_local() || localRestoreRequired) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         try{
                         	/**Local Restore Operation**/
                         	if (localRestoreRequired){
-                        		checkpointRestoreProtocol(RESTORE_OPERATION, app, team, root, placesCount);
+                        		checkpointRestoreProtocol_local(RESTORE_OPERATION, app, team, root, placesCount);
                         		localRestoreRequired = false;
                         		localRestoreJustDone = true;
                         	}
@@ -249,7 +245,7 @@ public class LocalViewResilientExecutorDS {
                                 //take new checkpoint only if restore was not done in this iteration
                                 if (isResilient && (localIter % itersPerCheckpoint) == 0) {
                                     if (VERBOSE) Console.OUT.println("["+here+"] checkpointing at iter " + localIter);
-                                    checkpointRestoreProtocol(CHECKPOINT_OPERATION, app, team, root, placesCount);
+                                    checkpointRestoreProtocol_local(CHECKPOINT_OPERATION, app, team, root, placesCount);
                                     placeTempData().lastCheckpointIter = localIter;
                                 }
                             } else {
@@ -257,7 +253,7 @@ public class LocalViewResilientExecutorDS {
                             }
                         	
                         	if (isResilient && KILL_STEP == localIter && here.id == KILL_STEP_PLACE){
-                        		executorKillHere("step()");
+                        		executorKillHere("step_local()");
                         	}
 
                         	stepStartTime = Timer.milliTime();
@@ -265,9 +261,7 @@ public class LocalViewResilientExecutorDS {
                         	    //to sync places & also to detect DPE
                         	    team.barrier();
                         	}
-                            app.step();
-                            
-                            Console.OUT.println("step finished ");
+                            app.step_local();
                             placeTempData().stepTimes.add(Timer.milliTime()-stepStartTime);
                             
                             localIter++;
@@ -276,11 +270,9 @@ public class LocalViewResilientExecutorDS {
                             throw ex;
                         }//step catch block
                     }//while !isFinished
-                    Console.OUT.println("**** While finished ****");
-                }//finish ateach
-                Console.OUT.println("**** Finish Ateach finished ****");
+                }//finish ateach    
             }
-            catch (iterEx:Exception) {            	
+            catch (iterEx:Exception) {
             	iterEx.printStackTrace();
             	//exception from finish_ateach  or from restore
             	if (isResilient && containsDPE(iterEx)){
@@ -295,23 +287,11 @@ public class LocalViewResilientExecutorDS {
             	else
             		throw iterEx;
             }
-            
-            Console.OUT.println("before while ----> ");
-            try {
-            	app.isFinished();
-            }
-            catch(sss:Exception) {
-            	sss.printStackTrace();
-            }
-        }while(remakeRequired || !app.isFinished());
+        }while(remakeRequired || !app.isFinished_local());
         
-        
-        Console.OUT.println("after while   ----------------> ");
         val runTime = (Timer.milliTime() - startRunTime);
         
-        Console.OUT.println("=== calculateTimingStatistics started ===");
         calculateTimingStatistics();
-        Console.OUT.println("=== calculateTimingStatistics ended ===");
         
         val averageSteps                   = avergaMaxMinRails(placeTempData().placeMinStep,                placeTempData().placeMaxStep);
         var averageCheckpoint:Rail[Double] = null;
@@ -493,7 +473,7 @@ public class LocalViewResilientExecutorDS {
     /**
      * lastCheckpointIter    needed only for restore
      * */
-    private def checkpointRestoreProtocol(operation:Long, app:LocalViewResilientIterativeAppDS, team:Team, root:Place, placesCount:Long){
+    private def checkpointRestoreProtocol_local(operation:Long, app:LocalViewResilientIterativeAppDS, team:Team, root:Place, placesCount:Long){
     	val op:String = (operation==CHECKPOINT_OPERATION)?"Checkpoint":"Restore";
     
         val startOperation = Timer.milliTime();
@@ -501,17 +481,17 @@ public class LocalViewResilientExecutorDS {
         val datastore = placeTempData().getDataStore();
         val txId = datastore.startTransaction();
         
-        var vote:Long = 1;
+        var vote:Int = 1N;
         try{
             if (operation == CHECKPOINT_OPERATION) {
-                val dataMap = app.getCheckpointMap();
+                val dataMap = app.getLocalCheckpointMap();
                 val iter = dataMap.keySet().iterator();
                 while (iter.hasNext()) {
                     val key = iter.next();
                     val value = dataMap.getOrElse(key,null);
                     datastore.put(txId, key, value);
-                    placeTempData().getCheckpointKeys().add(key);
                 }
+                vote = datastore.prepareCommit(txId) as Int;//throws an exception when a failure happens
             }
             else {
                 val restoreDataMap = new HashMap[Any,Any]();
@@ -519,11 +499,13 @@ public class LocalViewResilientExecutorDS {
                     val value = datastore.get(txId, key);
                     restoreDataMap.put(key, value);
                 }
-            	app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
+                datastore.commitTransaction(txId);
+            	app.restore_local(restoreDataMap, placeTempData().lastCheckpointIter);
             }
-            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"]");
+            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"_local]");
         }catch(ex:Exception){
-            vote = 0;
+            datastore.abortTransaction(txId);
+            vote = 0N;
             excs.add(ex);
             Console.OUT.println("["+here+"]  EXCEPTION MESSAGE while "+op+" = " + ex.getMessage());
             ex.printStackTrace();
@@ -535,25 +517,15 @@ public class LocalViewResilientExecutorDS {
         	placeTempData().restoreTimes.add(Timer.milliTime() - startOperation);
         
         
-        if ((operation == CHECKPOINT_OPERATION && KILL_CHECKVOTING_INDEX == placeTempData().checkpointTimes.size() && 
-               here.id == KILL_CHECKVOTING_PLACE) || 
-               (operation == RESTORE_OPERATION    && KILL_RESTOREVOTING_INDEX == placeTempData().restoreTimes.size() && 
-         	   here.id == KILL_RESTOREVOTING_PLACE)) {
-            executorKillHere(op);
-        }
-        
         val startAgree = Timer.milliTime();
         try{
         	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
-        	if (vote == 1) {
-        	    vote = datastore.prepareCommit(txId);//throws an exception when a failure happens
-        	    Console.OUT.println(here+"prepareCommit("+txId+") = " + vote);
-        	}
-        	//val success = team.agree(vote);
-        	val success = 1N; 
+        	val success = team.agree(vote);
         	if (success == 1N) {
-        		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"] transId["+txId+"] ...");
-        		datastore.confirmCommit(txId);
+        		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"]");
+        		if (operation == CHECKPOINT_OPERATION){
+        		    datastore.confirmCommit(txId);
+        		}
         	}
         	else{
         		//Failure due to a reason other than place failure, will need to abort.
@@ -561,8 +533,6 @@ public class LocalViewResilientExecutorDS {
         	}
         }
         catch(agrex:Exception){
-        	Console.OUT.println(here + "exception probably while confirm");
-        	agrex.printStackTrace();
         	excs.add(agrex);
         	datastore.abortTransaction(txId);
         }
