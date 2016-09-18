@@ -12,7 +12,7 @@ public class TestAllPlacesStoreLocalData(dummyRailSize:Long) extends x10Test {
     
     
 	public def run(): Boolean {
-		val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+		val hm = DataStore.getInstance().makeResilientMap("MapA");
 		finish for (p in Place.places()) at (p) async {			 
 			val dummyRail = makeDummyRail();
 		}

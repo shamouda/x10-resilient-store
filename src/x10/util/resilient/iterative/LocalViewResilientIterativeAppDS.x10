@@ -16,13 +16,13 @@ import x10.util.HashMap;
 import x10.util.Team;
 
 public interface LocalViewResilientIterativeAppDS {
-    public def isFinished_local():Boolean;
+    public def isFinished():Boolean;
     
-    public def step_local():void;
+    public def step():void;
     
-    public def get_checkpoint_data_local():HashMap[Any,Any];
+    public def getCheckpointMap():HashMap[Any,Any];
     
     public def remake(newPlaces:PlaceGroup, newTeam:Team, newAddedPlaces:ArrayList[Place]):void;
     
-    public def restore_local(restoreDataMap:HashMap[Any,Any], lastCheckpointIter:Long):void;   
+    public def restore(restoreDataMap:HashMap[Any,Any], lastCheckpointIter:Long):void;   
 }

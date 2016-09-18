@@ -4,6 +4,7 @@ import x10.io.EOFException;
 import x10.util.resilient.map.*;
 import x10.util.resilient.map.partition.*;
 import x10.util.resilient.map.exception.TransactionAbortedException;
+import x10.util.resilient.map.common.*;
 
 public class Test {
     public static def test01() {
@@ -37,7 +38,7 @@ public class Test {
     
     //succeeded
     public static def test03() {
-        val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+        val hm = DataStore.getInstance().makeResilientMap("MapA");
         val retryCount = 3; //RETRY COUNT must equal the number of places
         finish for (p in Place.places()) at (p) async {
             for (var i:Long = 0 ; i < retryCount; i++) {
@@ -69,7 +70,7 @@ public class Test {
     //succeeded
     public static def test04() {
         Console.OUT.println("Test 4 started ...");
-        val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+        val hm = DataStore.getInstance().makeResilientMap("MapA");
         
         try{
             finish for (p in Place.places()) at (p) async {
@@ -99,7 +100,7 @@ public class Test {
     }
     
     public static def test05() {
-        val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+        val hm = DataStore.getInstance().makeResilientMap("MapA");
         
         try{
             hm.put("A", 100);

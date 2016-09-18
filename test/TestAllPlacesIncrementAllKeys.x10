@@ -33,7 +33,7 @@ public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
                              "V", "W", "X", "Y", "Z"];
     
 	public def run(): Boolean {
-		val hm = DataStore.getInstance().makeResilientMap("MapA", 100);
+		val hm = DataStore.getInstance().makeResilientMap("MapA");
 		var valid:Boolean = true;
 		try{
 			finish for (p in Place.places()) at (p) async {

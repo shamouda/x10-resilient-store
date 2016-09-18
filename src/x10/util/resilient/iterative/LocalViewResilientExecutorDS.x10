@@ -26,15 +26,18 @@ import x10.util.resilient.map.ResilientMap;
 import x10.util.resilient.map.DataStore;
 
 /*
- * Another version of the resilient executor that uses the X10 resilient store
- **/
+ * TODO:
+ * -> maximum retry for restore failures
+ * -> support more than 1 place failure.  when a palce dies, store.rebackup()
+ * -> no need to notify place death for collectives
+ * */
 public class LocalViewResilientExecutorDS {
-
     private var placeTempData:PlaceLocalHandle[PlaceTempData];
     private transient var places:PlaceGroup;
     private var team:Team;
     private val itersPerCheckpoint:Long;
     private var isResilient:Boolean = false;
+    // if step() are implicitly synchronized, no need for a step barrier inside the executor
     private val implicitStepSynchronization:Boolean; 
     private val VERBOSE = (System.getenv("EXECUTOR_DEBUG") != null 
                         && System.getenv("EXECUTOR_DEBUG").equals("1"));
@@ -72,7 +75,6 @@ public class LocalViewResilientExecutorDS {
         
         var lastCheckpointIter:Long = -1;
         var commitCount:Long = 0;
-        val datastore:ResilientMap;
         
         val checkpointTimes:ArrayList[Long];
         val checkpointAgreementTimes:ArrayList[Long];
@@ -92,6 +94,7 @@ public class LocalViewResilientExecutorDS {
         var placeMinRestoreAgreement:Rail[Long];
         var placeMinStep:Rail[Long];
     	
+    	val datastore:ResilientMap;
     	val checkpointKeys:HashSet[Any];
         
         //used for initializing spare places with the same values from Place0
@@ -104,9 +107,9 @@ public class LocalViewResilientExecutorDS {
             this.stepTimes = stepTimes;
             this.restoreTimes = restoreTimes;
             this.restoreAgreementTimes = restoreAgreeTimes;
-            this.datastore = datastore;
             this.lastCheckpointIter = lastCheckpointIter;
             this.commitCount = commitCount;
+            this.datastore = datastore;
             this.checkpointKeys = checkpointKeys;
         }
     
@@ -158,7 +161,7 @@ public class LocalViewResilientExecutorDS {
         applicationInitializationTime = Timer.milliTime() - startRunTime;
         val root = here;
         var ds:ResilientMap = null;
-        if (x10.xrx.Runtime.RESILIENT_MODE > 0) {
+        if (isResilient) {
             ds = DataStore.getInstance().makeResilientMap("ds");
             Console.OUT.println("LocalViewResilientExecutorDS: data store created ...");
         }
@@ -229,12 +232,12 @@ public class LocalViewResilientExecutorDS {
                     var localRestoreJustDone:Boolean = false;
                     var localRestoreRequired:Boolean = tmpRestoreRequired;
                     
-                    while ( !app.isFinished_local() || localRestoreRequired) {
+                    while ( !app.isFinished() || localRestoreRequired) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         try{
                         	/**Local Restore Operation**/
                         	if (localRestoreRequired){
-                        		checkpointRestoreProtocol_local(RESTORE_OPERATION, app, team, root, placesCount);
+                        		checkpointRestoreProtocol(RESTORE_OPERATION, app, team, root, placesCount);
                         		localRestoreRequired = false;
                         		localRestoreJustDone = true;
                         	}
@@ -244,7 +247,7 @@ public class LocalViewResilientExecutorDS {
                                 //take new checkpoint only if restore was not done in this iteration
                                 if (isResilient && (localIter % itersPerCheckpoint) == 0) {
                                     if (VERBOSE) Console.OUT.println("["+here+"] checkpointing at iter " + localIter);
-                                    checkpointRestoreProtocol_local(CHECKPOINT_OPERATION, app, team, root, placesCount);
+                                    checkpointRestoreProtocol(CHECKPOINT_OPERATION, app, team, root, placesCount);
                                     placeTempData().lastCheckpointIter = localIter;
                                 }
                             } else {
@@ -252,7 +255,7 @@ public class LocalViewResilientExecutorDS {
                             }
                         	
                         	if (isResilient && KILL_STEP == localIter && here.id == KILL_STEP_PLACE){
-                        		executorKillHere("step_local()");
+                        		executorKillHere("step()");
                         	}
 
                         	stepStartTime = Timer.milliTime();
@@ -260,7 +263,7 @@ public class LocalViewResilientExecutorDS {
                         	    //to sync places & also to detect DPE
                         	    team.barrier();
                         	}
-                            app.step_local();
+                            app.step();
                             placeTempData().stepTimes.add(Timer.milliTime()-stepStartTime);
                             
                             localIter++;
@@ -286,13 +289,13 @@ public class LocalViewResilientExecutorDS {
             	else
             		throw iterEx;
             }
-        }while(remakeRequired || !app.isFinished_local());
+        }while(remakeRequired || !app.isFinished());
         
         val runTime = (Timer.milliTime() - startRunTime);
         
         calculateTimingStatistics();
         
-        val averageSteps               = avergaMaxMinRails(placeTempData().placeMinStep,                placeTempData().placeMaxStep);
+        val averageSteps                   = avergaMaxMinRails(placeTempData().placeMinStep,                placeTempData().placeMaxStep);
         var averageCheckpoint:Rail[Double] = null;
         var averageCheckpointAgreement:Rail[Double] = null;
         var averageRestore:Rail[Double] = null;
@@ -303,7 +306,6 @@ public class LocalViewResilientExecutorDS {
             averageRestore             = avergaMaxMinRails(placeTempData().placeMinRestore,             placeTempData().placeMaxRestore);
             averageRestoreAgreement    = avergaMaxMinRails(placeTempData().placeMinRestoreAgreement,    placeTempData().placeMaxRestoreAgreement);
         }
-        
         
         Console.OUT.println("=========Detailed Statistics============");
         Console.OUT.println("Steps-place0:" + railToString(placeTempData().stepTimes.toRail()));
@@ -355,7 +357,7 @@ public class LocalViewResilientExecutorDS {
         
         if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
         	calcTotal += (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
-            (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) );
+                (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) );
         }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
             + "   ---Difference:" + (runTime-calcTotal));
@@ -363,18 +365,18 @@ public class LocalViewResilientExecutorDS {
         Console.OUT.println("=========Counts============");
         Console.OUT.println("StepCount:"+averageSteps.size);
         if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
-        Console.OUT.println("CheckpointCount:"+averageCheckpoint.size);
-        Console.OUT.println("RestoreCount:"+averageRestore.size);
-        Console.OUT.println("RemakeCount:"+remakeCount);
-        Console.OUT.println("FailureDetectionCount:"+failureDetectionCount);
+            Console.OUT.println("CheckpointCount:"+averageCheckpoint.size);
+            Console.OUT.println("RestoreCount:"+averageRestore.size);
+            Console.OUT.println("RemakeCount:"+remakeCount);
+            Console.OUT.println("FailureDetectionCount:"+failureDetectionCount);
         
-        if (VERBOSE){
-            var str:String = "";
-            for (p in places)
-                str += p.id + ",";
-            Console.OUT.println("List of final survived places are: " + str);            
+            if (VERBOSE){
+                var str:String = "";
+                for (p in places)
+                    str += p.id + ",";
+                Console.OUT.println("List of final survived places are: " + str);            
+            }
         }
-    }
     }
     
     
@@ -390,45 +392,44 @@ public class LocalViewResilientExecutorDS {
     	    team.allreduce(placeTempData().stepTimes.toRail(), 0, dst2min, 0, stpCount, Team.MIN);
 
     	    if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
-            ////// checkpoint times ////////
-    		val chkCount = placeTempData().checkpointTimes.size();
-    		placeTempData().placeMaxCheckpoint = new Rail[Long](chkCount);
-    		placeTempData().placeMinCheckpoint = new Rail[Long](chkCount);
-    		val dst1max = placeTempData().placeMaxCheckpoint;
-    		val dst1min = placeTempData().placeMinCheckpoint;
-    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1max, 0, chkCount, Team.MAX);
-    	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1min, 0, chkCount, Team.MIN);
-    	    
-    	    ////// restore times ////////
-    	    val restCount = placeTempData().restoreTimes.size();
-    	    placeTempData().placeMaxRestore = new Rail[Long](restCount);
-    	    placeTempData().placeMinRestore = new Rail[Long](restCount);
-    	    val dst3max = placeTempData().placeMaxRestore;
-    	    val dst3min = placeTempData().placeMinRestore;
-    	    team.allreduce(placeTempData().restoreTimes.toRail(), 0, dst3max, 0, restCount, Team.MAX);
-    	    team.allreduce(placeTempData().restoreTimes.toRail(), 0, dst3min, 0, restCount, Team.MIN);
-    	    
-    	    ////// checkpoint agreement times ////////
-    	    val chkAgreeCount = placeTempData().checkpointAgreementTimes.size();
-    		placeTempData().placeMaxCheckpointAgreement = new Rail[Long](chkAgreeCount);
-    		placeTempData().placeMinCheckpointAgreement = new Rail[Long](chkAgreeCount);
-    		val dst4max = placeTempData().placeMaxCheckpointAgreement;
-    		val dst4min = placeTempData().placeMinCheckpointAgreement;
-    	    team.allreduce(placeTempData().checkpointAgreementTimes.toRail(), 0, dst4max, 0, chkAgreeCount, Team.MAX);
-    	    team.allreduce(placeTempData().checkpointAgreementTimes.toRail(), 0, dst4min, 0, chkAgreeCount, Team.MIN);
-    	    
-    	    
-    	    ////// restore agreement times ////////
-    	    val restAgreeCount = placeTempData().restoreAgreementTimes.size();
-    		placeTempData().placeMaxRestoreAgreement = new Rail[Long](restAgreeCount);
-    		placeTempData().placeMinRestoreAgreement = new Rail[Long](restAgreeCount);
-    		val dst5max = placeTempData().placeMaxRestoreAgreement;
-    		val dst5min = placeTempData().placeMinRestoreAgreement;
-    	    team.allreduce(placeTempData().restoreAgreementTimes.toRail(), 0, dst5max, 0, restAgreeCount, Team.MAX);
-    	    team.allreduce(placeTempData().restoreAgreementTimes.toRail(), 0, dst5min, 0, restAgreeCount, Team.MIN);
-    	    
+        		////// checkpoint times ////////
+        		val chkCount = placeTempData().checkpointTimes.size();
+        		placeTempData().placeMaxCheckpoint = new Rail[Long](chkCount);
+        		placeTempData().placeMinCheckpoint = new Rail[Long](chkCount);
+        		val dst1max = placeTempData().placeMaxCheckpoint;
+        		val dst1min = placeTempData().placeMinCheckpoint;
+        	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1max, 0, chkCount, Team.MAX);
+        	    team.allreduce(placeTempData().checkpointTimes.toRail(), 0, dst1min, 0, chkCount, Team.MIN);
+        		
+	    	    ////// restore times ////////
+	    	    val restCount = placeTempData().restoreTimes.size();
+	    	    placeTempData().placeMaxRestore = new Rail[Long](restCount);
+	    	    placeTempData().placeMinRestore = new Rail[Long](restCount);
+	    	    val dst3max = placeTempData().placeMaxRestore;
+	    	    val dst3min = placeTempData().placeMinRestore;
+	    	    team.allreduce(placeTempData().restoreTimes.toRail(), 0, dst3max, 0, restCount, Team.MAX);
+	    	    team.allreduce(placeTempData().restoreTimes.toRail(), 0, dst3min, 0, restCount, Team.MIN);
+	    	    
+	    	    ////// checkpoint agreement times ////////
+	    	    val chkAgreeCount = placeTempData().checkpointAgreementTimes.size();
+	    		placeTempData().placeMaxCheckpointAgreement = new Rail[Long](chkAgreeCount);
+	    		placeTempData().placeMinCheckpointAgreement = new Rail[Long](chkAgreeCount);
+	    		val dst4max = placeTempData().placeMaxCheckpointAgreement;
+	    		val dst4min = placeTempData().placeMinCheckpointAgreement;
+	    	    team.allreduce(placeTempData().checkpointAgreementTimes.toRail(), 0, dst4max, 0, chkAgreeCount, Team.MAX);
+	    	    team.allreduce(placeTempData().checkpointAgreementTimes.toRail(), 0, dst4min, 0, chkAgreeCount, Team.MIN);
+	    	    
+	    	    
+	    	    ////// restore agreement times ////////
+	    	    val restAgreeCount = placeTempData().restoreAgreementTimes.size();
+	    		placeTempData().placeMaxRestoreAgreement = new Rail[Long](restAgreeCount);
+	    		placeTempData().placeMinRestoreAgreement = new Rail[Long](restAgreeCount);
+	    		val dst5max = placeTempData().placeMaxRestoreAgreement;
+	    		val dst5min = placeTempData().placeMinRestoreAgreement;
+	    	    team.allreduce(placeTempData().restoreAgreementTimes.toRail(), 0, dst5max, 0, restAgreeCount, Team.MAX);
+	    	    team.allreduce(placeTempData().restoreAgreementTimes.toRail(), 0, dst5min, 0, restAgreeCount, Team.MIN);
+    	    }
         }
-    }
     }
     
     private def processIterationException(ex:Exception) {
@@ -474,7 +475,7 @@ public class LocalViewResilientExecutorDS {
     /**
      * lastCheckpointIter    needed only for restore
      * */
-    private def checkpointRestoreProtocol_local(operation:Long, app:LocalViewResilientIterativeAppDS, team:Team, root:Place, placesCount:Long){
+    private def checkpointRestoreProtocol(operation:Long, app:LocalViewResilientIterativeAppDS, team:Team, root:Place, placesCount:Long){
     	val op:String = (operation==CHECKPOINT_OPERATION)?"Checkpoint":"Restore";
     
         val startOperation = Timer.milliTime();
@@ -485,14 +486,14 @@ public class LocalViewResilientExecutorDS {
         var vote:Int = 1N;
         try{
             if (operation == CHECKPOINT_OPERATION) {
-                val dataMap = app.get_checkpoint_data_local();
+                val dataMap = app.getCheckpointMap();
                 val iter = dataMap.keySet().iterator();
                 while (iter.hasNext()) {
                     val key = iter.next();
                     val value = dataMap.getOrElse(key,null);
                     datastore.put(txId, key, value);
+                    placeTempData().getCheckpointKeys().add(key);
                 }
-                vote = datastore.prepareCommit(txId) as Int;//throws an exception when a failure happens
             }
             else {
                 val restoreDataMap = new HashMap[Any,Any]();
@@ -500,12 +501,10 @@ public class LocalViewResilientExecutorDS {
                     val value = datastore.get(txId, key);
                     restoreDataMap.put(key, value);
                 }
-                datastore.commitTransaction(txId);
-            	app.restore_local(restoreDataMap, placeTempData().lastCheckpointIter);
+            	app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
             }
-            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"_local]");
+            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"]");
         }catch(ex:Exception){
-            datastore.abortTransaction(txId);
             vote = 0N;
             excs.add(ex);
             Console.OUT.println("["+here+"]  EXCEPTION MESSAGE while "+op+" = " + ex.getMessage());
@@ -518,15 +517,22 @@ public class LocalViewResilientExecutorDS {
         	placeTempData().restoreTimes.add(Timer.milliTime() - startOperation);
         
         
+        if ((operation == CHECKPOINT_OPERATION && KILL_CHECKVOTING_INDEX == placeTempData().checkpointTimes.size() && 
+               here.id == KILL_CHECKVOTING_PLACE) || 
+               (operation == RESTORE_OPERATION    && KILL_RESTOREVOTING_INDEX == placeTempData().restoreTimes.size() && 
+         	   here.id == KILL_RESTOREVOTING_PLACE)) {
+            executorKillHere(op);
+        }
+        
         val startAgree = Timer.milliTime();
         try{
         	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
+        	if (vote == 1N)
+        	    vote = datastore.prepareCommit(txId) as Int;//throws an exception when a failure happens
         	val success = team.agree(vote);
         	if (success == 1N) {
         		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"]");
-        		if (operation == CHECKPOINT_OPERATION){
-        		    datastore.confirmCommit(txId);
-        		}
+        		datastore.confirmCommit(txId);
         	}
         	else{
         		//Failure due to a reason other than place failure, will need to abort.
