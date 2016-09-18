@@ -4,6 +4,7 @@ import x10.xrx.Runtime;
 import x10.util.ArrayList;
 import x10.compiler.NoInline;
 import x10.util.HashSet;
+import x10.util.HashMap;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.TransactionAbortedException;
 import x10.util.resilient.map.ResilientMap;
@@ -11,6 +12,7 @@ import x10.util.resilient.map.DataStore;
 import x10.util.Random;
 import x10.util.Timer;
 import x10.xrx.Runtime;
+
 /***
  * This class should not contain heavy objects because it is transferable between places
  * Place specific data should be obtained from the DataStore class
@@ -22,11 +24,14 @@ public class ResilientMapImpl implements ResilientMap {
     
     public static val ABORT_SLEEP_MILLIS_MAX = Utils.getEnvLong("ABORT_SLEEP_MILLIS_MAX", 20);
     
+    public val preparedCommitRequests:HashMap[Long,HashSet[Long]];
+    
     private val name:String;
     private val rnd = new Random(Timer.milliTime());
     
     public def this(name:String) {    	
         this.name = name;   
+        this.preparedCommitRequests = new HashMap[Long,HashSet[Long]]();
     }
     
     public def retryMaximum() = RETRY_MAX;
@@ -106,6 +111,8 @@ public class ResilientMapImpl implements ResilientMap {
         request.lock.await();
         Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        
+        preparedCommitRequests.put(transId, request.replicas);
         if (request.isSuccessful()) {
             if ( (request.outValue as Int) == MapRequest.CONFIRM_COMMIT)
                 return true;
@@ -118,6 +125,8 @@ public class ResilientMapImpl implements ResilientMap {
     
     public def confirmCommit(transId:Long) {
     	val request = new MapRequest(transId, MapRequest.REQ_CONFIRM_COMMIT, name);
+    	val replicas = preparedCommitRequests.remove(transId);
+    	request.replicas = replicas;
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
         if (VERBOSE) Utils.console(moduleName, "confirmCommit["+transId+"]  { await ... ");
         Runtime.increaseParallelism();
