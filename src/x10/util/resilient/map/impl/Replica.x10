@@ -16,6 +16,7 @@ import x10.util.resilient.map.partition.Partition;
 import x10.util.resilient.map.partition.VersionValue;
 import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.resilient.map.DataStore;
+import x10.xrx.Runtime;
 
 /*
  * Replica is a container for partitions and logs of transactions accessing them
@@ -509,6 +510,7 @@ public class Replica {
      * Abort readyToCommit transactions if their client is dead
      **/
     public def checkDeadReplicaClient() {
+        Runtime.increaseParallelism();
         while (timerOn) {
             System.threadSleep(REPLICA_SLEEP);
             if (VERBOSE) Utils.console(moduleName, "checkDeadReplicaClient new iteration ...");
@@ -562,6 +564,7 @@ public class Replica {
                 transactionsLock.unlock();
             }
         }
+        Runtime.decreaseParallelism(1n);
     }
        
     /**

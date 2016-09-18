@@ -13,6 +13,7 @@ import x10.util.resilient.map.exception.RequestTimeoutException;
 import x10.util.resilient.map.exception.CommitVotingFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.Team;
+import x10.xrx.Runtime;
 
 /**
  * The ReplicaClient receives MapRequests from ResilientMapImpl an execute them on relevant Replicas
@@ -86,7 +87,7 @@ public class ReplicaClient {
         val key = request.inKey;
         val repInfo = partitionTable.getKeyReplicas(key);
         if (VERBOSE) Utils.console(moduleName, "Key["+key+"] "+repInfo.toString());
-        val submit = asyncWaitForResponse(request, repInfo.replicas);
+        val submit = addPendingRequest(request, repInfo.replicas);
         if (submit)
             submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);
         else
@@ -101,7 +102,7 @@ public class ReplicaClient {
         var replicas:HashSet[Long] = request.replicas;
         if (request.replicas == null)
         	replicas = getTransactionReplicas(transId);        
-        val submit = asyncWaitForResponse(request, replicas);
+        val submit = addPendingRequest(request, replicas);
         if (submit)
             submitAsyncPrepareCommit(request, replicas);
         else {
@@ -118,7 +119,7 @@ public class ReplicaClient {
     private def asyncExecuteConfirmCommit(request:MapRequest) {
         val replicas = request.replicas;
         request.setReplicationInfo(replicas);
-        val allReplicasActive = asyncWaitForResponse(request, replicas);
+        val allReplicasActive = addPendingRequest(request, replicas);
         submitAsyncConfirmCommit(request, replicas);
     }
     
@@ -137,7 +138,7 @@ public class ReplicaClient {
             return;
         }
         
-        val allReplicasActive = asyncWaitForResponse(request, replicas); 
+        val allReplicasActive = addPendingRequest(request, replicas); 
         if (VERBOSE) Utils.console(moduleName, "allReplicasActive= " + allReplicasActive);        
         submitAsyncExecuteAbort(request, replicas);
     }
@@ -269,7 +270,7 @@ public class ReplicaClient {
     /**
      * Returns true if all replicas are active
      * */
-    private def asyncWaitForResponse(req:MapRequest, replicas:HashSet[Long]):Boolean {
+    private def addPendingRequest(req:MapRequest, replicas:HashSet[Long]):Boolean {
     	if (!valid)
     		return false;
     	
@@ -323,6 +324,7 @@ public class ReplicaClient {
      *  - check for pendingMigration requests, and issues them after migration is complete
      **/
     private def checkPendingTransactions() {
+        Runtime.increaseParallelism();
         while (timerOn && valid) {            
             //requests that were pending until migration completes
             val resubmitList = new ArrayList[MapRequest]();
@@ -398,6 +400,7 @@ public class ReplicaClient {
             }
             else if (VERBOSE) Utils.console(moduleName, "checkPendingTransactions: Invalid ReplicaClient ...");
         }
+        Runtime.decreaseParallelism(1n);
     }
     
     /**
