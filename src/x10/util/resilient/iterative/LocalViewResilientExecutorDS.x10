@@ -186,9 +186,12 @@ public class LocalViewResilientExecutorDS {
                             Console.OUT.println("Restore places are: " + str);
                         } 
                         val startTeamCreate = Timer.milliTime(); 
+                        Console.OUT.println("***********Before Team creation ...");
                         team = new Team(newPG);
+                        Console.OUT.println("***********Team created ...");
                         reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
                         app.remake(newPG, team, addedPlaces);
+                        Console.OUT.println("***********App remake ...");
                         ///////////////////////////////////////////////////////////
                         //Initialize the new places with the same info at place 0//
                         val lastCheckIter = placeTempData().lastCheckpointIter;
