@@ -222,6 +222,8 @@ public class LocalViewResilientExecutorDS {
                     }
                 }
                 
+                Console.OUT.println("LocalViewResilientExecutor: remakeRequired["+remakeRequired+"] restoreRequired["+restoreRequired+"] ...");           
+                
                 //to be copied to all places
                 val tmpRestoreRequired = restoreRequired;
                 val tmpGlobalIter = globalIter;
@@ -231,6 +233,8 @@ public class LocalViewResilientExecutorDS {
                     var localRestoreJustDone:Boolean = false;
                     var localRestoreRequired:Boolean = tmpRestoreRequired;
                     
+                    Console.OUT.println(here + " ---------- Inside Finish AT-EACH   localRestoreRequired["+localRestoreRequired+"]  ----------");
+                
                     while ( !app.isFinished() || localRestoreRequired) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         try{
