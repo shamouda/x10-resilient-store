@@ -286,8 +286,6 @@ public class LocalViewResilientExecutorDS {
                         //FIXME: currently we are only able to detect failure detection time only when we kill places
                     }
             	}
-            	else
-            		throw iterEx;
             }
         }while(remakeRequired || !app.isFinished());
         
@@ -572,10 +570,14 @@ public class LocalViewResilientExecutorDS {
         	}
         }
         catch(agrex:Exception){
-        	Console.OUT.println(here + "exception probably while confirm");
-        	agrex.printStackTrace();
+        	Console.OUT.println(here + " [Fatal Error] Agreement failed in operation ["+op+"] ");
+        	//agrex.printStackTrace();
         	excs.add(agrex);
-        	datastore.abortTransaction(txId);
+        	try {
+        	    datastore.abortTransaction(txId);
+        	}catch(dummyEx:Exception) {
+        	    
+        	}
         }
         if (operation == CHECKPOINT_OPERATION)
             placeTempData().checkpointAgreementTimes.add(Timer.milliTime() - startAgree);
