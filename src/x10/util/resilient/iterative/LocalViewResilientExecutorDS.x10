@@ -54,11 +54,9 @@ public class LocalViewResilientExecutorDS {
       
     
     private transient var runTime:Long = 0;
-    private transient var remakeTime:Long = 0;
-    private transient var reconstructTeamTime:Long = 0;
-    private transient var remakeCount:Long = 0;
-    private transient var failureDetectionTime:Long = 0;
-    private transient var failureDetectionCount:Long = 0;
+    private transient var remakeTimes:ArrayList[Double] = new ArrayList[Double]();
+    private transient var reconstructTeamTimes:ArrayList[Double] = new ArrayList[Double]();
+    private transient var failureDetectionTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var applicationInitializationTime:Long = 0;
     
     private transient var restoreRequired:Boolean = false;
@@ -177,7 +175,7 @@ public class LocalViewResilientExecutorDS {
                 if (remakeRequired) {
                     if (placeTempData().lastCheckpointIter > -1) {
                         if (VERBOSE) Console.OUT.println("Restoring to iter " + placeTempData().lastCheckpointIter);
-                        remakeTime -= Timer.milliTime();
+                        val startRemake = Timer.milliTime();                        
                         val restorePGResult = PlaceGroupBuilder.createRestorePlaceGroup(places);
                         val newPG = restorePGResult.newGroup;
                         val addedPlaces = restorePGResult.newAddedPlaces;
@@ -188,9 +186,9 @@ public class LocalViewResilientExecutorDS {
                                 str += p.id + ",";
                             Console.OUT.println("Restore places are: " + str);
                         } 
-                        reconstructTeamTime -= Timer.milliTime();
+                        val startTeamCreate = Timer.milliTime(); 
                         team = new Team(newPG);
-                        reconstructTeamTime += Timer.milliTime();
+                        reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
                         app.remake(newPG, team, addedPlaces);
                         ///////////////////////////////////////////////////////////
                         //Initialize the new places with the same info at place 0//
@@ -215,8 +213,7 @@ public class LocalViewResilientExecutorDS {
                         globalIter = lastCheckIter;
                         remakeRequired = false;
                         restoreRequired = true;
-                        remakeTime += Timer.milliTime();
-                        remakeCount++;
+                        remakeTimes.add(Timer.milliTime() - startRemake) ;                        
                         Console.OUT.println("LocalViewResilientExecutor: All remake steps completed successfully ...");
                     } else {
                         throw new UnsupportedOperationException("process failure occurred but no valid checkpoint exists!");
@@ -282,8 +279,8 @@ public class LocalViewResilientExecutorDS {
             		remakeRequired = true;
             		Console.OUT.println("[Hammer Log] Time DPE discovered is ["+Timer.milliTime()+"] ...");
                     if (placeTempData().place0KillPlaceTime != -1){
-                        failureDetectionTime += Timer.milliTime() - placeTempData().place0KillPlaceTime;
-                        failureDetectionCount++;
+                    	failureDetectionTimes.add(Timer.milliTime() - placeTempData().place0KillPlaceTime);
+                    	placeTempData().place0KillPlaceTime =  -1;
                         //FIXME: currently we are only able to detect failure detection time only when we kill places
                     }
             	}
@@ -321,50 +318,61 @@ public class LocalViewResilientExecutorDS {
     	Console.OUT.println("Steps-min:" + railToString(placeTempData().placeMinStep));
     	Console.OUT.println("Steps-max:" + railToString(placeTempData().placeMaxStep));
     	
-    	if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
-    	Console.OUT.println("CheckpointData-avg:" + railToString(averageCheckpoint));
-    	Console.OUT.println("CheckpointData-min:" + railToString(placeTempData().placeMinCheckpoint));
-    	Console.OUT.println("CheckpointData-max:" + railToString(placeTempData().placeMaxCheckpoint));
-    	
-    	Console.OUT.println("CheckpointAgree-avg:" + railToString(averageCheckpointAgreement));
-    	Console.OUT.println("CheckpointAgree-min:" + railToString(placeTempData().placeMinCheckpointAgreement));
-    	Console.OUT.println("CheckpointAgree-max:" + railToString(placeTempData().placeMaxCheckpointAgreement));
-    	
-    	Console.OUT.println("RestoreData-avg:" + railToString(averageRestore));
-    	Console.OUT.println("RestoreData-min:" + railToString(placeTempData().placeMinRestore));
-    	Console.OUT.println("RestoreData-max:" + railToString(placeTempData().placeMaxRestore));
-    	
-    	Console.OUT.println("RestoreAgree-avg:" + railToString(averageRestoreAgreement));
-    	Console.OUT.println("RestoreAgree-min:" + railToString(placeTempData().placeMinRestoreAgreement));
-    	Console.OUT.println("RestoreAgree-max:" + railToString(placeTempData().placeMaxRestoreAgreement));
+    	if (isResilient){
+	    	Console.OUT.println("CheckpointData-avg:" + railToString(averageCheckpoint));
+	    	Console.OUT.println("CheckpointData-min:" + railToString(placeTempData().placeMinCheckpoint));
+	    	Console.OUT.println("CheckpointData-max:" + railToString(placeTempData().placeMaxCheckpoint));
+	    	
+	    	Console.OUT.println("CheckpointAgree-avg:" + railToString(averageCheckpointAgreement));
+	    	Console.OUT.println("CheckpointAgree-min:" + railToString(placeTempData().placeMinCheckpointAgreement));
+	    	Console.OUT.println("CheckpointAgree-max:" + railToString(placeTempData().placeMaxCheckpointAgreement));
+	    	
+	    	Console.OUT.println("RestoreData-avg:" + railToString(averageRestore));
+	    	Console.OUT.println("RestoreData-min:" + railToString(placeTempData().placeMinRestore));
+	    	Console.OUT.println("RestoreData-max:" + railToString(placeTempData().placeMaxRestore));
+	    	
+	    	Console.OUT.println("RestoreAgree-avg:" + railToString(averageRestoreAgreement));
+	    	Console.OUT.println("RestoreAgree-min:" + railToString(placeTempData().placeMinRestoreAgreement));
+	    	Console.OUT.println("RestoreAgree-max:" + railToString(placeTempData().placeMaxRestoreAgreement));
+	    	
+	    	
+	    	Console.OUT.println("FailureDetection-place0:" + railToString(failureDetectionTimes.toRail()));
+	    	Console.OUT.println("Remake-place0:" + railToString(remakeTimes.toRail()));
+	    	Console.OUT.println("TeamReconstruction-place0:" + railToString(reconstructTeamTimes.toRail()));
     	}
         Console.OUT.println("=========Totals by averaging Min/Max statistics============");
-        Console.OUT.println("Initialization:"      + applicationInitializationTime);
+        Console.OUT.println(">>>>>>>>>>>>>>Initialization:"      + applicationInitializationTime);
         Console.OUT.println();
-        Console.OUT.println("Steps:"               + railSum(averageSteps));
-        Console.OUT.println("   ---AverageSingleStep:" + (railSum(averageSteps)/averageSteps.size) );
+        Console.OUT.println("   ---AverageSingleStep:" + railAverage(averageSteps));
+        Console.OUT.println(">>>>>>>>>>>>>>TotalSteps:"+ railSum(averageSteps) );
         Console.OUT.println();
-        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
-        Console.OUT.println("CheckpointData:"      + railToString(averageCheckpoint));
-        Console.OUT.println("CheckpointAgreement:" + railToString(averageCheckpointAgreement)  );
-        Console.OUT.println("   ---TotalCheckpointing:"+ (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) );
+        if (isResilient){
+        Console.OUT.println("CheckpointData:"             + railToString(averageCheckpoint));
+        Console.OUT.println("   ---AverageCheckpointData:" + railAverage(averageCheckpoint) );
+        Console.OUT.println("CheckpointAgreement:"             + railToString(averageCheckpointAgreement)  );
+        Console.OUT.println("   ---AverageCheckpointAgreement:" + railAverage(averageCheckpointAgreement)  );
+        Console.OUT.println(">>>>>>>>>>>>>>TotalCheckpointing:"+ (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) );
   
         Console.OUT.println();
-        Console.OUT.println("Failure Detection:"   + failureDetectionTime);
-        Console.OUT.println("Remake:"              + remakeTime);
-        Console.OUT.println("...........TeamReconstruction:"+reconstructTeamTime);
-        
-        Console.OUT.println("RestoreData:"         + railSum(averageRestore));
-        Console.OUT.println("RestoreAgreement:"    + railSum(averageRestoreAgreement) );
-        Console.OUT.println("   ---TotalRecovery:" + (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
+        Console.OUT.println("Failure Detection:"        + railToString(failureDetectionTimes.toRail()) );
+        Console.OUT.println("   ---Failure Detection:"   + railAverage(failureDetectionTimes.toRail()) );
+        Console.OUT.println("Remake:"                   + railToString(remakeTimes.toRail()) );
+        Console.OUT.println("   ---Remake:"              + railAverage(remakeTimes.toRail()) );
+        Console.OUT.println("TeamReconstruction:"      + railToString(reconstructTeamTimes.toRail()) );
+        Console.OUT.println("   ---TeamReconstruction:" + railAverage(reconstructTeamTimes.toRail()) );
+        Console.OUT.println("RestoreData:"         + railToString(averageRestore));
+        Console.OUT.println("   ---RestoreData:"    + railAverage(averageRestore));
+        Console.OUT.println("RestoreAgreement:"         + railToString(averageRestoreAgreement) );
+        Console.OUT.println("   ---RestoreAgreement:"    + railAverage(averageRestoreAgreement) );
+        Console.OUT.println(">>>>>>>>>>>>>>TotalRecovery:" + (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
         }
         Console.OUT.println("=============================");
         Console.OUT.println("Actual RunTime:" + runTime);
         var calcTotal:Double = applicationInitializationTime + railSum(averageSteps);
         
-        if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
+        if (isResilient){
         	calcTotal += (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
-                (failureDetectionTime + remakeTime + railSum(averageRestore) + railSum(averageRestoreAgreement) );
+                (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) );
         }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
             + "   ---Difference:" + (runTime-calcTotal));
@@ -374,8 +382,8 @@ public class LocalViewResilientExecutorDS {
         if (isResilient){
             Console.OUT.println("CheckpointCount:"+(averageCheckpoint==null?0:averageCheckpoint.size));
             Console.OUT.println("RestoreCount:"+(averageRestore==null?0:averageRestore.size));
-            Console.OUT.println("RemakeCount:"+remakeCount);
-            Console.OUT.println("FailureDetectionCount:"+failureDetectionCount);
+            Console.OUT.println("RemakeCount:"+remakeTimes.size());
+            Console.OUT.println("FailureDetectionCount:"+failureDetectionTimes.size());
         
             if (VERBOSE){
                 var str:String = "";
@@ -383,6 +391,7 @@ public class LocalViewResilientExecutorDS {
                     str += p.id + ",";
                 Console.OUT.println("List of final survived places are: " + str);            
             }
+            Console.OUT.println("=============================");
         }
     }
     
@@ -598,6 +607,14 @@ public class LocalViewResilientExecutorDS {
         if (r == null)
             return 0.0;
     	return RailUtils.reduce(r, (x:Double, y:Double) => x+y, 0.0);
+    }
+    
+    
+    public def railAverage(r:Rail[Double]):Double {
+        if (r == null)
+            return 0.0;
+        val railAvg = railSum(r) / r.size;        
+    	return  Math.round(railAvg);
     }
     
     public def avergaMaxMinRails[T](max:Rail[T], min:Rail[T]):Rail[Double] {
