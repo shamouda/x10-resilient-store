@@ -51,7 +51,9 @@ public class LocalViewResilientExecutorDS {
     private val KILL_CHECKVOTING_PLACE = (System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE")):-1;   
     private val KILL_RESTOREVOTING_INDEX = (System.getenv("EXECUTOR_KILL_RESTOREVOTING") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING")):-1;
     private val KILL_RESTOREVOTING_PLACE = (System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE")):-1;   
-      
+    
+    private val DISABLE_ULFM_AGREEMENT = System.getenv("DISABLE_ULFM_AGREEMENT") != null && System.getenv("DISABLE_ULFM_AGREEMENT").equals("1");
+   
     
     private transient var runTime:Long = 0;
     private transient var remakeTimes:ArrayList[Double] = new ArrayList[Double]();
@@ -131,13 +133,10 @@ public class LocalViewResilientExecutorDS {
         this.implicitStepSynchronization = implicitStepSynchronization;
         this.simplePlaceHammer = new SimplePlaceHammer(HAMMER_STEPS, HAMMER_PLACES);
         if (itersPerCheckpoint > 0 && x10.xrx.Runtime.RESILIENT_MODE > 0) {
-            isResilient = true;
-            
-            /*
-            if (!x10.xrx.Runtime.x10rtAgreementSupport()){
+            isResilient = true;            
+            if (!DISABLE_ULFM_AGREEMENT && !x10.xrx.Runtime.x10rtAgreementSupport()){
             	throw new UnsupportedOperationException("This executor requires an agreement algorithm from the transport layer ...");
         	}
-        	*/
             if (VERBOSE){         
             	Console.OUT.println("HAMMER_STEPS="+HAMMER_STEPS);
             	Console.OUT.println("HAMMER_PLACES="+HAMMER_PLACES);
@@ -556,10 +555,10 @@ public class LocalViewResilientExecutorDS {
         
         val startAgree = Timer.milliTime();
         try{
-        	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");        	
-        	//else success = 0N;
-        	//val success = team.agree(vote as Int);
-        	val success = 1N;
+        	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
+        	var success:Int = 1N;
+        	if (!DISABLE_ULFM_AGREEMENT)
+        	    success = team.agree((vote as Int));
         	if (success == 1N) {
         		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"] transId["+txId+"] ...");
         		datastore.confirmCommit(txId);
