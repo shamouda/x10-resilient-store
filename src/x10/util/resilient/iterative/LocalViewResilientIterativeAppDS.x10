@@ -20,7 +20,9 @@ public interface LocalViewResilientIterativeAppDS {
     
     public def step():void;
     
-    public def getCheckpointMap():HashMap[Any,Any];
+    public def getCheckpointAndRestoreKeys():Rail[Any];
+    
+    public def getCheckpointValues():Rail[Any];    
     
     public def remake(newPlaces:PlaceGroup, newTeam:Team, newAddedPlaces:ArrayList[Place]):void;
     

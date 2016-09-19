@@ -43,13 +43,15 @@ public class LocalViewResilientExecutorDS {
                         && System.getenv("EXECUTOR_DEBUG").equals("1"));
     
     //parameters for killing places at different times
-    private val KILL_STEP = (System.getenv("EXECUTOR_KILL_STEP") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_STEP")):-1;
-    private val KILL_STEP_PLACE = (System.getenv("EXECUTOR_KILL_STEP_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_STEP_PLACE")):-1;
-    // index of the checkpoint first checkpoint (0), second checkpoint (1), ...etc
+    private val simplePlaceHammer:SimplePlaceHammer;  
+    private val HAMMER_STEPS = System.getenv("EXECUTOR_KILL_STEPS");
+    private val HAMMER_PLACES = System.getenv("EXECUTOR_KILL_PLACES");
+    // index of the checkpoint first checkpoint (0), second checkpoint (1), ...etc    
     private val KILL_CHECKVOTING_INDEX = (System.getenv("EXECUTOR_KILL_CHECKVOTING") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_CHECKVOTING")):-1;
     private val KILL_CHECKVOTING_PLACE = (System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE")):-1;   
     private val KILL_RESTOREVOTING_INDEX = (System.getenv("EXECUTOR_KILL_RESTOREVOTING") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING")):-1;
     private val KILL_RESTOREVOTING_PLACE = (System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE")):-1;   
+      
     
     private transient var runTime:Long = 0;
     private transient var remakeTime:Long = 0;
@@ -95,13 +97,11 @@ public class LocalViewResilientExecutorDS {
         var placeMinStep:Rail[Long];
     	
     	val datastore:ResilientMap;
-    	val checkpointKeys:HashSet[Any];
         
         //used for initializing spare places with the same values from Place0
         private def this(datastore:ResilientMap, checkTimes:ArrayList[Long], checkAgreeTimes:ArrayList[Long], 
         		restoreTimes:ArrayList[Long], restoreAgreeTimes:ArrayList[Long],
-        		stepTimes:ArrayList[Long], lastCheckpointIter:Long, commitCount:Long,
-        		checkpointKeys:HashSet[Any]){
+        		stepTimes:ArrayList[Long], lastCheckpointIter:Long, commitCount:Long){
             this.checkpointTimes = checkTimes;
             this.checkpointAgreementTimes = checkAgreeTimes;
             this.stepTimes = stepTimes;
@@ -110,7 +110,6 @@ public class LocalViewResilientExecutorDS {
             this.lastCheckpointIter = lastCheckpointIter;
             this.commitCount = commitCount;
             this.datastore = datastore;
-            this.checkpointKeys = checkpointKeys;
         }
     
         public def this(datastore:ResilientMap){
@@ -120,30 +119,30 @@ public class LocalViewResilientExecutorDS {
             this.restoreAgreementTimes = new ArrayList[Long]();
             this.stepTimes = new ArrayList[Long]();
             this.datastore = datastore;
-            this.checkpointKeys = new HashSet[Any]();
         }
         
         private def getDataStore():ResilientMap{
             return datastore;
         }  
         
-        public def getCheckpointKeys():HashSet[Any] = checkpointKeys;
     }
     
     public def this(itersPerCheckpoint:Long, places:PlaceGroup, implicitStepSynchronization:Boolean) {
         this.places = places;
         this.itersPerCheckpoint = itersPerCheckpoint;
         this.implicitStepSynchronization = implicitStepSynchronization;
+        this.simplePlaceHammer = new SimplePlaceHammer(HAMMER_STEPS, HAMMER_PLACES);
         if (itersPerCheckpoint > 0 && x10.xrx.Runtime.RESILIENT_MODE > 0) {
             isResilient = true;
+            
             /*
             if (!x10.xrx.Runtime.x10rtAgreementSupport()){
             	throw new UnsupportedOperationException("This executor requires an agreement algorithm from the transport layer ...");
         	}
         	*/
-            if (VERBOSE){
-            	Console.OUT.println("EXECUTOR_KILL_STEP="+KILL_STEP);
-            	Console.OUT.println("EXECUTOR_KILL_STEP_PLACE="+KILL_STEP_PLACE);
+            if (VERBOSE){         
+            	Console.OUT.println("HAMMER_STEPS="+HAMMER_STEPS);
+            	Console.OUT.println("HAMMER_PLACES="+HAMMER_PLACES);
             	Console.OUT.println("EXECUTOR_KILL_CHECKVOTING="+KILL_CHECKVOTING_INDEX);
             	Console.OUT.println("EXECUTOR_KILL_CHECKVOTING_PLACE="+KILL_CHECKVOTING_PLACE);
             	Console.OUT.println("EXECUTOR_KILL_RESTOREVOTING_INDEX"+KILL_RESTOREVOTING_INDEX);
@@ -202,7 +201,6 @@ public class LocalViewResilientExecutorDS {
                         val tmpPlace0RestoreAgreeTimes = placeTempData().restoreAgreementTimes;
                         val tmpPlace0StepTimes = placeTempData().stepTimes;
                         val tmpPlace0CommitCount = placeTempData().commitCount;
-                        val tmpPlace0CheckpointKeys = placeTempData().checkpointKeys;
                         
                         
                         for (sparePlace in addedPlaces){
@@ -210,7 +208,7 @@ public class LocalViewResilientExecutorDS {
                             PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, sparePlace, 
                             		()=>new PlaceTempData(datastore,tmpPlace0CheckpointTimes, tmpPlace0CheckpointAgreeTimes, 
                             				tmpPlace0RestoreTimes, tmpPlace0RestoreAgreeTimes, tmpPlace0StepTimes, lastCheckIter,
-                            				tmpPlace0CommitCount, tmpPlace0CheckpointKeys));
+                            				tmpPlace0CommitCount));
                         }
                         ///////////////////////////////////////////////////////////
                         places = newPG;
@@ -256,7 +254,7 @@ public class LocalViewResilientExecutorDS {
                             	localRestoreJustDone = false;
                             }
                         	
-                        	if (isResilient && KILL_STEP == localIter && here.id == KILL_STEP_PLACE){
+                        	if (isResilient && simplePlaceHammer.sayGoodBye(localIter)){
                         		executorKillHere("step()");
                         	}
 
@@ -499,24 +497,34 @@ public class LocalViewResilientExecutorDS {
         var vote:Long = 1;
         try{
             if (operation == CHECKPOINT_OPERATION) {
-                val dataMap = app.getCheckpointMap();
-                val iter = dataMap.keySet().iterator();
-                while (iter.hasNext()) {
-                    val key = iter.next();
-                    val value = dataMap.getOrElse(key,null);
-                    datastore.put(txId, key, value);
-                    placeTempData().getCheckpointKeys().add(key);
-                }
+            	val chkKeys = app.getCheckpointAndRestoreKeys();
+            	if (chkKeys != null && chkKeys.size > 0) {
+            	    val chkValues = app.getCheckpointValues();
+            	    for (var i:Long = 0; i < chkKeys.size; i++){
+                        val key = chkKeys(i);
+                        val value = chkValues(i);
+                        datastore.put(txId, key, value);
+                    }
+            	}
             }
             else {
                 val restoreDataMap = new HashMap[Any,Any]();
-                for (key in placeTempData().getCheckpointKeys()) {
-                    val value = datastore.get(txId, key);
-                    restoreDataMap.put(key, value);
-                }
+                val chkKeys = app.getCheckpointAndRestoreKeys();
+                if (chkKeys != null && chkKeys.size > 0) {
+                	for (var i:Long = 0; i < chkKeys.size; i++) {
+                        val key = chkKeys(i);
+                	    val value = datastore.get(txId, key);
+                	    restoreDataMap.put(key, value);
+                    }
+                }                
             	app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
             }
-            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"]");
+            
+            //see if we can commit
+            if (!datastore.prepareCommit(txId))
+    	        vote = 0;
+            
+            if (VERBOSE) Console.OUT.println(here+" Succeeded in operation ["+op+"]  myVote["+vote+"]");
         }catch(ex:Exception){
             vote = 0;
             excs.add(ex);
@@ -539,18 +547,15 @@ public class LocalViewResilientExecutorDS {
         
         val startAgree = Timer.milliTime();
         try{
-        	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
-        	if (vote == 1) {
-        	    if (!datastore.prepareCommit(txId))
-        	        vote = 0;
-        	}
-        	//val success = team.agree(vote);
-        	val success = 1N; 
+        	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");        	
+        	//else success = 0N;
+        	//val success = team.agree(vote as Int);
+        	val success = 1N;
         	if (success == 1N) {
         		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"] transId["+txId+"] ...");
         		datastore.confirmCommit(txId);
         	}
-        	else{
+        	else {
         		//Failure due to a reason other than place failure, will need to abort.
         		throw new Exception("[Fatal Error] Agreement failed in operation ["+op+"]   success = ["+success+"]");
         	}
@@ -565,7 +570,6 @@ public class LocalViewResilientExecutorDS {
             placeTempData().checkpointAgreementTimes.add(Timer.milliTime() - startAgree);
         else if (operation == RESTORE_OPERATION)
         	placeTempData().restoreAgreementTimes.add(Timer.milliTime() - startAgree);
-        
         	
         if (excs.size() > 0){
         	throw new MultipleExceptions(excs);
@@ -604,7 +608,30 @@ public class LocalViewResilientExecutorDS {
         }
         return result;
     }
-    
+}
+
+class SimplePlaceHammer {
+	val map:HashMap[Long,Long] = new HashMap[Long,Long]();
+	public def this(steps:String, places:String) {
+	    if (steps != null && places != null) {
+	        val sRail = steps.split(",");
+		    val pRail = places.split(",");
+		
+		    if (sRail.size == pRail.size) {
+		    	for (var i:Long = 0; i < sRail.size ; i++) {
+		    		map.put(Long.parseLong(sRail(i)), Long.parseLong(pRail(i)));
+		    	}
+		    }
+	    }
+	}
+	
+	public def sayGoodBye(curStep:Long):Boolean {
+		val placeToKill = map.getOrElse(curStep,-1);
+		if (placeToKill == here.id)
+			return true;
+		else
+			return false;
+	}
 }
 
 

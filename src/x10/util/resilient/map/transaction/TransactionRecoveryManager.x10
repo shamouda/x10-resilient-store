@@ -6,7 +6,7 @@ import x10.util.ArrayList;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.impl.MapRequest;
 import x10.util.resilient.map.common.Utils;
-
+import x10.xrx.Runtime;
 /*
  * Invoked when a transaction client dies, while the transaction is in 'Ready to Commit' 
  * state in at least one of the replicas.
@@ -51,6 +51,7 @@ public class TransactionRecoveryManager {
     public def processRequests() {
         if (VERBOSE) Utils.console(moduleName, "processing recovery requests ...");
         var nextReq:RecoveryRequest = nextRequest();
+        Runtime.increaseParallelism();
         while(nextReq != null){
             if (VERBOSE) Utils.console(moduleName, "new iteration for processing recovery requests ...");
             
@@ -67,6 +68,7 @@ public class TransactionRecoveryManager {
             
             nextReq = nextRequest();
         }
+        Runtime.decreaseParallelism(1n);
     }
 
     private def nextRequest():RecoveryRequest {

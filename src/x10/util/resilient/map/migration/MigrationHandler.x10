@@ -8,6 +8,8 @@ import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
+import x10.xrx.Runtime;
+
 /*
  * Responsible for receiving dead place notifications and updating the partition table
  * An object of this class exists only at the Leader and DeputyLeader places
@@ -60,7 +62,8 @@ public class MigrationHandler {
         }
     }
     
-    public def processRequests() {    	
+    public def processRequests() {    
+    	Runtime.increaseParallelism();
         if (VERBOSE) Utils.console(moduleName, "processing migration requests ...");
         var nextReq:DeadPlaceNotification = nextRequest();
         var updateLeader:Boolean = false;
@@ -119,7 +122,7 @@ public class MigrationHandler {
         } finally {
             lock.unlock();
         }
-    	
+        Runtime.decreaseParallelism(1n);
     }
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions

@@ -28,7 +28,7 @@ import x10.util.resilient.iterative.*;
  * KILL_WHILE_COMMIT_TRANS_COUNT=3 
  * MIGRATION_TIMEOUT=1000 
  * 
- * X10_RESILIENT_MODE=0 DS_ALL_VERBOSE=0 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o -m 40 -c 1 -q 100 -vp 2,5 -vi 5,25
+ * X10_NTHREADS=1 X10_RESILIENT_MODE=0 DS_ALL_VERBOSE=0 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o -m 40 -c 1 -q 100 -vp 2,5 -vi 5,25
  */
 public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPeriodInMillis:Long, killedPlacesPercentage:Float, enableConflict:Boolean, victimPlaces:String, victimIterations:String) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
@@ -116,14 +116,18 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 						catch (ex:Exception) {
 							hm.abortTransactionAndSleep(txId);
 						}
-					}					
+					}
+				   
+					Console.OUT.println(here +" Stepcompleted " + i);
 				}
+				Console.OUT.println(here + "  Finished My Work -A ...");
 				val myLocalState = localStatePLH();
 				myLocalState.killedAtIteration = -1;
 				myLocalState.totalIterations++;
 				at (Place(0)) {
 					atomic localStatesOfDeadPlacesGR().add(myLocalState);
 				}
+				Console.OUT.println(here + "  Finished My Work -B ...");
 			}			
 		}catch(ex2:Exception) {
 			//ex2.printStackTrace();			
@@ -135,7 +139,7 @@ public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPer
 		
 		complete.set(true);
 		
-		
+		Console.OUT.println("Validating results ...");
 		/**Validate at place 0***/
 		val sumKeysCount = new HashMap[String,Long]();
 		var maxIterations:Long = -1;

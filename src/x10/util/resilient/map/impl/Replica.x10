@@ -595,6 +595,7 @@ public class Replica {
         } 
         if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained reference to partition["+partitionId+"] ...");
         
+        Runtime.increaseParallelism();
         do {
         	var conflict:Boolean = false;
         	try{
@@ -649,7 +650,7 @@ public class Replica {
             System.threadSleep(MIGRATION_CONFLICT_SLEEP);
         }
         while(true);
-        
+        Runtime.decreaseParallelism(1n);
         if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] succeeded.  Broke infinite loop...");
         
     }
