@@ -186,7 +186,7 @@ public class LocalViewResilientExecutorDS {
                             Console.OUT.println("Restore places are: " + str);
                         } 
                         val startTeamCreate = Timer.milliTime(); 
-                        Console.OUT.println("***********Before Team creation ...");
+                        Console.OUT.println("***********Before Team creation  ndead=["+Place.numDead()+"]...");
                         team = new Team(newPG);
                         Console.OUT.println("***********Team created ...");
                         reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
