@@ -428,8 +428,8 @@ public class LocalViewResilientExecutorDS {
          	    ////// getDataStore times ////////
     	    	val gdsCount = placeTempData().getDataStoreTimes.size();
         		if (gdsCount > 0) {
-        		    placeTempData().placeMaxGetDataStore = new Rail[Long](chkCount);
-        		    placeTempData().placeMinGetDataStore = new Rail[Long](chkCount);
+        		    placeTempData().placeMaxGetDataStore = new Rail[Long](gdsCount);
+        		    placeTempData().placeMinGetDataStore = new Rail[Long](gdsCount);
         		    val dst1max = placeTempData().placeMaxGetDataStore;
         		    val dst1min = placeTempData().placeMinGetDataStore;
         		    team.allreduce(placeTempData().getDataStoreTimes.toRail(), 0, dst1max, 0, gdsCount, Team.MAX);
