@@ -229,8 +229,6 @@ public class LocalViewResilientExecutorDS {
                     var localIter:Long = tmpGlobalIter;
                     var localRestoreJustDone:Boolean = false;
                     var localRestoreRequired:Boolean = tmpRestoreRequired;
-                    
-                    Console.OUT.println(here + " ---------- Inside Finish AT-EACH   localRestoreRequired["+localRestoreRequired+"]  ----------");
                 
                     while ( !app.isFinished() || localRestoreRequired) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
@@ -254,7 +252,7 @@ public class LocalViewResilientExecutorDS {
                             	localRestoreJustDone = false;
                             }
                         	
-                        	if (isResilient && simplePlaceHammer.sayGoodBye(localIter)){
+                        	if ( isResilient && simplePlaceHammer.sayGoodBye(localIter) ) {
                         		executorKillHere("step()");
                         	}
 
@@ -641,7 +639,10 @@ class SimplePlaceHammer {
 		
 		    if (sRail.size == pRail.size) {
 		    	for (var i:Long = 0; i < sRail.size ; i++) {
-		    		map.put(Long.parseLong(sRail(i)), Long.parseLong(pRail(i)));
+		    		val step = Long.parseLong(sRail(i));
+		    		val place = Long.parseLong(pRail(i));
+		    		map.put(step, place);
+		    		Console.OUT.println("Hammer  step="+step+" place="+place);
 		    	}
 		    }
 	    }
@@ -649,10 +650,14 @@ class SimplePlaceHammer {
 	
 	public def sayGoodBye(curStep:Long):Boolean {
 		val placeToKill = map.getOrElse(curStep,-1);
-		if (placeToKill == here.id)
+		Console.OUT.println("sayGoodby  place["+placeToKill+"]  victim["+curStep+"]");
+		if (placeToKill == here.id) {
+			Console.OUT.println("sayGoodby  place["+placeToKill+"]  victim["+curStep+"] = true");		
 			return true;
-		else
+		}
+		else {
 			return false;
+		}
 	}
 }
 
