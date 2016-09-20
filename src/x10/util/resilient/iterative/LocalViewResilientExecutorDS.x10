@@ -189,6 +189,9 @@ public class LocalViewResilientExecutorDS {
                         Console.OUT.println("***********Before Team creation  ndead=["+Place.numDead()+"]...");
                         Runtime.x10rtProbe();
                         Console.OUT.println("***********Before Team creation after probe ndead=["+Place.numDead()+"]...");
+                        for (p in Place.places()) {
+                        	Console.OUT.println(p + ".isDead=" + p.isDead());
+                        }
                         team = new Team(newPG);
                         Console.OUT.println("***********Team created ...");
                         reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
