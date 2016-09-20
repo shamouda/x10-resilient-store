@@ -24,7 +24,7 @@ import x10.util.GrowableRail;
 import x10.util.RailUtils;
 import x10.util.resilient.map.ResilientMap;
 import x10.util.resilient.map.DataStore;
-
+import x10.xrx.Runtime;
 /*
  * TODO:
  * -> maximum retry for restore failures
