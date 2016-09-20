@@ -1,6 +1,7 @@
 package x10.util.resilient.map.transaction;
 
 import x10.util.concurrent.SimpleLatch;
+import x10.compiler.Ifdef;
 import x10.util.HashSet;
 import x10.util.ArrayList;
 import x10.util.resilient.map.DataStore;

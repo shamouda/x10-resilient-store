@@ -14,7 +14,7 @@ import x10.util.resilient.map.exception.CommitVotingFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.Team;
 import x10.xrx.Runtime;
-
+import x10.compiler.Ifdef;
 /**
  * The ReplicaClient receives MapRequests from ResilientMapImpl an execute them on relevant Replicas
  **/
@@ -62,7 +62,7 @@ public class ReplicaClient {
     
     public def asyncExecuteRequest(request:MapRequest) {
     	if (!valid) {
-    	    if (VERBOSE) Utils.console(moduleName, "asyncExecuteRequest: Invalid ReplicaClient ...");
+    		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "asyncExecuteRequest: Invalid ReplicaClient ..."); }
     		return;
     	}
     	
@@ -86,12 +86,13 @@ public class ReplicaClient {
     private def asyncExecuteSingleKeyRequest(request:MapRequest) {
         val key = request.inKey;
         val repInfo = partitionTable.getKeyReplicas(key);
-        if (VERBOSE) Utils.console(moduleName, "Key["+key+"] "+repInfo.toString());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Key["+key+"] "+repInfo.toString()); }
         val submit = addPendingRequest(request, repInfo.replicas);
         if (submit)
             submitSingleKeyRequest(request, repInfo.replicas, repInfo.partitionId);
-        else
-            if (VERBOSE) Utils.console(moduleName, "Request Held until partition table is updated: " + request.toString());    
+        @Ifdef("__DS_DEBUG__") {
+            if (!submit) Utils.console(moduleName, "Request Held until partition table is updated: " + request.toString());
+        }
     }
     
     /**
@@ -132,14 +133,14 @@ public class ReplicaClient {
         if (request.replicas == null)
         	replicas = getTransactionReplicas(transId);        
         if (replicas == null){
-        	if (VERBOSE) Utils.console(moduleName, "abort successfully because replicas are null for request: " + request.toString());
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "abort successfully because replicas are null for request: " + request.toString()); }
             //transaction was not submitted to any replica
             request.completeRequest(null);
             return;
         }
         
         val allReplicasActive = addPendingRequest(request, replicas); 
-        if (VERBOSE) Utils.console(moduleName, "allReplicasActive= " + allReplicasActive);        
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "allReplicasActive= " + allReplicasActive); }        
         submitAsyncExecuteAbort(request, replicas);
     }
     
@@ -156,7 +157,7 @@ public class ReplicaClient {
         
         var exception:Exception = null;
         for (placeId in replicas) {
-        	if (VERBOSE) Utils.console(moduleName, "SubmittingToPlace["+Place(placeId)+"] request: " + request.toString() ); 
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "SubmittingToPlace["+Place(placeId)+"] request: " + request.toString() ); } 
             try{
                 at (Place(placeId)) async {
                 	//Console.OUT.println("SubmittingToPlace - Reached " + here + "  transId["+transId+"] ");
@@ -165,7 +166,7 @@ public class ReplicaClient {
             }
             catch (ex:Exception) {
                 exception = ex;
-                Utils.console(moduleName, "exception while submitting ["+ex.getMessage()+"]  request: " + request.toString() );
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "exception while submitting ["+ex.getMessage()+"]  request: " + request.toString() ); }
                 break;
             }
         }
@@ -174,7 +175,7 @@ public class ReplicaClient {
     }
     
     private def submitAsyncPrepareCommit(request:MapRequest, replicas:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "Submitting ReadyToCommit? recovery["+request.commitRecovery+"] for request: " + request.toString());    
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Submitting ReadyToCommit? recovery["+request.commitRecovery+"] for request: " + request.toString()); }    
         val requestType = request.requestType;
         val transId = request.transactionId;
         val mapName = request.mapName;
@@ -200,7 +201,7 @@ public class ReplicaClient {
     }
     
     private def submitAsyncConfirmCommit(request:MapRequest, replicas:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "Submitting ConfirmCommit for request: " + request.toString());    
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Submitting ConfirmCommit for request: " + request.toString()); }    
         val transId = request.transactionId;
         val mapName = request.mapName;
         val gr = GlobalRef[MapRequest](request);
@@ -233,7 +234,7 @@ public class ReplicaClient {
     }
     
     private def submitAsyncExecuteAbort(request:MapRequest, replicas:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "Submitting request: " + request.toString());        
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Submitting request: " + request.toString()); }        
         val transId = request.transactionId;
         val gr = GlobalRef[MapRequest](request);
         request.setReplicationInfo(replicas);
@@ -306,12 +307,12 @@ public class ReplicaClient {
         catch(ex:Exception) {
         	ex.printStackTrace();
         	valid = false;
-        	Utils.console(moduleName, "Exception while adding request " + req.toString() + "  exception:" + ex.getMessage());
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Exception while adding request " + req.toString() + "  exception:" + ex.getMessage()); }
         }
         finally{
             lock.unlock();
         }
-        if (VERBOSE) Utils.console(moduleName, "Added Pending Request " + req.toString());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Added Pending Request " + req.toString()); }
         return result;
     }
     
@@ -333,7 +334,7 @@ public class ReplicaClient {
             try{
                 lock.lock();
                 var i:Long;
-                if (VERBOSE) Utils.console(moduleName, "checkPendingTransactions: new iteration ...");
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "checkPendingTransactions: new iteration ..."); }
                 
                 for (i = 0; i< pendingRequests.size(); i++){
                     val mapReq = pendingRequests.get(i);
@@ -394,7 +395,9 @@ public class ReplicaClient {
                     asyncExecuteRequest(req);
                 }
             }
-            else if (VERBOSE) Utils.console(moduleName, "checkPendingTransactions: Invalid ReplicaClient ...");
+            @Ifdef("__DS_DEBUG__") {
+                if (!valid) Utils.console(moduleName, "checkPendingTransactions: Invalid ReplicaClient ...");
+            }
         }
         Runtime.decreaseParallelism(1n);
     }
@@ -408,7 +411,7 @@ public class ReplicaClient {
     private def notifyDeadPlaces(replicas:HashSet[Long]):Boolean {
         var result:Boolean = true;
         val deadReplicas = Utils.getDeadReplicas(replicas); 
-        if (VERBOSE) Utils.console(moduleName, "notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "notifyDeadPlaces: deadReplicas count is ["+deadReplicas.size()+"] ..."); }
         if (deadReplicas.size() != 0) {
             val notifyList = new HashSet[Long]();
             for (newDead in deadReplicas) {
@@ -422,8 +425,9 @@ public class ReplicaClient {
                 lastDeadPlaceNotificationTime = Timer.milliTime();
                 DataStore.getInstance().clientNotifyDeadPlaces(notifyList);  
             }
-            else
-                if (VERBOSE) Utils.console(moduleName, "Dead places already notified ...");
+            else {
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Dead places already notified ..."); }
+            }
         }
         else
             result = false;

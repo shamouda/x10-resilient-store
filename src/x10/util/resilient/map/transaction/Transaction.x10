@@ -4,6 +4,7 @@ import x10.util.HashMap;
 import x10.util.ArrayList;
 import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
+import x10.compiler.Ifdef;
 
 /*
  * Used to log the changes in key values by a single transaction

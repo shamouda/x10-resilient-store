@@ -4,6 +4,7 @@ import x10.util.HashSet;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.Timer;
 import x10.util.resilient.map.common.Utils;
+import x10.compiler.Ifdef;
 
 public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newReplicas:HashSet[Long]) {
     private val moduleName = "MigrationHandler";

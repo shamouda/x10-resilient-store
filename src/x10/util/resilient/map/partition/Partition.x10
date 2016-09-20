@@ -4,6 +4,7 @@ import x10.util.concurrent.SimpleLatch;
 import x10.util.concurrent.AtomicInteger;
 import x10.util.HashMap;
 import x10.util.resilient.map.common.Utils;
+import x10.compiler.Ifdef;
 
 //contains a HashMap object for each application map
 public class Partition {

@@ -12,7 +12,7 @@ import x10.util.resilient.map.DataStore;
 import x10.util.Random;
 import x10.util.Timer;
 import x10.xrx.Runtime;
-
+import x10.compiler.Ifdef;
 /***
  * This class should not contain heavy objects because it is transferable between places
  * Place specific data should be obtained from the DataStore class

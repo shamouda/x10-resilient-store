@@ -17,7 +17,7 @@ import x10.util.resilient.map.partition.VersionValue;
 import x10.util.resilient.map.migration.MigrationRequest;
 import x10.util.resilient.map.DataStore;
 import x10.xrx.Runtime;
-
+import x10.compiler.Ifdef;
 /*
  * Replica is a container for partitions and logs of transactions accessing them
  * 

@@ -15,7 +15,7 @@ import x10.util.resilient.map.exception.TopologyCreationFailedException;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.util.resilient.map.migration.MigrationHandler;
 import x10.util.resilient.map.transaction.TransactionRecoveryManager;
-
+import x10.compiler.Ifdef;
 //creates the local datastore instance  (one per place)
 public class DataStore {
     private val moduleName = "DataStore";

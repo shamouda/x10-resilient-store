@@ -9,7 +9,7 @@ import x10.util.resilient.map.DataStore;
 import x10.util.resilient.map.common.Utils;
 import x10.util.resilient.map.exception.InvalidDataStoreException;
 import x10.xrx.Runtime;
-
+import x10.compiler.Ifdef;
 /*
  * Responsible for receiving dead place notifications and updating the partition table
  * An object of this class exists only at the Leader and DeputyLeader places
