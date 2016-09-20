@@ -596,10 +596,22 @@ public class LocalViewResilientExecutorDS {
     }
     
     private def executorKillHere(op:String) {
-    	at(Place(0)){
+    	val victimPlace = here;
+    	at(Place(0)) async {
 			placeTempData().place0KillPlaceTime = Timer.milliTime();
-            Console.OUT.println("[Hammer Log] Time before killing is ["+placeTempData().place0KillPlaceTime+"] ...");
+            Console.OUT.println("[Hammer Log] Time before killing is ["+placeTempData().place0KillPlaceTime+"] ...");            
+            try {
+            	//make place 0 interact with the dead place to make sure it detects its death
+            	for (var i:Long = 0; i < 5; i++) {
+            	    at (victimPlace) {}
+            	    System.threadSleep(100);
+            	}
+            }catch(ex:Exception) {
+                Console.OUT.println("HoHo, place 0 discovered the death of victim " + victimPlace);
+                ex.printStackTrace();
+            }
 		}
+    	
 		Console.OUT.println("[Hammer Log] Killing ["+here+"] before "+op+" ...");
 		System.killHere();
     }
