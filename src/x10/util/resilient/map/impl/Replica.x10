@@ -95,7 +95,7 @@ public class Replica {
         val transLog = getOrAddActiveTransaction(transId, clientId, mapName, replicas);
         val replicaId = here.id;
         if (transLog == null) {
-            if (VERBOSE) Utils.console(moduleName, "(get) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "(get) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ..."); }
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
@@ -128,7 +128,7 @@ public class Replica {
         val transLog = getOrAddActiveTransaction(transId, clientId, mapName, replicas);
         val replicaId = here.id;
         if (transLog == null) {
-            if (VERBOSE) Utils.console(moduleName, "(put) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "(put) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ..."); }
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
@@ -163,7 +163,7 @@ public class Replica {
         val transLog = getOrAddActiveTransaction(transId, clientId, mapName, replicas);
         val replicaId = here.id;
         if (transLog == null) {
-            if (VERBOSE) Utils.console(moduleName, "(delete) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "(delete) Transaction ["+transId+"]  is not active. Return TransactionAbortedException ..."); }
             at (responseGR.home) async {
                 responseGR().addReplicaResponse(null, new TransactionAbortedException(), replicaId);
             }
@@ -198,7 +198,7 @@ public class Replica {
         var transLog:Transaction = resp.transaction;
         
         if (transLog == null) {
-            if (VERBOSE) Utils.console(moduleName, "(ready) Transaction ["+transId+"]  is not active. Return Not Ready ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "(ready) Transaction ["+transId+"]  is not active. Return Not Ready ..."); }
             at (responseGR) async {
                 responseGR().commitVote(Utils.READY_NO, replicaId);
             }
@@ -222,7 +222,7 @@ public class Replica {
     public def commitNoResponse(transId:Long, responseGR:GlobalRef[MapRequest]) {   
         val transLog = getTransactionLog(TRANS_READY_TO_COMMIT, transId);
         if (transLog == null) {
-        	if (VERBOSE) {
+        	@Ifdef("__DS_DEBUG__") {
         		if (getTransactionLog(TRANS_COMMITED, transId) != null) 
         			Utils.console(moduleName, "commitNoResponse -> TransId["+transId+"] already committed ...  ");
         		else
@@ -241,7 +241,7 @@ public class Replica {
             	val log = cache.getOrThrow(key);
             	if (log.readOnly()) continue;
                 val partition = partitions.getOrThrow(log.getPartitionId());
-               	if (VERBOSE) Utils.console(moduleName, "TransId["+transId+"] Applying commit changes:=> " + log.toString());
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "TransId["+transId+"] Applying commit changes:=> " + log.toString()); }
                	if (log.isDeleted()) {
                		partition.delete(transLog.mapName, key);
                	}
@@ -264,7 +264,7 @@ public class Replica {
     }
     
     public def abortNoResponse(transId:Long, responseGR:GlobalRef[MapRequest]) {
-        if (VERBOSE) Utils.console(moduleName, "calling abortNoResponse for transactionId["+transId+"] ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "calling abortNoResponse for transactionId["+transId+"] ..."); }
         try{
             transactionsLock.lock();
             var transLog:Transaction = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
@@ -277,7 +277,7 @@ public class Replica {
                         if (transLog != null)
                             throw new CommitedTransactionCanNotBeAbortedException();
                         else { // transaction not found, this can be due to processing an abort message before an add message                            
-                            if (VERBOSE) Utils.console(moduleName, "FATAL error: abortNoResponse transactionId["+transId+"] not found!!!  Transaction aborted before being added  ...");
+                        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "FATAL error: abortNoResponse transactionId["+transId+"] not found!!!  Transaction aborted before being added  ..."); }
                         }
                     }
                 }
@@ -290,7 +290,7 @@ public class Replica {
     }
     
     private def getOrAddActiveTransaction(transId:Long, clientId:Long, mapName:String, replicas:HashSet[Long]):Transaction {
-    	if (VERBOSE) Utils.console(moduleName, "getOrAddActiveTransaction transId["+transId+"] clientId["+clientId+"] ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getOrAddActiveTransaction transId["+transId+"] clientId["+clientId+"] ..."); }
         var result:Transaction = null;
         try{
             transactionsLock.lock();
@@ -333,28 +333,28 @@ public class Replica {
     }
     
     private def getTransactionForPrepareCommit(clientId:Long, transId:Long, recovery:Boolean):PrepareCommitTransactionResponse {
-    	if (VERBOSE) Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] ..."); }
         var result:Transaction = null;
     	var readyToCommit:Boolean = false;
         try{
             transactionsLock.lock();
             result = transactions.getOrThrow(TRANS_ACTIVE).transMap.getOrElse(transId,null);
-            if (VERBOSE) Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (1) ACTIVE result is null? ["+(result==null)+"]...");
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (1) ACTIVE result is null? ["+(result==null)+"]..."); }
             if (result == null && recovery) {            	
             	result = transactions.getOrThrow(TRANS_READY_TO_COMMIT).transMap.getOrElse(transId,null);
-            	if (VERBOSE) Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (2) READY_TO_COMMIT result is null? ["+(result==null)+"]...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (2) READY_TO_COMMIT result is null? ["+(result==null)+"]..."); }
 
             	if (result == null)
             		result = transactions.getOrThrow(TRANS_COMMITED).transMap.getOrElse(transId,null);
             	
-            	if (VERBOSE) Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (2) COMMITTED result is null? ["+(result==null)+"]...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (2) COMMITTED result is null? ["+(result==null)+"]..."); }
             	if (result != null) {
             		readyToCommit = true;
             	}
             }
             
             if (result != null && recovery) { //update client
-            	if (VERBOSE) Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (3) updating client...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "getTransactionForPrepareCommit transId["+transId+"] clientId["+clientId+"] recovery["+recovery+"] (3) updating client..."); }
             	result.updateClient(clientId);
             }
         }
@@ -389,7 +389,7 @@ public class Replica {
                 val conflictReport = getConflictingActiveTransactions(transLog);
                 if (conflictReport != null) {
                     if (conflictReport.maxTransId == transLog.transId) {
-                        if (VERBOSE) Utils.console(moduleName, "TransId["+transLog.transId+"] Abort other transaction and become ready to commit ...");
+                    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "TransId["+transLog.transId+"] Abort other transaction and become ready to commit ..."); }
                         //    abort other transactions
                         for (otherTransId in conflictReport.otherTransactions) {
                             val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(otherTransId.transId);
@@ -397,7 +397,7 @@ public class Replica {
                         }
                     }
                     else {
-                        if (VERBOSE) Utils.console(moduleName, "TransId["+transLog.transId+"] Abort my self, NOT ready to commit ...");
+                    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "TransId["+transLog.transId+"] Abort my self, NOT ready to commit ..."); }
                         // abort my self
                         ready = false;
                         val curTrans = transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transLog.transId);
@@ -431,7 +431,7 @@ public class Replica {
             val otherTransId = iter.next();
             val otherTrans = readyTransMap.getOrThrow(otherTransId);
             if (transLog.isConflicting(otherTrans)) {
-                if (VERBOSE) Utils.console(moduleName, "Found conflict between transaction["+transLog.transId+"]  and ["+otherTrans.transId+"] ...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Found conflict between transaction["+transLog.transId+"]  and ["+otherTrans.transId+"] ..."); }
                 result = true;
                 break;
             }
@@ -460,7 +460,7 @@ public class Replica {
                 currentVersion = verValue.getVersion();
             
             if (currentVersion != oldVersion) {
-                if (VERBOSE) Utils.console(moduleName, "Version conflict transaction["+transLog.transId+"] key["+key+"] oldVersion["+oldVersion+"] newVersion["+currentVersion+"] ...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Version conflict transaction["+transLog.transId+"] key["+key+"] oldVersion["+oldVersion+"] newVersion["+currentVersion+"] ..."); }
                 result = false;
                 break;
             }
@@ -484,12 +484,12 @@ public class Replica {
             }
         }
         if (conflictList.size() == 0) {
-            if (VERBOSE) Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is null");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is null"); }
             return null;
         }
         else {
             val result = new ConflictReport(conflictList, maxTransId);
-            if (VERBOSE) Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is::: " + result.toString());
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "ConflictReport for transaction["+transLog.transId+"] is::: " + result.toString()); }
             return result;
         }
             
@@ -513,7 +513,7 @@ public class Replica {
         Runtime.increaseParallelism();
         while (timerOn) {
             System.threadSleep(REPLICA_SLEEP);
-            if (VERBOSE) Utils.console(moduleName, "checkDeadReplicaClient new iteration ...");
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "checkDeadReplicaClient new iteration ..."); }
             try{
                 transactionsLock.lock();
                 val activeTransMap = transactions.getOrThrow(TRANS_ACTIVE).transMap;
@@ -521,12 +521,12 @@ public class Replica {
                 while (activeIter.hasNext()) {
                     val transId = activeIter.next();
                     val curTrans = activeTransMap.getOrThrow(transId);                    
-                    if (VERBOSE) Utils.console(moduleName, "check Active transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
+                    @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "check Active transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ..."); }
                     
                     if (Place(curTrans.clientPlaceId).isDead()) {                        
                         transactions.getOrThrow(TRANS_ACTIVE).transMap.remove(transId);
                         transactions.getOrThrow(TRANS_ABORTED).transMap.put(transId, DUMMY_TRANSACTION);
-                        if (VERBOSE) Utils.console(moduleName, "Aborting transaction ["+transId+"] because client ["+Place(curTrans.clientPlaceId)+"] died ...");
+                        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Aborting transaction ["+transId+"] because client ["+Place(curTrans.clientPlaceId)+"] died ..."); }
                     }
                 }
                 
@@ -536,7 +536,7 @@ public class Replica {
                 while (readyIter.hasNext()) {
                     val transId = readyIter.next();
                     val curTrans = readyTransMap.getOrThrow(transId);                    
-                    if (VERBOSE) Utils.console(moduleName, "check Ready transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ...");
+                    @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "check Ready transaction client  TransId=["+transId+"] ClientPlace ["+curTrans.clientPlaceId+"] isDead["+Place(curTrans.clientPlaceId).isDead()+"] ..."); }
                     
                     if (Place(curTrans.clientPlaceId).isDead()) {                        
                     	if (curTrans.lastRequestRecoveryTime > 0 || Timer.milliTime() - curTrans.lastRequestRecoveryTime > Utils.TIMEOUT_TO_RENOTIFY_LEADER) {
@@ -545,7 +545,7 @@ public class Replica {
                     			DataStore.getInstance().clientRequestTransactionRecovery(curTrans.transId, curTrans.replicas);
                     		}catch (ex:Exception) {
                     			//fatal error occured, no leader found         
-                    			if (VERBOSE) {
+                    			@Ifdef("__DS_DEBUG__") {
                     				ex.printStackTrace();
                     				Utils.console(moduleName, "FATAL error - setting timeOn=false ..."); 
                     			}
@@ -571,7 +571,7 @@ public class Replica {
      * Migrating a partition to here
      **/
     public def addPartition(id:Long, maps:HashMap[String, HashMap[Any,VersionValue]]) {
-        if (VERBOSE) Utils.console(moduleName, "Adding partition["+id+"] , waiting for partitions lock ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Adding partition["+id+"] , waiting for partitions lock ..."); }
         try{
             partitionsLock.lock();
             val partition = new Partition(id, maps);
@@ -580,11 +580,11 @@ public class Replica {
         finally{
             partitionsLock.unlock();
         }
-        if (VERBOSE) Utils.console(moduleName, "Adding partition["+id+"] succeeded ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Adding partition["+id+"] succeeded ..."); }
     }
     
     public def copyPartitionsTo(partitionId:Long, destPlaces:HashSet[Long], gr:GlobalRef[MigrationRequest]) {
-        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] ..."); }
         
         var partition:Partition = null;
         try{
@@ -593,19 +593,19 @@ public class Replica {
         } finally {
             partitionsLock.unlock();
         } 
-        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained reference to partition["+partitionId+"] ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo - obtained reference to partition["+partitionId+"] ..."); }
         
         Runtime.increaseParallelism();
         do {
         	var conflict:Boolean = false;
         	try{
         		transactionsLock.lock();
-        		if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ...");
+        		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo - obtained transactionsLock ..."); }
         		conflict = isPartitionUsedForUpdate(partitionId);
-        		if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - conflict = "+conflict+" ...");
+        		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo - conflict = "+conflict+" ..."); }
         		if (!conflict) {
         			migratingPartitions.add(partitionId);
-        			if (VERBOSE) Utils.console(moduleName, "Adding partition ["+partitionId+"] to migList ... ");
+        			@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Adding partition ["+partitionId+"] to migList ... "); }
         		}
         	}
         	finally{
@@ -631,7 +631,7 @@ public class Replica {
                 	ex.printStackTrace();
                 }
                 
-                if (VERBOSE) Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList ... ");
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList ... "); }
                 try {
                     transactionsLock.lock();
                     migratingPartitions.remove(partitionId);
@@ -639,20 +639,19 @@ public class Replica {
                 finally {
                     transactionsLock.unlock();
                 }
-                if (VERBOSE) Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList SUCCEEDED ...");
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Removing partition ["+partitionId+"] from migList SUCCEEDED ..."); }
                 
                 break;
             }
             else{
-                if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo - partition is locked for a prepared update commit - WILL TRY AGAIN LATER..."); }
             }
             
             System.threadSleep(MIGRATION_CONFLICT_SLEEP);
         }
         while(true);
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] succeeded.  Broke infinite loop...");
-        
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "copyPartitionsTo partitionId["+partitionId+"] to places ["+Utils.hashSetToString(destPlaces)+"] succeeded.  Broke infinite loop..."); }       
     }
     
     /**
