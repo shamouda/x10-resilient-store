@@ -46,10 +46,12 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      */
     public def createPartitionTable(topology:Topology) {
     	@Ifdef("__DS_DEBUG__") {
+    	    /*
             if (here.id == 0) {
                 topology.printTopology();
                 topology.printDeadPlaces();
             }
+            */
     	}
             
         replicas.clear();
@@ -110,6 +112,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         version.incrementAndGet();
         
         @Ifdef("__DS_DEBUG__") {
+            /*
             Utils.console(moduleName, "Node partitions ");
             val iter = nodePartitions.keySet().iterator();
             while (iter.hasNext()) {
@@ -134,6 +137,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                     str += iter2.next() + " - ";
                 Console.OUT.println("Place"+key + "->>> Part-" + str);
             }
+            */
         }
     }
     
@@ -247,6 +251,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
     }
     
     public def printPartitionTable() {
+        /*
         Utils.console(moduleName, "Parition places");
         for (var p:Long = 0; p < partitionsCount; p++) {
             var str:String = "";
@@ -255,6 +260,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             }
             Console.OUT.println(p + " => " + str);
         }
+        */
     }
     
     public def clone():PartitionTable {
