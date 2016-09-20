@@ -186,17 +186,9 @@ public class LocalViewResilientExecutorDS {
                             Console.OUT.println("Restore places are: " + str);
                         } 
                         val startTeamCreate = Timer.milliTime(); 
-                        Console.OUT.println("***********Before Team creation  ndead=["+Place.numDead()+"]...");
-                        Runtime.x10rtProbe();
-                        Console.OUT.println("***********Before Team creation after probe ndead=["+Place.numDead()+"]...");
-                        for (p in Place.places()) {
-                        	Console.OUT.println(p + ".isDead=" + p.isDead());
-                        }
                         team = new Team(newPG);
-                        Console.OUT.println("***********Team created ...");
                         reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
                         app.remake(newPG, team, addedPlaces);
-                        Console.OUT.println("***********App remake ...");
                         ///////////////////////////////////////////////////////////
                         //Initialize the new places with the same info at place 0//
                         val lastCheckIter = placeTempData().lastCheckpointIter;
@@ -599,22 +591,10 @@ public class LocalViewResilientExecutorDS {
     }
     
     private def executorKillHere(op:String) {
-    	val victimPlace = here;
-    	at(Place(0)) async {
+    	at(Place(0)) {
 			placeTempData().place0KillPlaceTime = Timer.milliTime();
             Console.OUT.println("[Hammer Log] Time before killing is ["+placeTempData().place0KillPlaceTime+"] ...");            
-            try {
-            	//make place 0 interact with the dead place to make sure it detects its death
-            	for (var i:Long = 0; i < 5; i++) {
-            	    at (victimPlace) {}
-            	    System.threadSleep(100);
-            	}
-            }catch(ex:Exception) {
-                Console.OUT.println("HoHo, place 0 discovered the death of victim " + victimPlace);
-                ex.printStackTrace();
-            }
 		}
-    	
 		Console.OUT.println("[Hammer Log] Killing ["+here+"] before "+op+" ...");
 		System.killHere();
     }
