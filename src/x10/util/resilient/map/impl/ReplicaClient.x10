@@ -340,7 +340,6 @@ public class ReplicaClient {
                     var checkTimeout:Boolean = true;
                     
                     if (mapReq.requestStatus == MapRequest.STATUS_COMPLETED) {
-                        mapReq.lock.release();
                         pendingRequests.removeAt(i--);
                         checkTimeout = false;
                     }
@@ -360,7 +359,6 @@ public class ReplicaClient {
                         }
                         else if (mapReq.commitStatus == MapRequest.CANCELL_COMMIT) {
                             mapReq.completeRequest(new CommitVotingFailedException());    
-                            mapReq.lock.release();
                             pendingRequests.removeAt(i--);
                             checkTimeout = false;
                         }
@@ -368,7 +366,6 @@ public class ReplicaClient {
                     if (checkTimeout) {
                         if (Timer.milliTime() - mapReq.startTimeMillis > REQUEST_TIMEOUT) {
                             mapReq.completeRequest(new RequestTimeoutException());    
-                            mapReq.lock.release();
                             pendingRequests.removeAt(i);
                             i--;
                         }
@@ -377,7 +374,6 @@ public class ReplicaClient {
                             if (deadReplicas.size() != 0) {
                                 val deadPlaceId = deadReplicas.iterator().next(); 
                                 mapReq.completeRequest(new DeadPlaceException(Place(deadPlaceId)));       
-                                mapReq.lock.release();
                                 pendingRequests.removeAt(i--);
                             }
                         }

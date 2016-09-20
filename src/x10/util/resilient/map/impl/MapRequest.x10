@@ -164,6 +164,7 @@ public class MapRequest {
             responseLock.lock();
             requestStatus = STATUS_COMPLETED;
             outException = outputException;
+            lock.release();
         }finally {
             responseLock.unlock();
         }
