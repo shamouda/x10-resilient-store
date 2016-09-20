@@ -413,6 +413,7 @@ public class LocalViewResilientExecutorDS {
     }
     
     private def calculateTimingStatistics(){
+    	Console.OUT.println("Application completed, calculating runtime statistics ...");
     	finish for (place in places) at(place) async {
     	    ////// step times ////////
     	    val stpCount = placeTempData().stepTimes.size();
@@ -424,6 +425,17 @@ public class LocalViewResilientExecutorDS {
     	    team.allreduce(placeTempData().stepTimes.toRail(), 0, dst2min, 0, stpCount, Team.MIN);
 
     	    if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
+         	    ////// getDataStore times ////////
+    	    	val gdsCount = placeTempData().getDataStoreTimes.size();
+        		if (gdsCount > 0) {
+        		    placeTempData().placeMaxGetDataStore = new Rail[Long](chkCount);
+        		    placeTempData().placeMinGetDataStore = new Rail[Long](chkCount);
+        		    val dst1max = placeTempData().placeMaxGetDataStore;
+        		    val dst1min = placeTempData().placeMinGetDataStore;
+        		    team.allreduce(placeTempData().getDataStoreTimes.toRail(), 0, dst1max, 0, gdsCount, Team.MAX);
+        		    team.allreduce(placeTempData().getDataStoreTimes.toRail(), 0, dst1min, 0, gdsCount, Team.MIN);
+        		}
+        		
         		////// checkpoint times ////////
         		val chkCount = placeTempData().checkpointTimes.size();
         		if (chkCount > 0) {
