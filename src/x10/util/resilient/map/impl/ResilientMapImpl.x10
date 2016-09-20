@@ -44,7 +44,7 @@ public class ResilientMapImpl implements ResilientMap {
         var succeeded:Boolean = false;
         var commitException:Exception = null; 
         do {
-            if (VERBOSE) Utils.console(moduleName,"$$= Running attempt ["+(attempt+1)+"/"+RETRY_MAX+"] for request ["+MapRequest.typeDesc(requestType)+"] =$$");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName,"$$= Running attempt ["+(attempt+1)+"/"+RETRY_MAX+"] for request ["+MapRequest.typeDesc(requestType)+"] =$$"); }
             val txId = startTransaction();
             try{
                 if (requestType == MapRequest.REQ_GET) {
@@ -54,7 +54,7 @@ public class ResilientMapImpl implements ResilientMap {
                 } else if (requestType == MapRequest.REQ_DELETE) {
                     result = delete(txId, key);
                 }
-                if (VERBOSE) Utils.console(moduleName, "Result = " + result);
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Result = " + result); }
                 commitTransaction(txId);
                 succeeded = true;
                 break;
@@ -106,11 +106,11 @@ public class ResilientMapImpl implements ResilientMap {
     public def prepareCommit(transId:Long):Boolean {
     	val request = new MapRequest(transId, MapRequest.REQ_PREPARE_ONLY, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
-        if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "prepareCommit["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "prepareCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "prepareCommit["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         
         preparedCommitRequests.put(transId, request.replicas);
         if (request.isSuccessful()) {
@@ -128,11 +128,11 @@ public class ResilientMapImpl implements ResilientMap {
     	val replicas = preparedCommitRequests.remove(transId);
     	request.replicas = replicas;
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
-        if (VERBOSE) Utils.console(moduleName, "confirmCommit["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "confirmCommit["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "confirmCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "confirmCommit["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (!request.isSuccessful())
             throw request.outException;
     }
@@ -142,11 +142,11 @@ public class ResilientMapImpl implements ResilientMap {
     public def commitTransaction(transId:Long) {        
         val request = new MapRequest(transId, MapRequest.REQ_PREPARE_AND_COMMIT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);   
-        if (VERBOSE) Utils.console(moduleName, "prepareAndCommit["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "prepareAndCommit["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "prepareAndCommit["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "prepareAndCommit["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (!request.isSuccessful())
             throw request.outException;
     }
@@ -157,11 +157,11 @@ public class ResilientMapImpl implements ResilientMap {
     public def abortTransaction(transId:Long) {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful()); }
     }
     
     
@@ -171,11 +171,11 @@ public class ResilientMapImpl implements ResilientMap {
     public def abortTransactionAndSleep(transId:Long) {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, name);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "abortTransaction["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         nextRandomSleep();
     }
     
@@ -191,11 +191,11 @@ public class ResilientMapImpl implements ResilientMap {
         
         async DataStore.getInstance().executor().asyncExecuteRequest(request);
         
-        if (VERBOSE) Utils.console(moduleName, "get["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "get["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "get["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "get["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (request.isSuccessful())
             return request.outValue;
         else
@@ -211,11 +211,11 @@ public class ResilientMapImpl implements ResilientMap {
         request.inKey = key;
         request.inValue = value;
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "put["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "put["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "put["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "put["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (request.isSuccessful())
             return request.outValue;
         else
@@ -230,11 +230,11 @@ public class ResilientMapImpl implements ResilientMap {
         val request = new MapRequest(transId, MapRequest.REQ_DELETE, name);
         request.inKey = key;        
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "delete["+transId+"]  { await ... "); }
         Runtime.increaseParallelism();
         request.lock.await();
         Runtime.decreaseParallelism(1n);
-        if (VERBOSE) Utils.console(moduleName, "delete["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "delete["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (request.isSuccessful())
             return request.outValue;
         else
@@ -243,7 +243,7 @@ public class ResilientMapImpl implements ResilientMap {
     
     private def nextRandomSleep():Long {
         val time = Math.abs(rnd.nextLong()) % ABORT_SLEEP_MILLIS_MAX;
-        if (VERBOSE) Utils.console(moduleName, "sleeping for " + time + "ms");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "sleeping for " + time + "ms"); }
         return time;
     }
 }

@@ -15,11 +15,11 @@ public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newR
 
     public def start() {
         startTimeMillis = Timer.milliTime();
-        if (VERBOSE) Utils.console(moduleName, "migration request for partitionId["+partitionId+"] started at ["+startTimeMillis+"]");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "migration request for partitionId["+partitionId+"] started at ["+startTimeMillis+"]"); }
     }
     
     public def complete() {
-        if (VERBOSE) Utils.console(moduleName, "migration request for partitionId["+partitionId+"] is complete");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "migration request for partitionId["+partitionId+"] is complete"); }
         completed = true;
     }
 
@@ -27,7 +27,7 @@ public class MigrationRequest (partitionId:Long, oldReplicas:HashSet[Long], newR
     public def isTimeOut(limit:Long):Boolean {
         val curTime = Timer.milliTime();
         val elapsedTime = curTime - startTimeMillis;
-        if (VERBOSE) Utils.console(moduleName, "Timeout limit ["+limit+"]  startTime["+startTimeMillis+"]  elapsedTime["+elapsedTime+"]   result ["+(elapsedTime > limit)+"] ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Timeout limit ["+limit+"]  startTime["+startTimeMillis+"]  elapsedTime["+elapsedTime+"]   result ["+(elapsedTime > limit)+"] ..."); }
         return elapsedTime > limit;
     }
     

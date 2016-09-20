@@ -46,14 +46,14 @@ public class MigrationHandler {
     }
     
     public def addRequest(clientPlace:Long, deadPlaces:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "adding dead place notification from client ["+clientPlace+"]");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "adding dead place notification from client ["+clientPlace+"]"); }
         try{
             lock.lock();
             val impactedClients = new HashSet[Long]();
             impactedClients.add(clientPlace);
             pendingRequests.add(new DeadPlaceNotification(impactedClients, deadPlaces));
             if (!migrating) {
-                if (VERBOSE) Utils.console(moduleName, "starting an async migration request ...");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "starting an async migration request ..."); }
                 migrating = true;
                 async processRequests();
             }
@@ -64,7 +64,7 @@ public class MigrationHandler {
     
     public def processRequests() {    
     	Runtime.increaseParallelism();
-        if (VERBOSE) Utils.console(moduleName, "processing migration requests ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "processing migration requests ..."); }
         var nextReq:DeadPlaceNotification = nextRequest();
         var updateLeader:Boolean = false;
         val impactedClients = new HashSet[Long](); 
@@ -72,7 +72,7 @@ public class MigrationHandler {
         var curReq:Long = 0;
         var result:PartitionsMigrationResult = null;
         while(nextReq != null){
-            if (VERBOSE) Utils.console(moduleName, "new iteration for processing migration requests ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "new iteration for processing migration requests ..."); }
             
             var newDeadPlaces:Boolean = false;
             //update the topology to re-generate a new partition table
@@ -101,7 +101,7 @@ public class MigrationHandler {
             		success = result.success;
             	}catch(ex:Exception) {
             		valid = false;
-            		Utils.console(moduleName, "Invalid migration handler exception["+ex.getMessage()+"]");
+            		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Invalid migration handler exception["+ex.getMessage()+"]"); }
             	}
             }
             
@@ -127,9 +127,9 @@ public class MigrationHandler {
     
     //Don't aquire the lock here to allow new requests to be added while migrating the partitions
     private def migratePartitions():PartitionsMigrationResult {    	
-    	if (VERBOSE) Utils.console(moduleName, "migratePartitions() started valid["+valid+"]...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "migratePartitions() started valid["+valid+"]..."); }
     	if (!valid) {
-    	    if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException  handler is invalid ...");
+    		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Going to throw InvalidDataStoreException  handler is invalid ..."); }
     		throw new InvalidDataStoreException();
     	}
     	
@@ -141,13 +141,13 @@ public class MigrationHandler {
         
         //2. Apply the migration requests (copy from sources to destinations)
         for (req in migrationRequests) {
-            if (VERBOSE) Utils.console(moduleName, "Handling migration request: " + req.toString());
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Handling migration request: " + req.toString()); }
             try {
                 val src = req.oldReplicas.iterator().next();
                 val destinations = req.newReplicas;
                 val partitionId = req.partitionId;
                 val gr = GlobalRef[MigrationRequest](req);
-                if (VERBOSE) Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... ");
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Copying partition from["+src+"] to["+Utils.hashSetToString(req.newReplicas)+"] ... "); }
                 req.start();
                 if (!Place(src).isDead()) {
                 	at (Place(src)) async {
@@ -173,7 +173,7 @@ public class MigrationHandler {
         		}
         	}
         }
-        if (VERBOSE) Utils.console(moduleName, "Migration completed with success=["+success+"] , newDeadPlaces are ["+Utils.hashSetToString(newDeadPlaces)+"] ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Migration completed with success=["+success+"] , newDeadPlaces are ["+Utils.hashSetToString(newDeadPlaces)+"] ..."); }
         return new PartitionsMigrationResult(success, newDeadPlaces);
     }
     
@@ -184,7 +184,7 @@ public class MigrationHandler {
             for (req in requests) {
                 val timeOutFlag = req.isTimeOut(timeoutLimit);
                 if (!req.isComplete() && !timeOutFlag) {
-                    if (VERBOSE)  Utils.console(moduleName, "migration request {"+req.toString()+"} is not complete!!! isComplete["+req.isComplete() +"] isTimeOut["+timeOutFlag+"] ...");
+                	@Ifdef("__DS_DEBUG__") {  Utils.console(moduleName, "migration request {"+req.toString()+"} is not complete!!! isComplete["+req.isComplete() +"] isTimeOut["+timeOutFlag+"] ..."); }
                     allComplete = false;
                     break;
                 }
@@ -193,7 +193,7 @@ public class MigrationHandler {
             if (allComplete)
                 break;
             
-            if (VERBOSE) Utils.console(moduleName, "waiting for migration to complete ...");
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "waiting for migration to complete ..."); }
             System.threadSleep(MIGRATION_SLEEP);
             
         } while (!allComplete && valid);
@@ -236,7 +236,7 @@ public class MigrationHandler {
                 
                 pendingRequests.clear();
                 result = new DeadPlaceNotification(allClients, allDeadPlaces);
-                if (VERBOSE) Utils.console(moduleName, "nextMigrationRequest is: " + result.toString());
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "nextMigrationRequest is: " + result.toString()); }
             }
             else
                 migrating = false;
