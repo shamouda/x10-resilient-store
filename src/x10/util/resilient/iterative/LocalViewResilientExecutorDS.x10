@@ -78,18 +78,21 @@ public class LocalViewResilientExecutorDS {
         var lastCheckpointIter:Long = -1;
         var commitCount:Long = 0;
         
+    	val getDataStoreTimes:ArrayList[Long];
         val checkpointTimes:ArrayList[Long];
         val checkpointAgreementTimes:ArrayList[Long];
         val restoreTimes:ArrayList[Long];
         val restoreAgreementTimes:ArrayList[Long];
         val stepTimes:ArrayList[Long];
     
+    	var placeMaxGetDataStore:Rail[Long];
         var placeMaxCheckpoint:Rail[Long];
         var placeMaxCheckpointAgreement:Rail[Long];
         var placeMaxRestore:Rail[Long];
         var placeMaxRestoreAgreement:Rail[Long];
         var placeMaxStep:Rail[Long];
 
+    	var placeMinGetDataStore:Rail[Long];
         var placeMinCheckpoint:Rail[Long];
         var placeMinCheckpointAgreement:Rail[Long];
         var placeMinRestore:Rail[Long];
@@ -99,10 +102,11 @@ public class LocalViewResilientExecutorDS {
     	val datastore:ResilientMap;
         
         //used for initializing spare places with the same values from Place0
-        private def this(datastore:ResilientMap, checkTimes:ArrayList[Long], checkAgreeTimes:ArrayList[Long], 
+        private def this(datastore:ResilientMap, getDataStoreTimes:ArrayList[Long], checkTimes:ArrayList[Long], checkAgreeTimes:ArrayList[Long], 
         		restoreTimes:ArrayList[Long], restoreAgreeTimes:ArrayList[Long],
         		stepTimes:ArrayList[Long], lastCheckpointIter:Long, commitCount:Long){
-            this.checkpointTimes = checkTimes;
+            this.getDataStoreTimes = getDataStoreTimes;
+        	this.checkpointTimes = checkTimes;
             this.checkpointAgreementTimes = checkAgreeTimes;
             this.stepTimes = stepTimes;
             this.restoreTimes = restoreTimes;
@@ -118,6 +122,7 @@ public class LocalViewResilientExecutorDS {
             this.restoreTimes = new ArrayList[Long]();
             this.restoreAgreementTimes = new ArrayList[Long]();
             this.stepTimes = new ArrayList[Long]();
+            this.getDataStoreTimes = new ArrayList[Long]();
             this.datastore = datastore;
         }
         
@@ -192,6 +197,7 @@ public class LocalViewResilientExecutorDS {
                         ///////////////////////////////////////////////////////////
                         //Initialize the new places with the same info at place 0//
                         val lastCheckIter = placeTempData().lastCheckpointIter;
+                        val tmpPlace0GetDataStoreTimes = placeTempData().getDataStoreTimes;
                         val tmpPlace0CheckpointTimes = placeTempData().checkpointTimes;
                         val tmpPlace0CheckpointAgreeTimes = placeTempData().checkpointAgreementTimes;
                         val tmpPlace0RestoreTimes = placeTempData().restoreTimes;
@@ -203,7 +209,7 @@ public class LocalViewResilientExecutorDS {
                         for (sparePlace in addedPlaces){
                             Console.OUT.println("LocalViewResilientExecutor: Adding place["+sparePlace+"] ...");           
                             PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, sparePlace, 
-                            		()=>new PlaceTempData(datastore,tmpPlace0CheckpointTimes, tmpPlace0CheckpointAgreeTimes, 
+                            		()=>new PlaceTempData(datastore,tmpPlace0GetDataStoreTimes, tmpPlace0CheckpointTimes, tmpPlace0CheckpointAgreeTimes, 
                             				tmpPlace0RestoreTimes, tmpPlace0RestoreAgreeTimes, tmpPlace0StepTimes, lastCheckIter,
                             				tmpPlace0CommitCount));
                         }
@@ -292,11 +298,15 @@ public class LocalViewResilientExecutorDS {
         calculateTimingStatistics();
         
         val averageSteps                   = avergaMaxMinRails(placeTempData().placeMinStep,                placeTempData().placeMaxStep);
+        var averageGetDataStore:Rail[Double] = null;
         var averageCheckpoint:Rail[Double] = null;
         var averageCheckpointAgreement:Rail[Double] = null;
         var averageRestore:Rail[Double] = null;
         var averageRestoreAgreement:Rail[Double] = null;
         if (isResilient){
+        	if (placeTempData().getDataStoreTimes.size() > 0)
+        	    averageGetDataStore        = avergaMaxMinRails(placeTempData().placeMinGetDataStore,     placeTempData().placeMaxGetDataStore);
+        	    
             if (placeTempData().checkpointTimes.size() > 0)
                 averageCheckpoint          = avergaMaxMinRails(placeTempData().placeMinCheckpoint,          placeTempData().placeMaxCheckpoint);
             
@@ -318,6 +328,11 @@ public class LocalViewResilientExecutorDS {
     	Console.OUT.println("Steps-max:" + railToString(placeTempData().placeMaxStep));
     	
     	if (isResilient){
+    		
+    		Console.OUT.println("GetDataStore-avg:" + railToString(averageGetDataStore));
+	    	Console.OUT.println("GetDataStore-min:" + railToString(placeTempData().placeMinGetDataStore));
+	    	Console.OUT.println("GetDataStore-max:" + railToString(placeTempData().placeMaxGetDataStore));
+    		
 	    	Console.OUT.println("CheckpointData-avg:" + railToString(averageCheckpoint));
 	    	Console.OUT.println("CheckpointData-min:" + railToString(placeTempData().placeMinCheckpoint));
 	    	Console.OUT.println("CheckpointData-max:" + railToString(placeTempData().placeMaxCheckpoint));
@@ -346,6 +361,9 @@ public class LocalViewResilientExecutorDS {
         Console.OUT.println(">>>>>>>>>>>>>>TotalSteps:"+ railSum(averageSteps) );
         Console.OUT.println();
         if (isResilient){
+        Console.OUT.println("GetDataStore:"             + railToString(averageGetDataStore));        
+        Console.OUT.println(">>>>>>>>>>>>>>TotalGetDataStore:"+ railSum(averageGetDataStore));        
+        
         Console.OUT.println("CheckpointData:"             + railToString(averageCheckpoint));
         Console.OUT.println("   ---AverageCheckpointData:" + railAverage(averageCheckpoint) );
         Console.OUT.println("CheckpointAgreement:"             + railToString(averageCheckpointAgreement)  );
@@ -363,14 +381,14 @@ public class LocalViewResilientExecutorDS {
         Console.OUT.println("   ---RestoreData:"    + railAverage(averageRestore));
         Console.OUT.println("RestoreAgreement:"         + railToString(averageRestoreAgreement) );
         Console.OUT.println("   ---RestoreAgreement:"    + railAverage(averageRestoreAgreement) );
-        Console.OUT.println(">>>>>>>>>>>>>>TotalRecovery:" + (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
+        Console.OUT.println(">>>>>>>>>>>>>>TotalRecovery:" + (railSum(averageGetDataStore) + railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
         }
         Console.OUT.println("=============================");
         Console.OUT.println("Actual RunTime:" + runTime);
         var calcTotal:Double = applicationInitializationTime + railSum(averageSteps);
         
         if (isResilient){
-        	calcTotal += (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
+        	calcTotal += (railSum(averageGetDataStore) + railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
                 (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) );
         }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
@@ -497,11 +515,15 @@ public class LocalViewResilientExecutorDS {
     private def checkpointRestoreProtocol(operation:Long, app:LocalViewResilientIterativeAppDS, team:Team, root:Place, placesCount:Long){
     	val op:String = (operation==CHECKPOINT_OPERATION)?"Checkpoint":"Restore";
     
-        val startOperation = Timer.milliTime();
-        val excs = new GrowableRail[CheckedThrowable]();
-        val datastore = placeTempData().getDataStore();
-        val txId = datastore.startTransaction();
         
+        val excs = new GrowableRail[CheckedThrowable]();
+        
+        val startGetDataStore = Timer.milliTime();
+        val datastore = placeTempData().getDataStore();
+        placeTempData().getDataStoreTimes.add(Timer.milliTime() - startGetDataStore);
+        
+        val startOperation = Timer.milliTime();
+        val txId = datastore.startTransaction();        
         var vote:Long = 1;
         try{
             if (operation == CHECKPOINT_OPERATION) {
@@ -562,6 +584,8 @@ public class LocalViewResilientExecutorDS {
         	if (success == 1N) {
         		if (VERBOSE) Console.OUT.println(here+" Agreement succeeded in operation ["+op+"] transId["+txId+"] ...");
         		datastore.confirmCommit(txId);
+        		if (here.id == 0)
+        			Console.OUT.println(" Checkpointing succeeded ...");
         	}
         	else {
         		//Failure due to a reason other than place failure, will need to abort.
@@ -569,7 +593,7 @@ public class LocalViewResilientExecutorDS {
         	}
         }
         catch(agrex:Exception){
-        	Console.OUT.println(here + " [Fatal Error] Agreement failed in operation ["+op+"] ");
+        	//Console.OUT.println(here + " [Fatal Error] Agreement failed in operation ["+op+"] ");
         	//agrex.printStackTrace();
         	excs.add(agrex);
         	try {
@@ -650,9 +674,7 @@ class SimplePlaceHammer {
 	
 	public def sayGoodBye(curStep:Long):Boolean {
 		val placeToKill = map.getOrElse(curStep,-1);
-		Console.OUT.println("sayGoodby  place["+placeToKill+"]  victim["+curStep+"]");
 		if (placeToKill == here.id) {
-			Console.OUT.println("sayGoodby  place["+placeToKill+"]  victim["+curStep+"] = true");		
 			return true;
 		}
 		else {
