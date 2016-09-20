@@ -20,7 +20,6 @@ import x10.compiler.Ifdef;
  **/
 public class ReplicaClient {
     private val moduleName = "ReplicaClient";
-    public static val VERBOSE = Utils.getEnvLong("REPLICA_CLIENT_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val REPLICA_CLIENT_SLEEP = Utils.getEnvLong("REPLICA_CLIENT_SLEEP", 100);    
     public static val REQUEST_TIMEOUT = Utils.getEnvLong("REQUEST_TIMEOUT", 100) ;
     

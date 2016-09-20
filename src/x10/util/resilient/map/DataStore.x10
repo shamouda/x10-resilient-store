@@ -19,7 +19,6 @@ import x10.compiler.Ifdef;
 //creates the local datastore instance  (one per place)
 public class DataStore {
     private val moduleName = "DataStore";
-    public static val VERBOSE = Utils.getEnvLong("DATA_STORE_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val REPLICATION_FACTOR = Utils.getEnvLong("REPLICATION_FACTOR", 2);
     public static val FORCE_ONE_PLACE_PER_NODE = Utils.getEnvLong("FORCE_ONE_PLACE_PER_NODE", 0) == 1;
     public static val LEADER_NODE = Utils.getEnvLong("DATA_STORE_LEADER_NODE", 0);
@@ -91,8 +90,9 @@ public class DataStore {
                     deputyLeaderPlace = topology.getPlaceByIndex(((leaderNodeIndex+1) % topology.getNodesCount()) , placeIndex);
                     partitionTable = new PartitionTable(partitionsCount, REPLICATION_FACTOR);
                     partitionTable.createPartitionTable(topology);
-                    if (VERBOSE && here.id == 0)
-                        partitionTable.printPartitionTable();
+                    @Ifdef("__DS_DEBUG__") {
+                        if (here.id == 0) partitionTable.printPartitionTable();
+                    }
                     replica = new Replica(partitionTable.getPlacePartitions(here.id));
                     executor = new ReplicaClient(partitionTable);
                     
@@ -103,11 +103,11 @@ public class DataStore {
                     
                     initialized = true;
         
-                    if (VERBOSE) Utils.console(moduleName, "Initialization done successfully ...");
+                    @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Initialization done successfully ..."); }
                 }catch(ex:Exception) {
                     initialized = true;
                     valid = false;
-                    Utils.console(moduleName, "Initialization failed ...");
+                    Utils.console(moduleName, "FATAL DS Error: Initialization failed ...");
                     ex.printStackTrace();
                 }
             }
@@ -185,27 +185,27 @@ public class DataStore {
     }        
    
     public def getLeaderOrDeputyLeader() {
-        if (VERBOSE) Utils.console(moduleName,"getLeaderOrDeputyLeader");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName,"getLeaderOrDeputyLeader"); }
         var targetPlace:Place;
         if (!leaderPlace.isDead()) {
             targetPlace = leaderPlace;
-            if (VERBOSE) Utils.console(moduleName, "Found LEADER: " + targetPlace);
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Found LEADER: " + targetPlace); }
         }
         else if (!deputyLeaderPlace.isDead()) {
             targetPlace = deputyLeaderPlace;
-            if (VERBOSE) Utils.console(moduleName, "Found DEPUTY LEADER: " + targetPlace);
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Found DEPUTY LEADER: " + targetPlace); }
         }
         else {
-        	if (VERBOSE) Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for the leader");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Both LEADER and DEPUTY LEADER are dead, start searching for the leader"); }
         	val newLeaderId = searchForLeader();
         	if (newLeaderId == -1) {
-        		if (VERBOSE) Utils.console(moduleName, "FATAL: No leader found");
+        		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "FATAL: No leader found"); }
         		valid = false;
         		throw new InvalidDataStoreException();
         	}
         	else {
         		targetPlace = Place(newLeaderId);
-        		if (VERBOSE) Utils.console(moduleName, "After searching found LEADER: " + targetPlace);
+        		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "After searching found LEADER: " + targetPlace); }
         	}
         }
         
@@ -214,7 +214,7 @@ public class DataStore {
     
     /*Invoked by ReplicaClient to notify the death of some replicas, which requires migration*/
     public def clientNotifyDeadPlaces(places:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places));
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName,"clientNotifyDeadPlaces: " + Utils.hashSetToString(places)); }
         val targetPlace = getLeaderOrDeputyLeader();
         
         val clientPlaceId = here.id;
@@ -225,7 +225,7 @@ public class DataStore {
     
     /*Invoked by Replica to notify the death of a ReplicaClient, which requires transaction recovery*/
     public def clientRequestTransactionRecovery(transactionId:Long, replicas:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName,"clientRequestTransactionRecovery: TransactionId["+transactionId+"] replicas:" + Utils.hashSetToString(replicas));
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName,"clientRequestTransactionRecovery: TransactionId["+transactionId+"] replicas:" + Utils.hashSetToString(replicas)); }
         val targetPlace = getLeaderOrDeputyLeader();
         
         val clientPlaceId = here.id;
@@ -240,11 +240,11 @@ public class DataStore {
     		throw new InvalidDataStoreException();
     	}
     	
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating Leader Status ..."); }
         this.topology.update(topology);
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - topology updated ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating Leader Status - topology updated ..."); }
         this.partitionTable.update(partitionTable);
-        if (VERBOSE) Utils.console(moduleName, "Updating Leader Status - partition table updated ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating Leader Status - partition table updated ..."); }
         
         var changeDeputyLeader:Boolean = false;
         if (leaderPlace.id == here.id && deputyLeaderPlace.isDead()){
@@ -253,11 +253,11 @@ public class DataStore {
         else if (deputyLeaderPlace.id == here.id && leaderPlace.isDead()) {
             leaderPlace = here;
             changeDeputyLeader = true;
-            if (VERBOSE) Utils.console(moduleName, "Promoted myself to leader ...");
+            @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Promoted myself to leader ..."); }
         }        
         
         if (changeDeputyLeader) {
-        	if (VERBOSE) Utils.console(moduleName, "Changing the deputy leader ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Changing the deputy leader ..."); }
         	deputyLeaderPlace = findNewDeputyLeader();
         	val tmpLeader = leaderPlace;
         	val tmpTopology = topology;        	
@@ -272,7 +272,7 @@ public class DataStore {
      * It updates the state of other places with the same state at the leader or deputy leader
      **/
     public def updatePlaces(places:HashSet[Long], valid:Boolean) {
-        if (VERBOSE) Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating impacted client places ["+Utils.hashSetToString(places)+"] ..."); }
         val tmpLeader = leaderPlace;
         val tmpDeputyLeader = deputyLeaderPlace;
         val tmpTopology = topology;
@@ -291,13 +291,13 @@ public class DataStore {
             	    DataStore.getInstance().valid = false;
             		at (Place(targetClient)) async {
             			DataStore.getInstance().valid = false;
-            			Utils.console(moduleName, "Updating impacted client places -> setting valid = false ...");
+            			@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating impacted client places -> setting valid = false ..."); }
             		}
             		
             	}
             }
-            else if (VERBOSE) {
-                Utils.console(moduleName, "Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");
+            else {
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Ignore updating client place ["+Place(targetClient)+"] because it is dead ...");}
             }
         }
     }
@@ -307,7 +307,7 @@ public class DataStore {
      * No need to pass in the partition table, it can be re-created using the topology object
      **/
     public def updateClient(leader:Place, deputyLeader:Place, topology:Topology) {
-        if (VERBOSE) Utils.console(moduleName, "Updating my status with leader's new status ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Updating my status with leader's new status ..."); }
         val oldDeputyLeader = this.deputyLeaderPlace;
         val oldLeader = this.leaderPlace;
         
@@ -325,7 +325,7 @@ public class DataStore {
    			if (transactionRecoveryManager == null)
    				transactionRecoveryManager = new TransactionRecoveryManager();
     	}
-    	if (VERBOSE) Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ...");        
+   		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Topology and Partition Table Updated , leader changed from["+oldLeader+"] to["+leader+"], and deputyLeader changed from ["+oldDeputyLeader+"] to ["+deputyLeader+"] ..."); }        
     }
     
     /**
@@ -349,14 +349,14 @@ public class DataStore {
     //Search for a leader
     //TODO: get a deputy leader if leader not found
     public def searchForLeader():Long {
-    	if (VERBOSE) Utils.console(moduleName, "searchForLeader: waiting for lock ...");    	
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "searchForLeader: waiting for lock ..."); }    	
     	var foundLeaderPlaceId:Long = -1;
         var deputyLeaderId:Long = -1;
     	var deputyLeaderNodeIndex:Long = -1;
     	
     	try {
     		lock.lock();    
-    		if (VERBOSE) Utils.console(moduleName, "searchForLeader: obtained the lock ...");    	
+    		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "searchForLeader: obtained the lock ..."); }    	
     		val nodesCount = topology.getNodesCount();
     		deputyLeaderId = this.deputyLeaderPlace.id;
     		deputyLeaderNodeIndex = topology.getNodeIndex(deputyLeaderId);
@@ -364,16 +364,16 @@ public class DataStore {
     		for (var i:Long = 1; i < nodesCount; i++) {
     			val candidatePlace = topology.getPlaceByIndex(((deputyLeaderNodeIndex+i) % nodesCount) , placeIndex);
     			if (!candidatePlace.isDead()) {
-    				if (VERBOSE) Utils.console(moduleName, "Going to check if " + candidatePlace + " is a Leader ");
+    				@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Going to check if " + candidatePlace + " is a Leader "); }
     				val isLeader = at (candidatePlace) DataStore.getInstance().isLeader();
-    				if (VERBOSE) Utils.console(moduleName, "Is " + candidatePlace + " a Leader? " + isLeader);
+    				@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Is " + candidatePlace + " a Leader? " + isLeader); }
     				if (isLeader) {
     					foundLeaderPlaceId = candidatePlace.id;
     					break;
     				}
     			}
     			else{
-    				if (VERBOSE) Utils.console(moduleName, "searchForLeader: ["+candidatePlace+"] is dead , not leader...");
+    				@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "searchForLeader: ["+candidatePlace+"] is dead , not leader..."); }
     			}
     		}
     	}finally {

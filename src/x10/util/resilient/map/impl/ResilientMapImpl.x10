@@ -19,7 +19,6 @@ import x10.compiler.Ifdef;
  * */
 public class ResilientMapImpl implements ResilientMap {
     private val moduleName = "ResilientMapImpl";
-    public static val VERBOSE = Utils.getEnvLong("MAP_IMPL_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val RETRY_MAX = Utils.getEnvLong("TRANS_RETRY_MAX", Place.numPlaces());
     
     public static val ABORT_SLEEP_MILLIS_MAX = Utils.getEnvLong("ABORT_SLEEP_MILLIS_MAX", 20);
@@ -60,8 +59,8 @@ public class ResilientMapImpl implements ResilientMap {
                 break;
             } catch(ex:Exception) {
                 commitException = ex;
-                if (VERBOSE) ex.printStackTrace();
-                    abortTransaction(txId);                    
+                @Ifdef("__DS_DEBUG__") { ex.printStackTrace(); }
+                abortTransaction(txId);                    
             }
             attempt ++;
         } while (attempt < RETRY_MAX);

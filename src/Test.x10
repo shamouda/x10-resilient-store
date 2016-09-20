@@ -118,8 +118,8 @@ public class Test {
     }
     
     public static def main(args:Rail[String]) {
-        //DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 ./a.out
-        //KILL_PLACE=3 KILL_PLACE_POINT=1 X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 ./a.out
+        //X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 ./a.out
+        //KILL_PLACE=3 KILL_PLACE_POINT=1 X10_RESILIENT_MODE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 ./a.out
         
         //test02();
         //test03();

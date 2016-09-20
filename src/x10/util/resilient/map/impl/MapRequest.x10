@@ -9,9 +9,6 @@ import x10.compiler.Ifdef;
 
 public class MapRequest {
     private val moduleName = "MapRequest";
-    public static val VERBOSE = Utils.getEnvLong("MAP_REQ_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
-
-    
     public val id:Long;
     private static val idSequence = new AtomicLong();
     

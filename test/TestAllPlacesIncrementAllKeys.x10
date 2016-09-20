@@ -15,16 +15,16 @@ import x10.util.Timer;
  * make TestAllPlacesIncrementAllKeys
  * 
  * --without killing places
- * DS_ALL_VERBOSE=0 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o
+ * X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o
  * 
  * -- kill place 3:  (Place 3 is: Replica and ReplicaClient )
- * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o 3
+ * X10_RESILIENT_MODE=1 X10_NPLACES=10 FORCE_ONE_PLACE_PER_NODE=1 ./TestAllPlacesIncrementAllKeys.o 3
  * 
  * -- kill place 3:  (Place 3 is a Leader)
- * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 3
+ * X10_RESILIENT_MODE=1 X10_NPLACES=4 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 3
  * 
  * -- kill place 4 (Place 4 is Deputy Leader)
- * X10_RESILIENT_MODE=1 DS_ALL_VERBOSE=1 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 4
+ * X10_RESILIENT_MODE=1 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestAllPlacesIncrementAllKeys.o 4
  */
 public class TestAllPlacesIncrementAllKeys(placeToKill:Long) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 

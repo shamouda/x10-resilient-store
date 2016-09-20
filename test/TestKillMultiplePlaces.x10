@@ -23,19 +23,17 @@ import x10.util.resilient.iterative.*;
  * 
  * DATA_STORE_LEADER_NODE=3
  * FORCE_ONE_PLACE_PER_NODE=1
- * DS_ALL_VERBOSE=0
  * KILL_WHILE_COMMIT_PLACE_ID=1 
  * KILL_WHILE_COMMIT_TRANS_COUNT=3 
  * MIGRATION_TIMEOUT=1000 
  * 
- * X10_NTHREADS=1 X10_RESILIENT_MODE=0 DS_ALL_VERBOSE=0 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o -m 40 -c 1 -q 100 -vp 2,5 -vi 5,25
+ * X10_NTHREADS=1 X10_RESILIENT_MODE=0 X10_NPLACES=6 FORCE_ONE_PLACE_PER_NODE=1 DATA_STORE_LEADER_NODE=3 ./TestKillMultiplePlaces.o -m 40 -c 1 -q 100 -vp 2,5 -vi 5,25
  */
 public class TestKillMultiplePlaces (verify:Boolean, maxIterations:Long, killPeriodInMillis:Long, killedPlacesPercentage:Float, enableConflict:Boolean, victimPlaces:String, victimIterations:String) extends x10Test {
     private static KEYS_RAIL = ["A", "B", "C", "D", "E", "F", "G", 
                              "H", "I", "J", "K", "L", "M", "N", 
                              "O", "P", "Q", "R", "S", "T", "U", 
                              "V", "W", "X", "Y", "Z"];
-    private static VERBOSE = false;
     private val complete = new AtomicBoolean(false);
     private var exec:LocalViewResilientExecutorDS;
     

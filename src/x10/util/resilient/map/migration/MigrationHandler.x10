@@ -16,7 +16,6 @@ import x10.compiler.Ifdef;
  **/
 public class MigrationHandler {
     private val moduleName = "MigrationHandler";
-    public static val VERBOSE = Utils.getEnvLong("MIG_MNGR_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val MIGRATION_TIMEOUT = Utils.getEnvLong("MIGRATION_TIMEOUT", 1000);
     public static val MIGRATION_SLEEP = Utils.getEnvLong("MIGRATION_SLEEP", 100);
     

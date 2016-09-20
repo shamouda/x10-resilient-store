@@ -24,7 +24,6 @@ import x10.compiler.Ifdef;
  **/
 public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
     private val moduleName = "PartitionTable";
-    public static val VERBOSE = Utils.getEnvLong("PART_TABLE_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
 
     /*The replication arrays*/
     private val replicas:ArrayList[Rail[Long]] = new ArrayList[Rail[Long]]();
@@ -46,10 +45,12 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * retrieved from leader/deputyLeader place
      */
     public def createPartitionTable(topology:Topology) {
-        if (VERBOSE && here.id == 0) {
-            topology.printTopology();
-            topology.printDeadPlaces();
-        }
+    	@Ifdef("__DS_DEBUG__") {
+            if (here.id == 0) {
+                topology.printTopology();
+                topology.printDeadPlaces();
+            }
+    	}
             
         replicas.clear();
         for (i in 0..(replicationFactor-1)){
@@ -108,7 +109,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
         
         version.incrementAndGet();
         
-        if (VERBOSE) { 
+        @Ifdef("__DS_DEBUG__") {
             Utils.console(moduleName, "Node partitions ");
             val iter = nodePartitions.keySet().iterator();
             while (iter.hasNext()) {
@@ -185,7 +186,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
      * Compares two parition tables and generates migration requests
      **/
     public def generateMigrationRequests(updatedTable:PartitionTable):ArrayList[MigrationRequest] {
-        if (VERBOSE) {
+    	@Ifdef("__DS_DEBUG__") {
             Console.OUT.println("%%%   Old Table   %%%");
             printPartitionTable();        
             Console.OUT.println("%%%   New Table   %%%");
@@ -213,7 +214,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
                 }
                 
                 if (hostPlaces.size() == 0) {
-                	if (VERBOSE) Utils.console(moduleName, "Going to throw InvalidDataStoreException  - partition ["+p+"] has no host places");
+                	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Going to throw InvalidDataStoreException  - partition ["+p+"] has no host places"); }
                     throw new InvalidDataStoreException();
                 }
                 
@@ -224,7 +225,7 @@ public class PartitionTable (partitionsCount:Long, replicationFactor:Long) {
             lock.unlock();
         }
         
-        if (VERBOSE) {
+        @Ifdef("__DS_DEBUG__") {
             Utils.console(moduleName, "Printing migration requests:");
             for (req in result) {
                 Utils.console(moduleName, req.toString());

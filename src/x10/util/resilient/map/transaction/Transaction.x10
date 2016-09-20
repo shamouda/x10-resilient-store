@@ -12,7 +12,6 @@ import x10.compiler.Ifdef;
  * */
 public class Transaction {
     private val moduleName = "Transaction";
-    public static val VERBOSE = Utils.getEnvLong("TRANS_LOG_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     
     /*Transaction Id*/
     public val transId:Long;
@@ -95,12 +94,12 @@ public class Transaction {
         val overlap = getOverlappingKeys(other);
         for (key in overlap){
             if (!cache.getOrThrow(key).readOnly() || !other.cache.getOrThrow(key).readOnly()){
-                if (VERBOSE) Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") conflict in key ["+key+"]");
+            	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") conflict in key ["+key+"]"); }
                 result = true;
                 break;
             }
         }
-        if (VERBOSE) Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") conflicting=["+result+"] ...");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Tx("+transId+") and Tx("+(other.transId)+") conflicting=["+result+"] ..."); }
         return result;
     }
     
@@ -116,7 +115,7 @@ public class Transaction {
             }catch(ex:Exception){}
         }
         
-        if (VERBOSE){
+        @Ifdef("__DS_DEBUG__") {
             if (list.size() == 0)
                 Utils.console(moduleName,"Tx("+transId+") and Tx("+(other.transId)+") no overlap");
             else{

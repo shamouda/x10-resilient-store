@@ -17,7 +17,6 @@ import x10.xrx.Runtime;
  **/
 public class TransactionRecoveryManager {
     private val moduleName = "TransactionRecoveryManager";
-    public static val VERBOSE = Utils.getEnvLong("TRANS_RECOVERY_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     
     private val pendingRequests = new ArrayList[RecoveryRequest](); //transactions that need recovery
     private var processing:Boolean = false;
@@ -26,7 +25,7 @@ public class TransactionRecoveryManager {
     private var valid:Boolean = true;
     
     public def addRequest(reportingReplica:Long, transactionId:Long, replicas:HashSet[Long]) {
-        if (VERBOSE) Utils.console(moduleName, "adding recovery request from replica ["+reportingReplica+"]");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "adding recovery request from replica ["+reportingReplica+"]"); }
         try{
             lock.lock();
             var found:Boolean = false;
@@ -39,7 +38,7 @@ public class TransactionRecoveryManager {
             if (!found) {
             	pendingRequests.add(new RecoveryRequest(reportingReplica,transactionId, replicas));
             	if (!processing) {
-            		if (VERBOSE) Utils.console(moduleName, "starting an async recovery thread ...");
+            		@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "starting an async recovery thread ..."); }
             		processing = true;
             		async processRequests();
             	}
@@ -50,11 +49,11 @@ public class TransactionRecoveryManager {
     }
     
     public def processRequests() {
-        if (VERBOSE) Utils.console(moduleName, "processing recovery requests ...");
+    	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "processing recovery requests ..."); }
         var nextReq:RecoveryRequest = nextRequest();
         Runtime.increaseParallelism();
         while(nextReq != null){
-            if (VERBOSE) Utils.console(moduleName, "new iteration for processing recovery requests ...");
+        	@Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "new iteration for processing recovery requests ..."); }
             
             val transId = nextReq.transactionId;
             val replicas = nextReq.replicas;
@@ -78,7 +77,7 @@ public class TransactionRecoveryManager {
             lock.lock();
             if (pendingRequests.size() > 0) {                
                 result = pendingRequests.removeAt(0);
-                if (VERBOSE) Utils.console(moduleName, "next TransactionRecoveryRequest is: " + result.toString());
+                @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "next TransactionRecoveryRequest is: " + result.toString()); }
             }
             else
                 processing = false;
@@ -94,9 +93,9 @@ public class TransactionRecoveryManager {
         request.setReplicationInfo(replicas);
         request.enableCommitRecovery();
         DataStore.getInstance().executor().asyncExecuteRequest(request);
-        if (VERBOSE) Utils.console(moduleName, "Recover_commitTransaction["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Recover_commitTransaction["+transId+"]  { await ... "); }
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "Recover_commitTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Recover_commitTransaction["+transId+"]          ... released }    Success="+request.isSuccessful()); }
         if (!request.isSuccessful())
             throw request.outException;
     }
@@ -105,9 +104,9 @@ public class TransactionRecoveryManager {
         val request = new MapRequest(transId, MapRequest.REQ_ABORT, null);
         request.setReplicationInfo(replicas);
         DataStore.getInstance().executor().asyncExecuteRequest(request);        
-        if (VERBOSE) Utils.console(moduleName, "Recover_abortTransaction["+transId+"]  { await ... ");
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Recover_abortTransaction["+transId+"]  { await ... "); }
         request.lock.await();
-        if (VERBOSE) Utils.console(moduleName, "Recover_abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful());
+        @Ifdef("__DS_DEBUG__") { Utils.console(moduleName, "Recover_abortTransaction["+transId+"]          ... released }    Success="+request.isSuccessful()); }
     }
 }
 

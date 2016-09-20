@@ -24,7 +24,6 @@ import x10.compiler.Ifdef;
  * */
 public class Replica {
     private val moduleName = "Replica("+here.id+")";
-    public static val VERBOSE = Utils.getEnvLong("REPLICA_VERBOSE", 0) == 1 || Utils.getEnvLong("DS_ALL_VERBOSE", 0) == 1;
     public static val REPLICA_SLEEP = Utils.getEnvLong("REPLICA_SLEEP", 100);
     public static val MIGRATION_CONFLICT_SLEEP = Utils.getEnvLong("MIGRATION_CONFLICT_SLEEP", 100);
     
