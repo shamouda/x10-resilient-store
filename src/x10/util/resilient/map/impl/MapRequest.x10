@@ -90,9 +90,12 @@ public class MapRequest {
                 replicaResponse.add(output);
             
             if (lateReplicas.size() == 0) {
-                requestStatus = STATUS_COMPLETED;
+                
                 if (outException == null)
                     outValue = replicaResponse.get(0);
+                
+                requestStatus = STATUS_COMPLETED;
+                lock.release();
             }
         }
         finally {
@@ -120,11 +123,14 @@ public class MapRequest {
             else if (lateReplicas.size() == 0 && commitStatus != CANCELL_COMMIT) //vote==1
                 commitStatus = CONFIRM_COMMIT;
 
-            if (lateReplicas.size() == 0) {
-            	if (requestType == REQ_PREPARE_ONLY)
-                    requestStatus = STATUS_COMPLETED;
+            if (lateReplicas.size() == 0) {            	
                 if (outException == null)
                     outValue = commitStatus;
+                
+                if (requestType == REQ_PREPARE_ONLY) {
+                    requestStatus = STATUS_COMPLETED;                    
+                    lock.release();
+            	}
             }
 
             if (VERBOSE) {
