@@ -47,7 +47,6 @@ public class TestLocalDataStore(iterations:Long) implements LocalDataStoreIterat
         
     }
     
-    
     public static def main(args:String[]) {
         val opts = new OptionsParser(args, [
             Option("h","help","this information")

@@ -27,20 +27,15 @@ public class LocalDataStore {
     public var slaveStore:SlaveStore = null;
     public var virtualPlaceId:Long = -1; //-1 means a spare place
     
-    public def this(spare:Long) {
+    public def this(spare:Long, slaveMap:Rail[Long]) {
         val activePlaces = Place.numPlaces() - spare;
         if (here.id < activePlaces){
             virtualPlaceId = here.id;
+            slave = Place(slaveMap(virtualPlaceId));
+            masterStore = new MasterStore(virtualPlaceId);
+            slaveStore = new SlaveStore();
         }
-        val nextPlace = (here.id + 1) % Place.numPlaces();
-        val prevPlace = (here.id - 1 + Place.numPlaces()) % Place.numPlaces();
-        if (here.id < activePlaces){
-            masterStore = new MasterStore(virtualPlaceId, nextPlace);
-            slave = nextPlace;
-        }
-        if (here.id > 0 && here.id <= activePlaces ) {
-            slaveStore = new SlaveStore(virtualPlaceId, new HashMap[String,Any](), null, 1);
-        }
+        
     }
     
     public def updateSlave(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog]) {

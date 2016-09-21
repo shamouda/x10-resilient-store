@@ -14,11 +14,11 @@ public class SlaveStore {
     private val mastersMap:HashMap[Long,HashMap[String,Any]]; // master_virtual_id, master_data
     private transient val lock:Lock = new Lock();
     
-    public def this(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
-        addMasterPlace(masterVirtualId, masterData, transLog, masterEpoch);
+    public def this() {
+        mastersMap = new HashMap[Long,HashMap[String,Any]]();
     }
     
-    /*Must be called by the master place before issuing any commits*/
+    //used to replace a previous slave
     public def addMasterPlace(newMasterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
@@ -42,7 +42,11 @@ public class SlaveStore {
     
     /*The master is sure about commiting these changes, go ahead and apply them*/
     private def applyChangesLockAcquired(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
-        val data = mastersMap.getOrThrow(masterVirtualId);
+        var data:HashMap[Long,HashMap[String,Any]] = mastersMap.getOrElse(masterVirtualId, null);
+        if (data == null) {
+            data = new HashMap[Long,HashMap[String,Any]]();
+            mastersMap.put(masterVirtualId, data);
+        }
         val iter = transLog.keySet().iterator();
         while (iter.hasNext()) {
             val key = iter.next();

@@ -15,11 +15,13 @@ public class ResilientMap {
     private var activePlaces:PlaceGroup;
     private var sparePlaces:ArrayList[Place];
     private var deadPlaces:ArrayList[Place];
+    private val slaveMap:Rail[Long]; //master virtual place to slave physical place
     
     public def this(spare:Long){
-        plh = PlaceLocalHandle.make[LocalDataStore](Place.places(), 
-                () => new LocalDataStore(spare));
         activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
+        slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
+        plh = PlaceLocalHandle.make[LocalDataStore](Place.places(), () => new LocalDataStore(spare, slaveMap));
+        
         sparePlaces = new ArrayList[Place]();
         for (var i:Long = activePlaces.size(); i< Place.numPlaces(); i++){
             sparePlaces.add(Place(i));
