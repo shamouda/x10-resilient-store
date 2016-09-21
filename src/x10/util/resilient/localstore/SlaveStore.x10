@@ -9,37 +9,52 @@ import x10.compiler.Ifdef;
 
 public class SlaveStore {
     private val moduleName = "SlavePlace";
+    private var epoch:Long;  //can be used for checking checkpointing consistency
     
     private val mastersMap:HashMap[Long,HashMap[String,Any]]; // master_virtual_id, master_data
-    private transient val lock:SimpleLatch = new SimpleLatch;
+    private transient val lock:Lock = new Lock();
+    
+    public def this(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+        addMasterPlace(masterVirtualId, masterData, transLog, masterEpoch);
+    }
     
     /*Must be called by the master place before issuing any commits*/
-    public def addMasterPlace(masterVirtualId:Long) {
+    public def addMasterPlace(newMasterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
-            val dataMap = new HashMap[String,Any]();
-            mastersMap.put(masterVirtualId, dataMap);            
+            mastersMap.put(newMasterVirtualId, masterData);
+            applyChangesLockAcquired(newMasterVirtualId, transLog, masterEpoch);
         }
         finally {
-            lock.release();
+            lock.unlock();
+        }
+    }
+    
+    public def applyMasterChanges(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+        try {
+            lock.lock();
+            applyChangesLockAcquired(newMasterVirtualId, transLog, masterEpoch);
+        }
+        finally {
+            lock.unlock();
         }
     }
     
     /*The master is sure about commiting these changes, go ahead and apply them*/
-    public def applyChanges(masterVirtualId:Long, data:HashMap[String,Any]) {
-        try {
-            lock.lock();
-            val map = mastersMap.getOrThrow(masterVirtualId);
-            val iter = data.KeySet().iterator();
-            while (iter.hasNext()) {
-                val key = iter.next();
-                val value = data.getOrThrow(key);
-                map.put(key,value);
-            }
+    private def applyChangesLockAcquired(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+        val data = mastersMap.getOrThrow(masterVirtualId);
+        val iter = transLog.keySet().iterator();
+        while (iter.hasNext()) {
+            val key = iter.next();
+            val log = transLog.getOrThrow(key);
+            if (log.readOnly())
+                continue;
+            if (log.isDeleted()) 
+                data.remove(key);
+            else
+                data.update(key, transLog.getValue());
         }
-        finally {
-            lock.release();
-        }
+        epoch = masterEpoch;
     }
     
 }

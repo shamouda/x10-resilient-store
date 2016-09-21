@@ -1,7 +1,7 @@
 package x10.util.resilient.localstore;
 
 import x10.util.*;
-import x10.util.concurrent.SimpleLatch;
+import x10.util.concurrent.Lock;
 import x10.compiler.Inline;
 import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
@@ -20,6 +20,7 @@ import x10.compiler.Ifdef;
 public class LocalDataStore {
     private val moduleName = "LocalDataStore";
     
+    private val lock = new Lock();
     public var masterStore:MasterStore = null;
     private var slave:Place;
     
@@ -38,10 +39,22 @@ public class LocalDataStore {
             slave = nextPlace;
         }
         if (here.id > 0 && here.id <= activePlaces ) {
-            slaveStore = new SlaveStore(virtualPlaceId);
+            slaveStore = new SlaveStore(virtualPlaceId, new HashMap[String,Any](), null, 1);
         }
     }
     
+    public def updateSlave(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog]) {
+        try{
+            lock.lock();
+            if (slaveStore==null)
+                slaveStore = new SlaveStore(masterVirtualId, masterData, transLog);
+            else
+                slaveStore.addMasterPlace(masterVirtualId, masterData, transLog);
+            
+        }finally {
+            lock.unlock();
+        }
+    }
     
         
 }
