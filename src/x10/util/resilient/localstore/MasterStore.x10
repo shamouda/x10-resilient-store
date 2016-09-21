@@ -12,11 +12,20 @@ public class MasterStore {
     private val moduleName = "MasterStore";
     public var epoch:Long = 1;
     private val lock = new Lock();
-    private val data:HashMap[String,Any] = new HashMap[String,Any]();
+    private val data:HashMap[String,Any];
     private val virtualPlaceId:Long;
     
+    //used for original active places joined before any failured
     public def this(virtualPlaceId:Long) {
         this.virtualPlaceId = virtualPlaceId;
+        this.data = new HashMap[String,Any]();
+    }
+    
+    //used when a spare place is replacing a dead one
+    public def this(virtualPlaceId:Long, data:HashMap[String,Any], epoch:Long) {
+        this.virtualPlaceId = virtualPlaceId;
+        this.data = data;
+        this.epoch = epoch;
     }
     
     public def get(key:String):Any {
@@ -50,5 +59,13 @@ public class MasterStore {
         }
     }
     
-    public def getData() = data;
+    public def getState():MasterState {
+        try {
+            lock.lock();
+            return new MasterState(data, epoch);
+        }
+        finally {
+            lock.unlock();
+        }
+    }
 }

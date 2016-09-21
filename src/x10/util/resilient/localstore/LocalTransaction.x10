@@ -59,16 +59,16 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
         }
         return oldValue;
     }
- 
-    public def rollback() {
-        //ignore transaction log
-        transLog.clear();
-    }
 
+    //throws an exception if slave is dead
     public def commit() {
         try {
             plh().masterStore.epoch++;
-            commitSlave();
+            val masterEpoch = plh().masterStore.epoch;
+            val masterVirtualId = plh().virtualPlaceId;
+            at (plh().slave) {
+                plh().applyMasterChanges(masterVirtualId, transLog, masterEpoch);
+            }
         }
         catch(ex:Exception) {
             plh().masterStore.epoch--;
@@ -77,61 +77,6 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
         
         //master commit
         plh().masterStore.applyChanges(transLog);
-    }
-    
-    private def commitSlave() {
-        val masterVirtualId = plh().virtualPlaceId;
-        val masterEpoch = plh().masterStore.epoch;
-        var retryCount:Long = 0;
-        val retryMax:Long = 5;
-        while (retryCount < retryMax) {
-            try {
-                val initSlave = handleDeadSlave();
-                val slave = plh().slave;
-                if (initSlave) {
-                    val masterData = plh().masterStore.getData();
-                    at (slave) {
-                        plh().updateSlave(masterVirtualId, masterData, transLog, masterEpoch);
-                    }
-                }
-                else {
-                    at (slave) {
-                        plh().applyMasterChanges(masterVirtualId, transLog, masterEpoch);
-                    }
-                }
-                break;
-            }
-            catch(ex:Exception) {
-                 
-            }
-            retryCount++;
-        }
-        
-        if (retryCount == retryMax) {
-            throw new Exception("Failed to commit slave");
-        }
-    }
-    private def handleDeadSlave():Boolean {
-        var initSlave:Boolean = false;
-        if (plh().slave.isDead()) {
-            var newSlave:Place = null;
-            val deadSlaveId = slave.id;
-            for (var i=1; i<Place.numPlaces(); i++) {
-                if (!Place((deadSlaveId+i)%Place.numPlaces()).isDead()){
-                    newSlave = Place((deadSlaveId+i)%Place.numPlaces());
-                    break;
-                }
-            }
-            plh().slave = newSlave;
-            initSlave = true;
-        }
-        return initSlave;
-    }
-   
-    /*Logs a 'delete' operation on a key that was used before by the transaction*/
-    public def logDelete(key:String) {
-        val log = transLog.getOrThrow(key);
-        log.delete();
     }
     
 }

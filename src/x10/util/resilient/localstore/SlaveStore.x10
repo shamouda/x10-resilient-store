@@ -9,27 +9,35 @@ import x10.compiler.Ifdef;
 
 public class SlaveStore {
     private val moduleName = "SlavePlace";
-    private var epoch:Long;  //can be used for checking checkpointing consistency
     
-    private val mastersMap:HashMap[Long,HashMap[String,Any]]; // master_virtual_id, master_data
+    private val mastersMap:HashMap[Long,MasterState]; // master_virtual_id, master_data
     private transient val lock:Lock = new Lock();
     
     public def this() {
         mastersMap = new HashMap[Long,HashMap[String,Any]]();
     }
     
-    //used to replace a previous slave
-    public def addMasterPlace(newMasterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+    public def addMasterPlace(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
-            mastersMap.put(newMasterVirtualId, masterData);
-            applyChangesLockAcquired(newMasterVirtualId, transLog, masterEpoch);
+            mastersMap.put(masterVirtualId, new MasterState(masterData,masterEpoch));
+            applyChangesLockAcquired(masterVirtualId, transLog, masterEpoch);
         }
         finally {
             lock.unlock();
         }
     }
     
+    
+    public def getMasterState(masterVirtualId:Long):MasterState {
+        try {
+            lock.lock();
+            return mastersMap.getOrThrow(masterVirtualId).;
+        }
+        finally {
+            lock.unlock();
+        }
+    }
     public def applyMasterChanges(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
@@ -42,11 +50,12 @@ public class SlaveStore {
     
     /*The master is sure about commiting these changes, go ahead and apply them*/
     private def applyChangesLockAcquired(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
-        var data:HashMap[Long,HashMap[String,Any]] = mastersMap.getOrElse(masterVirtualId, null);
-        if (data == null) {
-            data = new HashMap[Long,HashMap[String,Any]]();
-            mastersMap.put(masterVirtualId, data);
+        val state = mastersMap.getOrElse(masterVirtualId, null);
+        if (state == null) {
+            state = new MasterState(new HashMap[Long,HashMap[String,Any]](), masterEpoch);
+            mastersMap.put(masterVirtualId, state);
         }
+        val data = state.data;
         val iter = transLog.keySet().iterator();
         while (iter.hasNext()) {
             val key = iter.next();
@@ -58,7 +67,15 @@ public class SlaveStore {
             else
                 data.update(key, transLog.getValue());
         }
-        epoch = masterEpoch;
+        state.epoch = masterEpoch;
     }
-    
+}
+
+class MasterState {
+    public var epoch:Long;
+    public var data:HashMap[String,Any];
+    public def this(data:HashMap[String,Any], epoch:Long) {
+        this.data = data;
+        this.epoch = epoch;
+    }
 }
