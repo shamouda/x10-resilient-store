@@ -1,6 +1,6 @@
 import harness.x10Test;
 
-import x10.util.resilient.localstore.ResilientMap;
+import x10.util.resilient.localstore.SPMDResilientMap;
 
 import x10.regionarray.Dist;
 import x10.util.Option;
@@ -9,7 +9,7 @@ import x10.util.OptionsParser;
 public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Long,vp:Long) extends x10Test {
     
     public def run(): Boolean {
-        val resilientMap = ResilientMap.make(spare);
+        val resilientMap = SPMDResilientMap.make(spare);
         var restoreRequired:Boolean = false;
         var restoreJustDone:Boolean = false;
         var places:PlaceGroup = resilientMap.getActivePlaces();
@@ -26,29 +26,33 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
                     
                     val constPLH = plh;
                     finish ateach(Dist.makeUnique(places)) {
-                    	val trans = resilientMap.startLocalTransaction();                    	
-                    	val v = trans.get("P") as Long;
+                    	
+                    	val trans = resilientMap.startSPMDTransaction();                    	
+                    	val v = trans.get("P") as AppLocal;
                     	trans.commit();
-                    	
-                    	constPLH().sum = v;
-                    	
-                    }
-                    
-                    
+                    	//we don't need to agree in restore
+                    	constPLH().sum = v.sum;
+                    }                    
                     restoreRequired = false;
                     restoreJustDone = true;
                 }
             	
+                
             	if (!restoreJustDone) {
             		//checkpoint
             		val constPLH = plh;
-            		finish ateach(Dist.makeUnique(places)) {            			
-            			val trans = resilientMap.startLocalTransaction();
-            			trans.put("P", constPLH().sum);
+            		finish ateach(Dist.makeUnique(places)) {
+            			if (constPLH() == null)
+            				Console.OUT.println("ERROR null at " + here);
+            			
+            			val trans = resilientMap.startSPMDTransaction();
+            			trans.put("P", constPLH());
+            			trans.prepare();
+            			//agree
             			trans.commit();
             		}
             	}
-            	
+                
             	val constPLH = plh;
                 val startIteration = lastCheckpointIter;
                 finish ateach(Dist.makeUnique(places)) {

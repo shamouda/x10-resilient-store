@@ -10,30 +10,30 @@ import x10.util.resilient.map.common.Utils;
 import x10.compiler.Ifdef;
 import x10.util.resilient.iterative.PlaceGroupBuilder;
 
-public class ResilientMap {
-    private val moduleName = "ResilientMap";
-    private val plh:PlaceLocalHandle[LocalDataStore];
+public class SPMDResilientMap {
+    private val moduleName = "SPMDResilientMap";
+    private val plh:PlaceLocalHandle[SPMDLocalStore];
     private var activePlaces:PlaceGroup;
     private var sparePlaces:ArrayList[Place];
     private var deadPlaces:ArrayList[Place];
     private val slaveMap:Rail[Long]; //master virtual place to slave physical place
     
-    private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[LocalDataStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
+    private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[SPMDLocalStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
         this.activePlaces = activePlaces;
         this.plh = plh;
         this.slaveMap = slaveMap;
         this.sparePlaces = sparePlaces;
     }
     
-    public static def make(spare:Long):ResilientMap {
+    public static def make(spare:Long):SPMDResilientMap {
     	val activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
     	val slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
-    	val plh = PlaceLocalHandle.make[LocalDataStore](Place.places(), () => new LocalDataStore(spare, slaveMap));
+    	val plh = PlaceLocalHandle.make[SPMDLocalStore](Place.places(), () => new SPMDLocalStore(spare, slaveMap));
         val sparePlaces = new ArrayList[Place]();
         for (var i:Long = activePlaces.size(); i< Place.numPlaces(); i++){
             sparePlaces.add(Place(i));
         }
-    	return new ResilientMap(activePlaces, plh, slaveMap, sparePlaces);
+    	return new SPMDResilientMap(activePlaces, plh, slaveMap, sparePlaces);
     }
     
     public def getVirtualPlaceId() = activePlaces.indexOf(here);
@@ -108,8 +108,9 @@ public class ResilientMap {
                 val virtualId = addedSparePlaces.getOrThrow(realId);
                 val slaveRealId = slaveMap(virtualId);
                 val slave = Place(slaveRealId);
-                if (slave.isDead())
-                    throw new Exception("[Fatal] Both Master and Slave are Dead");
+                assert(!slave.isDead());
+                
+                recoverSlavePendingTransactions(slave, virtualId);
                 
                 at (slave) async {
                     val masterState = plh().slaveStore.getMasterState(virtualId);
@@ -119,6 +120,31 @@ public class ResilientMap {
                 }
             }
         }
+    }
+    
+    /*
+     * Slave data may be inconsistent if the master died between prepare transaction and commit transaction
+     * In that case, we must consult another member in the transaction to know what to do with the pending transactions at the slave
+     * */    
+    private def recoverSlavePendingTransactions(slave:Place, masterVirtualId:Long) {
+    	val pendingTransactions = at (slave) plh().slaveStore.getPendingTransactions(masterVirtualId);
+    	val commitMap = new HashMap[Long,Boolean]();
+    	val iter = pendingTransactions.iterator();
+    	while (iter.hasNext()) {
+    		val transId = iter.next();
+    		////////////////////////////////////////////////////////////////////////////////////////////////
+    		//FIXME: now we rely that the current place is always a member in the active places (not a slave)
+    		val status = plh().masterStore.getTransactionStatus(transId);
+    		assert (status != Constants.TRANS_STATUS_UNFOUND && status != Constants.TRANS_STATUS_PENDING);
+    		//////////////////////////////////////////////////////////////////////////////////////////////////
+    		if (status == Constants.TRANS_STATUS_COMMITTED) {
+    			commitMap.put(transId, true);
+    		}
+    		else {
+    			commitMap.put(transId, false);
+    		}
+    	}
+    	at (slave) plh().slaveStore.handlePendingTransactions(masterVirtualId, commitMap);
     }
     
     private def recoverSlaves(mastersLostTheirSlaves:ArrayList[Long]) {
@@ -162,10 +188,10 @@ public class ResilientMap {
         }
     }
     
-    public def startLocalTransaction():LocalTransaction {
+    public def startSPMDTransaction():SPMDTransaction {
         assert(plh().virtualPlaceId != -1);
         val placeIndex = activePlaces.indexOf(here);
-        return new LocalTransaction(plh, Utils.getNextTransactionId(), placeIndex);
+        return new SPMDTransaction(plh, Utils.getNextTransactionId(), placeIndex);
     }
     
     /*

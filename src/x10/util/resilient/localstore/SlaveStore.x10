@@ -30,7 +30,6 @@ public class SlaveStore {
         }
     }
     
-    
     public def getMasterState(masterVirtualId:Long):MasterState {
         try {
             lock.lock();
@@ -40,15 +39,99 @@ public class SlaveStore {
             lock.unlock();
         }
     }
-    public def applyMasterChanges(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
-        try {
+    
+    //Store pending transaction to be ready for commit or rollback
+    public def addPendingTransaction(masterVirtualId:Long, transId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+    	try {
             lock.lock();
-            applyChangesLockAcquired(masterVirtualId, transLog, masterEpoch);
+            var masterState:MasterState = mastersMap.getOrElse(masterVirtualId, null);
+            if (masterState == null) {
+            	masterState = new MasterState(new HashMap[String,Any](), masterEpoch);
+                mastersMap.put(masterVirtualId, masterState);
+            }
+            masterState.pendingTrans.put(transId, transLog);
         }
         finally {
             lock.unlock();
         }
     }
+    
+    
+    public def getPendingTransactions(masterVirtualId:Long):HashSet[Long] {
+    	val set = new HashSet[Long]();
+    	try {
+            lock.lock();
+            val masterState = mastersMap.getOrThrow(masterVirtualId);
+            val iter = masterState.pendingTrans.keySet().iterator();
+            while (iter.hasNext()) {
+            	val transId = iter.next();
+            	set.add(transId);
+            }
+        }
+        finally {
+            lock.unlock();
+        }
+    	return set;
+    }
+    
+    public def handlePendingTransactions(masterVirtualId:Long, transactions:HashMap[Long,Boolean]) {
+    	try {
+            lock.lock();
+            val masterState = mastersMap.getOrThrow(masterVirtualId);
+            val iter = transactions.keySet().iterator();
+            while (iter.hasNext()) {
+            	val transId = iter.next();
+            	val commit =  transactions.getOrThrow(transId);
+            	if (commit) {
+            		commitLockAcquired(masterVirtualId, transId, -1);
+            	}
+            	else {
+            		rollbackLockAcquired(masterVirtualId, transId);
+            	}
+            	 masterState.pendingTrans.remove(transId);
+            }
+           
+        }
+        finally {
+            lock.unlock();
+        }
+    }
+    
+    public def rollback(masterVirtualId:Long, transId:Long) {
+        try {
+            lock.lock();
+            rollbackLockAcquired(masterVirtualId, transId);
+        }
+        finally {
+            lock.unlock();
+        }
+    }
+    
+    private def rollbackLockAcquired(masterVirtualId:Long, transId:Long) {
+        val masterState = mastersMap.getOrThrow(masterVirtualId);
+        masterState.pendingTrans.remove(transId);
+    }
+    
+
+    
+    public def commit(masterVirtualId:Long, transId:Long, masterEpoch:Long) {
+        try {
+            lock.lock();
+            commitLockAcquired(masterVirtualId, transId, masterEpoch);
+        }
+        finally {
+            lock.unlock();
+        }
+    }
+    
+    
+    private def commitLockAcquired(masterVirtualId:Long, transId:Long, masterEpoch:Long) {
+        val masterState = mastersMap.getOrThrow(masterVirtualId);
+        val transLog = masterState.pendingTrans.getOrThrow(transId);
+        applyChangesLockAcquired(masterVirtualId, transLog, masterEpoch);
+        masterState.pendingTrans.remove(transId);
+    }
+    
     
     /*The master is sure about commiting these changes, go ahead and apply them*/
     private def applyChangesLockAcquired(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
@@ -76,6 +159,8 @@ public class SlaveStore {
 class MasterState {
     public var epoch:Long;
     public var data:HashMap[String,Any];
+    public val pendingTrans = new HashMap[Long,HashMap[String,TransKeyLog]]();
+   
     public def this(data:HashMap[String,Any], epoch:Long) {
         this.data = data;
         this.epoch = epoch;

@@ -6,7 +6,6 @@ import x10.compiler.Inline;
 import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
 import x10.util.resilient.map.common.Utils;
-import x10.util.resilient.map.impl.ResilientMapImpl;
 import x10.util.resilient.map.partition.PartitionTable;
 import x10.util.resilient.map.common.Topology;
 import x10.util.resilient.map.impl.Replica;
@@ -17,10 +16,9 @@ import x10.util.resilient.map.migration.MigrationHandler;
 import x10.util.resilient.map.transaction.TransactionRecoveryManager;
 import x10.compiler.Ifdef;
 
-public class LocalDataStore {
-    private val moduleName = "LocalDataStore";
+public class SPMDLocalStore {
+    private val moduleName = "SPMDLocalStore";
     
-    private val lock = new Lock();
     public var masterStore:MasterStore = null;
     public var slave:Place;
     
