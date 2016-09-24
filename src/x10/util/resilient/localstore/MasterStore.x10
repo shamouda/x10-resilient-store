@@ -52,7 +52,7 @@ public class MasterStore {
                 if (log.isDeleted()) 
                     data.remove(key);
                 else
-                    data.put(key, transLog.getValue());
+                    data.put(key, log.getValue());
             }
         }
         finally {

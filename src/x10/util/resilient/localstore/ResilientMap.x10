@@ -18,15 +18,22 @@ public class ResilientMap {
     private var deadPlaces:ArrayList[Place];
     private val slaveMap:Rail[Long]; //master virtual place to slave physical place
     
-    public def this(spare:Long){
-        activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
-        slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
-        plh = PlaceLocalHandle.make[LocalDataStore](Place.places(), () => new LocalDataStore(spare, slaveMap));
-        
-        sparePlaces = new ArrayList[Place]();
+    private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[LocalDataStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
+        this.activePlaces = activePlaces;
+        this.plh = plh;
+        this.slaveMap = slaveMap;
+        this.sparePlaces = sparePlaces;
+    }
+    
+    public static def make(spare:Long):ResilientMap {
+    	val activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
+    	val slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
+    	val plh = PlaceLocalHandle.make[LocalDataStore](Place.places(), () => new LocalDataStore(spare, slaveMap));
+        val sparePlaces = new ArrayList[Place]();
         for (var i:Long = activePlaces.size(); i< Place.numPlaces(); i++){
             sparePlaces.add(Place(i));
         }
+    	return new ResilientMap(activePlaces, plh, slaveMap, sparePlaces);
     }
     
     public def getVirtualPlaceId() = activePlaces.indexOf(here);
@@ -160,10 +167,12 @@ public class ResilientMap {
         return new LocalTransaction(plh, Utils.getNextTransactionId());
     }
     
+    /*
     public def startGlobalTransaction(places:PlaceGroup):GlobalTransaction {
         assert(plh().virtualPlaceId != -1);
         return new GlobalTransaction(plh, Utils.getNextTransactionId(), places);
     }
+    */
     
     
 }

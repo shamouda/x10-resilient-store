@@ -16,7 +16,7 @@ public class SlaveStore {
     private transient val lock:Lock = new Lock();
     
     public def this() {
-        mastersMap = new HashMap[Long,HashMap[String,Any]]();
+        mastersMap = new HashMap[Long,MasterState]();
     }
     
     public def addMasterPlace(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
@@ -43,7 +43,7 @@ public class SlaveStore {
     public def applyMasterChanges(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
-            applyChangesLockAcquired(newMasterVirtualId, transLog, masterEpoch);
+            applyChangesLockAcquired(masterVirtualId, transLog, masterEpoch);
         }
         finally {
             lock.unlock();

@@ -1,18 +1,18 @@
 import harness.x10Test;
 
-import x10.util.resilient.localstore;
+import x10.util.resilient.localstore.ResilientMap;
 
 import x10.util.Option;
 import x10.util.OptionsParser;
 
-public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Long,vp:Long)  {
+public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Long,vp:Long) extends x10Test {
     
     public def run(): Boolean {
-        val resilientMap = new ResilientMap(spare);
+        val resilientMap = ResilientMap.make(spare);
         
         var restoreRequired:Boolean = false;
-        var curIter:Long = 0;
         var places:PlaceGroup = resilientMap.getActivePlaces();
+        var curIter:Long = 0;
         do {
             try{
                 
@@ -24,7 +24,7 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
                 
                 
                 finish for (p in places) at (p) async {
-                    for (var i:Long = curIter; i < iterations; i++) {
+                    for (var i:Long = 0; i < iterations; i++) {
                         val localTrans = resilientMap.startLocalTransaction();
                         
                         localTrans.put("X", i);
@@ -36,6 +36,7 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
                         localTrans.commit();
                     }
                 }
+                curIter+= iterations;
             }
             catch(ex:Exception) {
                 ex.printStackTrace();
@@ -46,6 +47,8 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
         while (curIter < iterations || restoreRequired);
         
         
+        return true;
+        
     }
     
     public static def main(args:Rail[String]) {
@@ -54,8 +57,8 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
             ], [
             Option("e","spare","number of spare places"),
             Option("k","chkInterval","checkpoint interval"),
-            Option("i","iterations","iterations",
-            Option("vi","victim_iteration","victim_iteration",
+            Option("i","iterations","iterations"),
+            Option("vi","victim_iteration","victim_iteration"),
             Option("vp","victim_place","victim_place")]);
                                                                
         val spare = opts("e", Long.MAX_VALUE);
