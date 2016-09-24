@@ -6,6 +6,8 @@ import x10.regionarray.Dist;
 import x10.util.Option;
 import x10.util.OptionsParser;
 
+// X10_RESILIENT_MODE=1 X10_NPLACES=6 ./TestStore.o -e 1 -k 3 -i 10 -vi 25 -vp 3 
+
 public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Long,vp:Long) extends x10Test {
     
     public def run(): Boolean {
