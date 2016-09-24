@@ -3,6 +3,7 @@ package x10.util.resilient.localstore;
 import x10.util.Team;
 import x10.util.HashSet;
 import x10.util.ArrayList;
+import x10.util.HashMap;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.concurrent.AtomicLong;
 import x10.util.resilient.map.common.Utils;
@@ -10,7 +11,7 @@ import x10.compiler.Ifdef;
 import x10.util.resilient.iterative.PlaceGroupBuilder;
 
 public class ResilientMap {
-    private val moduleName = "LocalStoreMap";
+    private val moduleName = "ResilientMap";
     private val plh:PlaceLocalHandle[LocalDataStore];
     private var activePlaces:PlaceGroup;
     private var sparePlaces:ArrayList[Place];
@@ -44,8 +45,8 @@ public class ResilientMap {
             if (p.isDead()){
                 deadCount++;
                 if (sparePlaces.size() > 0){
-                    val sparePlace = sparePlaces.remove(0);
-                    if (VERBOSE) Console.OUT.println("place ["+sparePlace.id+"] is replacing ["+p.id+"] since it is dead ");
+                    val sparePlace = sparePlaces.removeAt(0);
+                    Console.OUT.println("place ["+sparePlace.id+"] is replacing ["+p.id+"] since it is dead ");
                     group.add(sparePlace);
                     addedSparePlaces.put(sparePlace.id,virtualPlaceId);
                     allocated++;
@@ -53,10 +54,11 @@ public class ResilientMap {
                 else
                     throw new Exception("No enough spare places found ...");
                 
-                mastersLostTheirSlaves.add(findMasterVirtualIdGivenSlave());
+                //FIXME: may be more than one
+                mastersLostTheirSlaves.add(findMasterVirtualIdGivenSlave(p.id));
             }
             else{
-                if (VERBOSE) Console.OUT.println("adding place p["+p.id+"]");
+                Console.OUT.println("adding place p["+p.id+"]");
                 group.add(p);
             }
             virtualPlaceId++;
@@ -132,20 +134,20 @@ public class ResilientMap {
         
         
         finish {
-            val iter = masterNewSlave.keySet.iterator();
+            val iter = masterNewSlave.keySet().iterator();
             while (iter.hasNext()) {
                 val masterVirtualId = iter.next();
                 val slaveRealId:Long = masterNewSlave.getOrThrow(masterVirtualId);
                 at (activePlaces(masterVirtualId)) {
                     val masterState = plh().masterStore.getState(); 
                     at (Place(slaveRealId)) {
-                        plh().slaveStore.addMasterPlace(masterVirtualId, masterState.data, new HashMap[String,TransKeyLog](), masterState.epoch)
+                        plh().slaveStore.addMasterPlace(masterVirtualId, masterState.data, new HashMap[String,TransKeyLog](), masterState.epoch);
                     }
                 }
             }
         }
         
-        val iter = masterNewSlave.keySet.iterator();
+        val iter = masterNewSlave.keySet().iterator();
         while (iter.hasNext()) {
             val masterVirtualId = iter.next();
             val slaveRealId:Long = masterNewSlave.getOrThrow(masterVirtualId);

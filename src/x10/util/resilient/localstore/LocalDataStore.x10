@@ -22,7 +22,7 @@ public class LocalDataStore {
     
     private val lock = new Lock();
     public var masterStore:MasterStore = null;
-    private var slave:Place;
+    public var slave:Place;
     
     public var slaveStore:SlaveStore = null;
     public var virtualPlaceId:Long = -1; //-1 means a spare place
@@ -47,7 +47,7 @@ public class LocalDataStore {
     /*used when a spare place joins*/
     public def joinAsSlave (masterVirtualPlaceId:Long, masterData:HashMap[String,Any], masterEpoch:Long) {
         assert(slaveStore != null);
-        slaveStore.addMasterPlace(masterVirtualPlaceId:Long, masterData, new HashMap[String,TransKeyLog](), masterEpoch);
+        slaveStore.addMasterPlace(masterVirtualPlaceId, masterData, new HashMap[String,TransKeyLog](), masterEpoch);
     }
     
 }

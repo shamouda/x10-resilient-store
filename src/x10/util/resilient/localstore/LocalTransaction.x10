@@ -5,8 +5,10 @@ import x10.util.ArrayList;
 import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 import x10.compiler.Ifdef;
-import x10.util.resilient.map.transaction.
+
 public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
+	private val moduleName = "LocalTransaction";
+	
     private val transLog:HashMap[String,TransKeyLog] = new HashMap[String,TransKeyLog]();    
     
     public def put(key:String, newValue:Any):Any {
@@ -67,7 +69,7 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
             val masterEpoch = plh().masterStore.epoch;
             val masterVirtualId = plh().virtualPlaceId;
             at (plh().slave) {
-                plh().applyMasterChanges(masterVirtualId, transLog, masterEpoch);
+                plh().slaveStore.applyMasterChanges(masterVirtualId, transLog, masterEpoch);
             }
         }
         catch(ex:Exception) {

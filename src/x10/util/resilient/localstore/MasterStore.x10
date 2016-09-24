@@ -1,6 +1,7 @@
 package x10.util.resilient.localstore;
 
 import x10.util.HashSet;
+import x10.util.HashMap;
 import x10.util.ArrayList;
 import x10.util.concurrent.Lock;
 import x10.util.concurrent.AtomicLong;
@@ -51,7 +52,7 @@ public class MasterStore {
                 if (log.isDeleted()) 
                     data.remove(key);
                 else
-                    data.update(key, transLog.getValue());
+                    data.put(key, transLog.getValue());
             }
         }
         finally {
