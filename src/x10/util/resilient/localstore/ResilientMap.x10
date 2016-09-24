@@ -164,7 +164,8 @@ public class ResilientMap {
     
     public def startLocalTransaction():LocalTransaction {
         assert(plh().virtualPlaceId != -1);
-        return new LocalTransaction(plh, Utils.getNextTransactionId());
+        val placeIndex = activePlaces.indexOf(here);
+        return new LocalTransaction(plh, Utils.getNextTransactionId(), placeIndex);
     }
     
     /*

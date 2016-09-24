@@ -6,14 +6,14 @@ import x10.util.HashSet;
 import x10.util.resilient.map.common.Utils;
 import x10.compiler.Ifdef;
 
-public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
+public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long, placeIndex:Long) {
 	private val moduleName = "LocalTransaction";
 	
     private val transLog:HashMap[String,TransKeyLog] = new HashMap[String,TransKeyLog]();    
     
     public def put(key:String, newValue:Any):Any {
         var oldValue:Any = null;    
-        val keyLog = transLog.getOrElse(key,null);
+        val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used in the transaction before
             oldValue = keyLog.getValue();
             keyLog.update(newValue);
@@ -31,7 +31,7 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
     
     public def delete(key:String):Any {
         var oldValue:Any = null;    
-        val keyLog = transLog.getOrElse(key,null);
+        val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used in the transaction before
             oldValue = keyLog.getValue();
             keyLog.delete();
@@ -49,7 +49,7 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalDataStore], id:Long) {
     
     public def get(key:String):Any {
         var oldValue:Any = null;
-        val keyLog = transLog.getOrElse(key,null);
+        val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used before in the transaction
            oldValue = keyLog.getValue();
         }

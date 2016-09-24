@@ -2,6 +2,7 @@ import harness.x10Test;
 
 import x10.util.resilient.localstore.ResilientMap;
 
+import x10.regionarray.Dist;
 import x10.util.Option;
 import x10.util.OptionsParser;
 
@@ -9,34 +10,55 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
     
     public def run(): Boolean {
         val resilientMap = ResilientMap.make(spare);
-        
         var restoreRequired:Boolean = false;
+        var restoreJustDone:Boolean = false;
         var places:PlaceGroup = resilientMap.getActivePlaces();
-        var curIter:Long = 0;
+        var lastCheckpointIter:Long = 0;
+        var plh:PlaceLocalHandle[AppLocal] = PlaceLocalHandle.make[AppLocal](places, () => new AppLocal() );
         do {
             try{
                 
+            	restoreJustDone = false;
                 if (restoreRequired) {
                     resilientMap.recoverDeadPlaces();
-                    restoreRequired = true;
                     places = resilientMap.getActivePlaces();
-                }
-                
-                
-                finish for (p in places) at (p) async {
-                    for (var i:Long = 0; i < iterations; i++) {
-                        val localTrans = resilientMap.startLocalTransaction();
-                        
-                        localTrans.put("X", i);
-                        localTrans.put("Y", here.id);
-                        
-                        localTrans.get("X");
-                        localTrans.get("Y");
-                        
-                        localTrans.commit();
+                    plh = PlaceLocalHandle.make[AppLocal](places, () => new AppLocal());
+                    
+                    val constPLH = plh;
+                    finish ateach(Dist.makeUnique(places)) {
+                    	val trans = resilientMap.startLocalTransaction();                    	
+                    	val v = trans.get("P") as Long;
+                    	trans.commit();
+                    	
+                    	constPLH().sum = v;
+                    	
                     }
+                    
+                    
+                    restoreRequired = false;
+                    restoreJustDone = true;
                 }
-                curIter+= iterations;
+            	
+            	if (!restoreJustDone) {
+            		//checkpoint
+            		val constPLH = plh;
+            		finish ateach(Dist.makeUnique(places)) {            			
+            			val trans = resilientMap.startLocalTransaction();
+            			trans.put("P", constPLH().sum);
+            			trans.commit();
+            		}
+            	}
+            	
+            	val constPLH = plh;
+                val startIteration = lastCheckpointIter;
+                finish ateach(Dist.makeUnique(places)) {
+                    for (var i:Long = startIteration; i < startIteration+checkpointInterval; i++) {
+                    	constPLH().sum += (here.id+1) +i;
+                    	Console.OUT.println("tmp   " + here + " ======> "+ ((here.id+1) +i));
+                    }
+                    Console.OUT.println("tmp   " + here + " =======================> "+ constPLH().sum);
+                }
+                lastCheckpointIter += checkpointInterval;
             }
             catch(ex:Exception) {
                 ex.printStackTrace();
@@ -44,12 +66,17 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
             }
             
         }
-        while (curIter < iterations || restoreRequired);
+        while (lastCheckpointIter < iterations || restoreRequired);
         
+        val constPLH = plh;
+        finish ateach(Dist.makeUnique(places)) {
+        	Console.OUT.println(here + "=>" + constPLH().sum);
+        }
         
         return true;
         
     }
+    
     
     public static def main(args:Rail[String]) {
         val opts = new OptionsParser(args, [
@@ -70,4 +97,9 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
         new TestStore(spare,iterations,checkpointInterval,vi,vp).execute();
     }
 
+}
+
+
+class AppLocal {
+	var sum:Long = 0;
 }
