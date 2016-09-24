@@ -6,5 +6,6 @@ x10/util/resilient/map/impl/*.x10 \
 x10/util/resilient/map/migration/*.x10 \
 x10/util/resilient/iterative/*.x10 \
 x10/util/resilient/map/*.x10 \
+x10/util/resilient/localstore/*.x10 \
 Test.x10
 
