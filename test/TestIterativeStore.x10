@@ -10,6 +10,9 @@ import x10.util.Option;
 import x10.util.OptionsParser;
 
 //EXECUTOR_KILL_STEPS=3 EXECUTOR_KILL_PLACES=3 DISABLE_ULFM_AGREEMENT=1 X10_RESILIENT_MODE=1 X10_NPLACES=6 ./TestIterativeStore.o -e 1 -k 5 -i 10
+
+//EXECUTOR_DEBUG=0 EXECUTOR_KILL_STEPS=3,13,23 EXECUTOR_KILL_PLACES=3,4,6 DISABLE_ULFM_AGREEMENT=1 X10_RESILIENT_MODE=1 X10_NPLACES=10 ./TestIterativeStore.o -e 3 -k 10 -i 50
+
 public class TestIterativeStore(spare:Long,iterations:Long,checkpointInterval:Long) extends x10Test implements SPMDResilientIterativeApp {
     
 	var places:PlaceGroup;
@@ -25,7 +28,7 @@ public class TestIterativeStore(spare:Long,iterations:Long,checkpointInterval:Lo
     public def step() {  
     	val index = places.indexOf(here);
     	plh().sum += (index+1) + plh().curIter;
-    	Console.OUT.println(here + " ===> "+ ((index+1) +plh().curIter));
+    	Console.OUT.println(here + " Iter["+plh().curIter+"] ===> "+ ((index+1) +plh().curIter));
     	plh().curIter++;
     }
     
