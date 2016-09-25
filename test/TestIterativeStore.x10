@@ -25,7 +25,7 @@ public class TestIterativeStore(spare:Long,iterations:Long,checkpointInterval:Lo
     public def step() {  
     	val index = places.indexOf(here);
     	plh().sum += (index+1) + plh().curIter;
-    	//Console.OUT.println(here + " ===> "+ ((here.id+1) +plh().curIter));
+    	Console.OUT.println(here + " ===> "+ ((index+1) +plh().curIter));
     	plh().curIter++;
     }
     
