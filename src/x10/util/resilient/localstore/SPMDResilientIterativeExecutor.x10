@@ -194,7 +194,7 @@ public class SPMDResilientIterativeExecutor {
                         	
                             app.step();
                             
-                            placeTempData().stat.addStepTime(localIter, Timer.milliTime()-stepStartTime);
+                            placeTempData().stat.stepTimes.add(Timer.milliTime()-stepStartTime);
                             
                             localIter++;
                             
@@ -236,8 +236,8 @@ public class SPMDResilientIterativeExecutor {
     		placeTempData().stat.placeMinStep = new Rail[Long](stpCount);
     		val dst2max = placeTempData().stat.placeMaxStep;
     		val dst2min = placeTempData().stat.placeMinStep;
-    	    team.allreduce(placeTempData().stat.stepsRail(), 0, dst2max, 0, stpCount, Team.MAX);
-    	    team.allreduce(placeTempData().stat.stepsRail(), 0, dst2min, 0, stpCount, Team.MIN);
+    	    team.allreduce(placeTempData().stat.stepTimes.toRail(), 0, dst2max, 0, stpCount, Team.MAX);
+    	    team.allreduce(placeTempData().stat.stepTimes.toRail(), 0, dst2min, 0, stpCount, Team.MIN);
 
     	    if (x10.xrx.Runtime.RESILIENT_MODE > 0n){
          	    ////// getDataStore times ////////
@@ -322,7 +322,7 @@ public class SPMDResilientIterativeExecutor {
         }
         
         Console.OUT.println("=========Detailed Statistics============");
-        Console.OUT.println("Steps-place0:" + railToString(placeTempData().stat.stepsRail()));
+        Console.OUT.println("Steps-place0:" + railToString(placeTempData().stat.stepTimes.toRail()));
         
         Console.OUT.println("Steps-avg:" + railToString(averageSteps));
     	Console.OUT.println("Steps-min:" + railToString(placeTempData().stat.placeMinStep));
@@ -631,7 +631,7 @@ public class SPMDResilientIterativeExecutor {
 	    val checkpointAgreementTimes:ArrayList[Long];
 	    val restoreTimes:ArrayList[Long];
 	    val restoreAgreementTimes:ArrayList[Long];
-	    val stepTimes:HashMap[Long,ArrayList[Long]];
+	    val stepTimes:ArrayList[Long];
 	
 		var placeMaxGetDataStore:Rail[Long];
 	    var placeMaxCheckpoint:Rail[Long];
@@ -653,7 +653,7 @@ public class SPMDResilientIterativeExecutor {
 	    	checkpointAgreementTimes = new ArrayList[Long]();
 	    	restoreTimes = new ArrayList[Long]();
 	    	restoreAgreementTimes = new ArrayList[Long]();
-	    	stepTimes = new HashMap[Long,ArrayList[Long]]();
+	    	stepTimes = new ArrayList[Long]();
         }
         
         public def this(obj:PlaceStatistics) {
@@ -665,6 +665,7 @@ public class SPMDResilientIterativeExecutor {
         	this.stepTimes = obj.stepTimes;
         }
         
+        /*
         public def stepsRail():Rail[Long] {
         	val rail = new Rail[Long](stepTimes.size());
         	val iter = stepTimes.keySet().iterator();
@@ -691,6 +692,7 @@ public class SPMDResilientIterativeExecutor {
             }
             list.add(t);
         }
+        */
     }
 }
 
