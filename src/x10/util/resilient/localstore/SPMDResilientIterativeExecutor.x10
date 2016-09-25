@@ -53,12 +53,11 @@ public class SPMDResilientIterativeExecutor {
     private val DISABLE_ULFM_AGREEMENT = System.getenv("DISABLE_ULFM_AGREEMENT") != null && System.getenv("DISABLE_ULFM_AGREEMENT").equals("1");
    
     
-    private transient var runTime:Long = 0;
     private transient var remakeTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var reconstructTeamTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var failureDetectionTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var applicationInitializationTime:Long = 0;
-    
+    private transient var startRunTime:Long = 0;
     private transient var restoreRequired:Boolean = false;
     private transient var remakeRequired:Boolean = false;
     
@@ -93,6 +92,7 @@ public class SPMDResilientIterativeExecutor {
     //the startRunTime parameter is added to allow the executor to consider 
     //any initlization time done by the application before starting the executor  
     public def run(app:SPMDResilientIterativeApp, startRunTime:Long) {
+    	this.startRunTime = startRunTime;
     	Console.OUT.println("SPMDResilientIterativeExecutor: Application start time ["+startRunTime+"] ...");
         val root = here;
         places = resilientMap.getActivePlaces();
@@ -194,7 +194,7 @@ public class SPMDResilientIterativeExecutor {
                         	
                             app.step();
                             
-                            placeTempData().stat.stepTimes.put(localIter,Timer.milliTime()-stepStartTime);
+                            placeTempData().stat.addStepTime(localIter, Timer.milliTime()-stepStartTime);
                             
                             localIter++;
                             
@@ -219,13 +219,14 @@ public class SPMDResilientIterativeExecutor {
             }
         }while(remakeRequired || !app.isFinished());
         
-        val runTime = (Timer.milliTime() - startRunTime);
+        
         calculateTimingStatistics();
         
 
     }
     
     private def calculateTimingStatistics(){
+    	val runTime = (Timer.milliTime() - startRunTime);
     	Console.OUT.println("Application completed, calculating runtime statistics ...");
     	finish for (place in places) at(place) async {
     	    ////// step times ////////
@@ -630,7 +631,7 @@ public class SPMDResilientIterativeExecutor {
 	    val checkpointAgreementTimes:ArrayList[Long];
 	    val restoreTimes:ArrayList[Long];
 	    val restoreAgreementTimes:ArrayList[Long];
-	    val stepTimes:HashMap[Long,Long];
+	    val stepTimes:HashMap[Long,ArrayList[Long]];
 	
 		var placeMaxGetDataStore:Rail[Long];
 	    var placeMaxCheckpoint:Rail[Long];
@@ -652,7 +653,7 @@ public class SPMDResilientIterativeExecutor {
 	    	checkpointAgreementTimes = new ArrayList[Long]();
 	    	restoreTimes = new ArrayList[Long]();
 	    	restoreAgreementTimes = new ArrayList[Long]();
-	    	stepTimes = new HashMap[Long,Long]();
+	    	stepTimes = new HashMap[Long,ArrayList[Long]]();
         }
         
         public def this(obj:PlaceStatistics) {
@@ -671,11 +672,24 @@ public class SPMDResilientIterativeExecutor {
         	while (iter.hasNext()) {
         		val i = iter.next();
         		val t = stepTimes.getOrThrow(i);
-        		rail(i) = t;
-        		str+= t+",";
+        		var sum:Long = 0;
+        		for (x in t) {
+        			sum += x;
+        		}
+        		rail(i) = sum;
+        		str+= rail(i)+",";
         	}        	
         	//Console.OUT.println(here + "=>" + str);
         	return rail;
+        }
+        
+        public def addStepTime(i:Long, t:Long) {
+        	var list:ArrayList[Long] = stepTimes.getOrElse(i, null);
+            if (list == null) {
+            	list = new ArrayList[Long]();
+            	stepTimes.put(i,list);
+            }
+            list.add(t);
         }
     }
 }
