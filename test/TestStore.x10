@@ -16,7 +16,7 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
         var restoreJustDone:Boolean = false;
         var places:PlaceGroup = resilientMap.getActivePlaces();
         var lastCheckpointIter:Long = 0;
-        var plh:PlaceLocalHandle[AppLocal] = PlaceLocalHandle.make[AppLocal](places, () => new AppLocal() );
+        var plh:PlaceLocalHandle[AppLocal2] = PlaceLocalHandle.make[AppLocal2](places, () => new AppLocal2() );
         do {
             try{
                 
@@ -24,13 +24,13 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
                 if (restoreRequired) {
                     resilientMap.recoverDeadPlaces();
                     places = resilientMap.getActivePlaces();
-                    plh = PlaceLocalHandle.make[AppLocal](places, () => new AppLocal());
+                    plh = PlaceLocalHandle.make[AppLocal2](places, () => new AppLocal2());
                     
                     val constPLH = plh;
                     finish ateach(Dist.makeUnique(places)) {
                     	
                     	val trans = resilientMap.startSPMDTransaction();                    	
-                    	val v = trans.get("P") as AppLocal;
+                    	val v = trans.get("P") as AppLocal2;
                     	trans.commit();
                     	//we don't need to agree in restore
                     	constPLH().sum = v.sum;
@@ -106,6 +106,6 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
 }
 
 
-class AppLocal {
+class AppLocal2 {
 	var sum:Long = 0;
 }

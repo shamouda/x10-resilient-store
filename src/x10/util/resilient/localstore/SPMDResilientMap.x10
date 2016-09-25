@@ -6,7 +6,6 @@ import x10.util.ArrayList;
 import x10.util.HashMap;
 import x10.util.concurrent.SimpleLatch;
 import x10.util.concurrent.AtomicLong;
-import x10.util.resilient.map.common.Utils;
 import x10.compiler.Ifdef;
 import x10.util.resilient.iterative.PlaceGroupBuilder;
 
@@ -15,8 +14,9 @@ public class SPMDResilientMap {
     private val plh:PlaceLocalHandle[SPMDLocalStore];
     private var activePlaces:PlaceGroup;
     private var sparePlaces:ArrayList[Place];
-    private var deadPlaces:ArrayList[Place];
+    private var deadPlaces:ArrayList[Place];    
     private val slaveMap:Rail[Long]; //master virtual place to slave physical place
+    private val sequence:AtomicLong = new AtomicLong();
     
     private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[SPMDLocalStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
         this.activePlaces = activePlaces;
@@ -40,7 +40,7 @@ public class SPMDResilientMap {
     
     public def getActivePlaces() = activePlaces;
     
-    public def recoverDeadPlaces() {
+    public def recoverDeadPlaces():HashMap[Long,Long] {
         val oldPlaceGroup = activePlaces;
         val addedSparePlaces = new HashMap[Long,Long](); // key=readId, value=virtualPlaceId
         val mastersLostTheirSlaves = new ArrayList[Long]();
@@ -69,19 +69,20 @@ public class SPMDResilientMap {
                 group.add(p);
             }
             virtualPlaceId++;
-        }
+        }      
         
         activePlaces = new SparsePlaceGroup(group.toRail());
         
-        checkIfBothMasterAndSlaveLost(addedSparePlaces, mastersLostTheirSlaves);
+        checkIfBothMasterAndSlaveDied(addedSparePlaces, mastersLostTheirSlaves);
         
         recoverMasters(addedSparePlaces);
         
         recoverSlaves(mastersLostTheirSlaves);
         
+        return addedSparePlaces;
     }
     
-    private def checkIfBothMasterAndSlaveLost(addedSparePlaces:HashMap[Long,Long], mastersLostTheirSlaves:ArrayList[Long]) {
+    private def checkIfBothMasterAndSlaveDied(addedSparePlaces:HashMap[Long,Long], mastersLostTheirSlaves:ArrayList[Long]) {
         val iter = addedSparePlaces.keySet().iterator();
         if (iter.hasNext()) {
             val masterRealId = iter.next();
@@ -176,6 +177,7 @@ public class SPMDResilientMap {
                     at (Place(slaveRealId)) {
                         plh().slaveStore.addMasterPlace(masterVirtualId, masterState.data, new HashMap[String,TransKeyLog](), masterState.epoch);
                     }
+                    plh().slave = Place(slaveRealId);
                 }
             }
         }
@@ -191,7 +193,7 @@ public class SPMDResilientMap {
     public def startSPMDTransaction():SPMDTransaction {
         assert(plh().virtualPlaceId != -1);
         val placeIndex = activePlaces.indexOf(here);
-        return new SPMDTransaction(plh, Utils.getNextTransactionId(), placeIndex);
+        return new SPMDTransaction(plh, getNextTransactionId(), placeIndex);
     }
     
     /*
@@ -201,5 +203,12 @@ public class SPMDResilientMap {
     }
     */
     
+    public def getNextTransactionId() {
+        val id = sequence.incrementAndGet();
+        return 100000+id;
+    }
     
+    public def printStatus() {
+       Console.OUT.println("DS-- " + here + " " + plh().slave);	
+    }
 }

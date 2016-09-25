@@ -3,7 +3,6 @@ package x10.util.resilient.localstore;
 import x10.util.HashMap;
 import x10.util.ArrayList;
 import x10.util.HashSet;
-import x10.util.resilient.map.common.Utils;
 import x10.compiler.Ifdef;
 import x10.xrx.Runtime;
 

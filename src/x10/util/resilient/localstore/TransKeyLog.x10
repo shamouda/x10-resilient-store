@@ -1,7 +1,6 @@
 package x10.util.resilient.localstore;
 
 import x10.util.HashMap;
-import x10.util.resilient.map.common.Utils;
 
 public class TransKeyLog {
 

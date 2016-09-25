@@ -5,15 +5,6 @@ import x10.util.concurrent.Lock;
 import x10.compiler.Inline;
 import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
-import x10.util.resilient.map.common.Utils;
-import x10.util.resilient.map.partition.PartitionTable;
-import x10.util.resilient.map.common.Topology;
-import x10.util.resilient.map.impl.Replica;
-import x10.util.resilient.map.impl.ReplicaClient;
-import x10.util.resilient.map.exception.TopologyCreationFailedException;
-import x10.util.resilient.map.exception.InvalidDataStoreException;
-import x10.util.resilient.map.migration.MigrationHandler;
-import x10.util.resilient.map.transaction.TransactionRecoveryManager;
 import x10.compiler.Ifdef;
 
 public class SPMDLocalStore {
