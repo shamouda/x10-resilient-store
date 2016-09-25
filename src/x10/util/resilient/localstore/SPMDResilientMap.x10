@@ -65,7 +65,6 @@ public class SPMDResilientMap {
                 mastersLostTheirSlaves.add(findMasterVirtualIdGivenSlave(p.id));
             }
             else{
-                Console.OUT.println("adding place p["+p.id+"]");
                 group.add(p);
             }
             virtualPlaceId++;
