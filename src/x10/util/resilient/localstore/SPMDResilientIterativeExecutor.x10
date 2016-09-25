@@ -54,7 +54,9 @@ public class SPMDResilientIterativeExecutor {
    
     
     private transient var remakeTimes:ArrayList[Double] = new ArrayList[Double]();
+    private transient var appRemakeTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var reconstructTeamTimes:ArrayList[Double] = new ArrayList[Double]();
+    private transient var resilientMapRecoveryTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var failureDetectionTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var applicationInitializationTime:Long = 0;
     private transient var startRunTime:Long = 0;
@@ -110,9 +112,11 @@ public class SPMDResilientIterativeExecutor {
                         val startRemake = Timer.milliTime();                    
                         
                         
+                        val startResilientMapRecovery = Timer.milliTime(); 
                         val addedPlacesMap = resilientMap.recoverDeadPlaces();
-                        val newPG = resilientMap.getActivePlaces();
+                        resilientMapRecoveryTimes.add(Timer.milliTime() - startResilientMapRecovery);
                         
+                        val newPG = resilientMap.getActivePlaces();
                         if (VERBOSE){
                             var str:String = "";
                             for (p in newPG)
@@ -133,10 +137,11 @@ public class SPMDResilientIterativeExecutor {
                         	PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat));
                         }
 
+                        val startAppRemake = Timer.milliTime();
                         app.remake(newPG, team, addedPlaces);
+                        appRemakeTimes.add(Timer.milliTime() - startAppRemake);                        
                         
                         val lastCheckIter = placeTempData().lastCheckpointIter;
-                        
                         places = newPG;
                         globalIter = lastCheckIter;
                         remakeRequired = false;
@@ -327,10 +332,12 @@ public class SPMDResilientIterativeExecutor {
 	    	Console.OUT.println("RestoreAgree-min:" + railToString(placeTempData().stat.placeMinRestoreAgreement));
 	    	Console.OUT.println("RestoreAgree-max:" + railToString(placeTempData().stat.placeMaxRestoreAgreement));
 	    	
-	    	
 	    	Console.OUT.println("FailureDetection-place0:" + railToString(failureDetectionTimes.toRail()));
-	    	Console.OUT.println("Remake-place0:" + railToString(remakeTimes.toRail()));
+	    	
+	    	Console.OUT.println("ResilientMapRecovery-place0:" + railToString(resilientMapRecoveryTimes.toRail()));
+	    	Console.OUT.println("AppRemake-place0:" + railToString(appRemakeTimes.toRail()));
 	    	Console.OUT.println("TeamReconstruction-place0:" + railToString(reconstructTeamTimes.toRail()));
+	    	Console.OUT.println("AllRemake-place0:" + railToString(remakeTimes.toRail()));
     	}
         Console.OUT.println("=========Totals by averaging Min/Max statistics============");
         Console.OUT.println(">>>>>>>>>>>>>>Initialization:"      + applicationInitializationTime);
@@ -346,12 +353,21 @@ public class SPMDResilientIterativeExecutor {
             Console.OUT.println(">>>>>>>>>>>>>>TotalCheckpointing:"+ (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) );
       
             Console.OUT.println();
-            Console.OUT.println("Failure Detection:"        + railToString(failureDetectionTimes.toRail()) );
-            Console.OUT.println("   ---Failure Detection:"   + railAverage(failureDetectionTimes.toRail()) );
-            Console.OUT.println("Remake:"                   + railToString(remakeTimes.toRail()) );
-            Console.OUT.println("   ---Remake:"              + railAverage(remakeTimes.toRail()) );
-            Console.OUT.println("TeamReconstruction:"      + railToString(reconstructTeamTimes.toRail()) );
+            Console.OUT.println("FailureDetection-all:"        + railToString(failureDetectionTimes.toRail()) );
+            Console.OUT.println("   ---FailureDetection:"   + railAverage(failureDetectionTimes.toRail()) );
+            
+            
+            
+            Console.OUT.println("ResilientMapRecovery-all:"      + railToString(resilientMapRecoveryTimes.toRail()) );
+            Console.OUT.println("   ---ResilientMapRecovery:" + railAverage(resilientMapRecoveryTimes.toRail()) );
+            Console.OUT.println("AppRemake-all:"      + railToString(appRemakeTimes.toRail()) );
+            Console.OUT.println("   ---AppRemake:" + railAverage(appRemakeTimes.toRail()) );
+            Console.OUT.println("TeamReconstruction-all:"      + railToString(reconstructTeamTimes.toRail()) );
             Console.OUT.println("   ---TeamReconstruction:" + railAverage(reconstructTeamTimes.toRail()) );
+            Console.OUT.println("TotalRemake-all:"                   + railToString(remakeTimes.toRail()) );
+            Console.OUT.println("   ---TotalRemake:"              + railAverage(remakeTimes.toRail()) );
+            
+            
             Console.OUT.println("RestoreData:"         + railToString(averageRestore));
             Console.OUT.println("   ---RestoreData:"    + railAverage(averageRestore));
             Console.OUT.println("RestoreAgreement:"         + railToString(averageRestoreAgreement) );
