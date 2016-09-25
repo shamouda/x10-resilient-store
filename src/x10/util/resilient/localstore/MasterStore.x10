@@ -13,7 +13,7 @@ public class MasterStore {
     private val moduleName = "MasterStore";
     public var epoch:Long = 1;
     private val lock = new Lock();
-    private val data:HashMap[String,Any];
+    private val data:HashMap[String,Cloneable];
     private val virtualPlaceId:Long;
     
     public val committedTrans = new HashSet[Long]();
@@ -22,30 +22,30 @@ public class MasterStore {
     //used for original active places joined before any failured
     public def this(virtualPlaceId:Long) {
         this.virtualPlaceId = virtualPlaceId;
-        this.data = new HashMap[String,Any]();
+        this.data = new HashMap[String,Cloneable]();
     }
     
     //used when a spare place is replacing a dead one
-    public def this(virtualPlaceId:Long, data:HashMap[String,Any], epoch:Long) {
+    public def this(virtualPlaceId:Long, data:HashMap[String,Cloneable], epoch:Long) {
         this.virtualPlaceId = virtualPlaceId;
         this.data = data;
         this.epoch = epoch;
     }
     
-    public def getCopy(key:String):Any {
+    public def getCopy(key:String):Cloneable {
         return get(key, true);
     }
     
-    public def getNoCopy(key:String):Any {
+    public def getNoCopy(key:String):Cloneable {
     	return get(key, false);
     }
     
-    private def get(key:String, copy:Boolean):Any {
+    private def get(key:String, copy:Boolean):Cloneable {
         try {
             lock.lock();
             val value = data.getOrElse(key, null);
             if (value != null) {
-            	return copy? Runtime.deepCopy(value): value;            
+            	return copy? value.clone(): value;            
             }
             else
             	return null;

@@ -209,6 +209,6 @@ public class SPMDResilientMap {
     }
     
     public def printStatus() {
-       Console.OUT.println("DS-- " + here + " " + plh().slave);	
+       //Console.OUT.println("DS-- " + here + " " + plh().slave);	
     }
 }

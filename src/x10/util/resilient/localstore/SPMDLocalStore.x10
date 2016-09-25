@@ -27,14 +27,14 @@ public class SPMDLocalStore {
     }
 
     /*used when a spare place joins*/
-    public def joinAsMaster (virtualPlaceId:Long, data:HashMap[String,Any], epoch:Long) {
+    public def joinAsMaster (virtualPlaceId:Long, data:HashMap[String,Cloneable], epoch:Long) {
         this.virtualPlaceId = virtualPlaceId;
         masterStore = new MasterStore(virtualPlaceId, data, epoch);
         slaveStore = new SlaveStore();
     }      
     
     /*used when a spare place joins*/
-    public def joinAsSlave (masterVirtualPlaceId:Long, masterData:HashMap[String,Any], masterEpoch:Long) {
+    public def joinAsSlave (masterVirtualPlaceId:Long, masterData:HashMap[String,Cloneable], masterEpoch:Long) {
         assert(slaveStore != null);
         slaveStore.addMasterPlace(masterVirtualPlaceId, masterData, new HashMap[String,TransKeyLog](), masterEpoch);
     }

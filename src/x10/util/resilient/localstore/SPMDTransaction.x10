@@ -13,10 +13,10 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     private var preparedToCommit:Boolean = false;
 	private var alive:Boolean = true; // the transaction is alive if it can process more puts and gets
 	
-    public def put(key:String, newValue:Any):Any {
+    public def put(key:String, newValue:Cloneable):Cloneable {
     	assert(alive);
-    	val copiedValue = Runtime.deepCopy(newValue);    		
-        var oldValue:Any = null;    
+    	val copiedValue = newValue.clone();    		
+        var oldValue:Cloneable = null;    
         val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used in the transaction before
             oldValue = keyLog.getValue();
@@ -33,9 +33,9 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     }
     
     
-    public def delete(key:String):Any {
+    public def delete(key:String):Cloneable {
     	assert(alive);
-        var oldValue:Any = null;    
+        var oldValue:Cloneable = null;    
         val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used in the transaction before
             oldValue = keyLog.getValue();
@@ -52,9 +52,9 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     }
     
     
-    public def get(key:String):Any {
+    public def get(key:String):Cloneable {
     	assert(alive);
-        var oldValue:Any = null;
+        var oldValue:Cloneable = null;
         val keyLog = transLog.getOrElse(key+placeIndex,null);
         if (keyLog != null) { // key used before in the transaction
            oldValue = keyLog.getValue();
@@ -69,10 +69,15 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     }
 
     /**
-     * Slave dead is fatal
+     * Dead slave is fatal
      **/
     public def prepare() {
     	assert(alive);
+    	if (isReadOnlyTransaction()){
+    	    preparedToCommit = true;
+    	    return;
+        }
+    	
     	val masterVirtualId = plh().virtualPlaceId;
     	val masterEpoch = plh().masterStore.epoch;
     	at (plh().slave) {
@@ -82,7 +87,7 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     }
     
     /**
-     * Slave dead is ignored
+     * Dead slave is ignored
      **/
     public def commit() {
     	assert (alive);
@@ -111,7 +116,7 @@ public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, pla
     }
     
     /**
-     * Slave dead is fatal is ignored
+     * Dead slave is ignored
      **/
     public def rollback() {
     	assert (alive);

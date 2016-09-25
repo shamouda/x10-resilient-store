@@ -22,9 +22,9 @@ public interface SPMDResilientIterativeApp {
     
     public def getCheckpointAndRestoreKeys():Rail[String];
     
-    public def getCheckpointValues():Rail[Any];    
+    public def getCheckpointValues():Rail[Cloneable];    
     
     public def remake(newPlaces:PlaceGroup, newTeam:Team, newAddedPlaces:ArrayList[Place]):void;
     
-    public def restore(restoreDataMap:HashMap[String,Any], lastCheckpointIter:Long):void;   
+    public def restore(restoreDataMap:HashMap[String,Cloneable], lastCheckpointIter:Long):void;   
 }

@@ -18,7 +18,7 @@ public class SlaveStore {
         mastersMap = new HashMap[Long,MasterState]();
     }
     
-    public def addMasterPlace(masterVirtualId:Long, masterData:HashMap[String,Any], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
+    public def addMasterPlace(masterVirtualId:Long, masterData:HashMap[String,Cloneable], transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         try {
             lock.lock();
             mastersMap.put(masterVirtualId, new MasterState(masterData,masterEpoch));
@@ -45,7 +45,7 @@ public class SlaveStore {
             lock.lock();
             var masterState:MasterState = mastersMap.getOrElse(masterVirtualId, null);
             if (masterState == null) {
-            	masterState = new MasterState(new HashMap[String,Any](), masterEpoch);
+            	masterState = new MasterState(new HashMap[String,Cloneable](), masterEpoch);
                 mastersMap.put(masterVirtualId, masterState);
             }
             masterState.pendingTrans.put(transId, transLog);
@@ -136,7 +136,7 @@ public class SlaveStore {
     private def applyChangesLockAcquired(masterVirtualId:Long, transLog:HashMap[String,TransKeyLog], masterEpoch:Long) {
         var state:MasterState = mastersMap.getOrElse(masterVirtualId, null);
         if (state == null) {
-            state = new MasterState(new HashMap[String,Any](), masterEpoch);
+            state = new MasterState(new HashMap[String,Cloneable](), masterEpoch);
             mastersMap.put(masterVirtualId, state);
         }
         val data = state.data;
@@ -157,10 +157,10 @@ public class SlaveStore {
 
 class MasterState {
     public var epoch:Long;
-    public var data:HashMap[String,Any];
+    public var data:HashMap[String,Cloneable];
     public val pendingTrans = new HashMap[Long,HashMap[String,TransKeyLog]]();
    
-    public def this(data:HashMap[String,Any], epoch:Long) {
+    public def this(data:HashMap[String,Cloneable], epoch:Long) {
         this.data = data;
         this.epoch = epoch;
     }
