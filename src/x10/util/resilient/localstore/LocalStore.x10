@@ -7,8 +7,8 @@ import x10.xrx.Runtime;
 import x10.util.concurrent.AtomicLong;
 import x10.compiler.Ifdef;
 
-public class SPMDLocalStore {
-    private val moduleName = "SPMDLocalStore";
+public class LocalStore {
+    private val moduleName = "LocalStore";
     
     public var masterStore:MasterStore = null;
     public var slave:Place;

@@ -9,31 +9,31 @@ import x10.util.concurrent.AtomicLong;
 import x10.compiler.Ifdef;
 import x10.util.resilient.iterative.PlaceGroupBuilder;
 
-public class SPMDResilientMap {
-    private val moduleName = "SPMDResilientMap";
-    private val plh:PlaceLocalHandle[SPMDLocalStore];
+public class ResilientStore {
+    private val moduleName = "ResilientStore";
+    private val plh:PlaceLocalHandle[LocalStore];
     private var activePlaces:PlaceGroup;
     private var sparePlaces:ArrayList[Place];
     private var deadPlaces:ArrayList[Place];    
     private val slaveMap:Rail[Long]; //master virtual place to slave physical place
     private val sequence:AtomicLong = new AtomicLong();
     
-    private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[SPMDLocalStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
+    private def this(activePlaces:PlaceGroup, plh:PlaceLocalHandle[LocalStore], slaveMap:Rail[Long], sparePlaces:ArrayList[Place]){
         this.activePlaces = activePlaces;
         this.plh = plh;
         this.slaveMap = slaveMap;
         this.sparePlaces = sparePlaces;
     }
     
-    public static def make(spare:Long):SPMDResilientMap {
+    public static def make(spare:Long):ResilientStore {
     	val activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
     	val slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
-    	val plh = PlaceLocalHandle.make[SPMDLocalStore](Place.places(), () => new SPMDLocalStore(spare, slaveMap));
+    	val plh = PlaceLocalHandle.make[LocalStore](Place.places(), () => new LocalStore(spare, slaveMap));
         val sparePlaces = new ArrayList[Place]();
         for (var i:Long = activePlaces.size(); i< Place.numPlaces(); i++){
             sparePlaces.add(Place(i));
         }
-    	return new SPMDResilientMap(activePlaces, plh, slaveMap, sparePlaces);
+    	return new ResilientStore(activePlaces, plh, slaveMap, sparePlaces);
     }
     
     public def getVirtualPlaceId() = activePlaces.indexOf(here);
@@ -189,10 +189,10 @@ public class SPMDResilientMap {
         }
     }
     
-    public def startSPMDTransaction():SPMDTransaction {
+    public def startLocalTransaction():LocalTransaction {
         assert(plh().virtualPlaceId != -1);
         val placeIndex = activePlaces.indexOf(here);
-        return new SPMDTransaction(plh, getNextTransactionId(), placeIndex);
+        return new LocalTransaction(plh, getNextTransactionId(), placeIndex);
     }
     
     /*

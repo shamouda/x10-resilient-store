@@ -61,7 +61,7 @@ public class TestIterativeStore(spare:Long,iterations:Long,checkpointInterval:Lo
     
 	
     public def run(): Boolean {
-        val resilientMap = SPMDResilientMap.make(spare);
+        val resilientMap = ResilientStore.make(spare);
         places = resilientMap.getActivePlaces();
         plh = PlaceLocalHandle.make[AppLocal](places, () => new AppLocal() );
         val executor = new SPMDResilientIterativeExecutor(checkpointInterval, resilientMap, false);

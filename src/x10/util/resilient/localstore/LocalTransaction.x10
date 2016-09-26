@@ -6,8 +6,8 @@ import x10.util.HashSet;
 import x10.compiler.Ifdef;
 import x10.xrx.Runtime;
 
-public class SPMDTransaction (plh:PlaceLocalHandle[SPMDLocalStore], id:Long, placeIndex:Long) {
-	private val moduleName = "SPMDTransaction";
+public class LocalTransaction (plh:PlaceLocalHandle[LocalStore], id:Long, placeIndex:Long) {
+	private val moduleName = "LocalTransaction";
 	
     private val transLog:HashMap[String,TransKeyLog] = new HashMap[String,TransKeyLog]();    
     private var preparedToCommit:Boolean = false;

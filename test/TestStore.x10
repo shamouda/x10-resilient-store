@@ -1,6 +1,6 @@
 import harness.x10Test;
 
-import x10.util.resilient.localstore.SPMDResilientMap;
+import x10.util.resilient.localstore.ResilientStore;
 
 import x10.regionarray.Dist;
 import x10.util.Option;
@@ -11,7 +11,7 @@ import x10.util.OptionsParser;
 public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Long,vp:Long) extends x10Test {
     
     public def run(): Boolean {
-        val resilientMap = SPMDResilientMap.make(spare);
+        val resilientMap = ResilientStore.make(spare);
         var restoreRequired:Boolean = false;
         var restoreJustDone:Boolean = false;
         var places:PlaceGroup = resilientMap.getActivePlaces();
@@ -29,7 +29,7 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
                     val constPLH = plh;
                     finish ateach(Dist.makeUnique(places)) {
                     	
-                    	val trans = resilientMap.startSPMDTransaction();                    	
+                    	val trans = resilientMap.startLocalTransaction();                    	
                     	val v = trans.get("P") as AppLocal2;
                     	trans.commit();
                     	//we don't need to agree in restore
@@ -47,7 +47,7 @@ public class TestStore(spare:Long,iterations:Long,checkpointInterval:Long,vi:Lon
             			if (constPLH() == null)
             				Console.OUT.println("ERROR null at " + here);
             			
-            			val trans = resilientMap.startSPMDTransaction();
+            			val trans = resilientMap.startLocalTransaction();
             			trans.put("P", constPLH());
             			trans.prepare();
             			//agree

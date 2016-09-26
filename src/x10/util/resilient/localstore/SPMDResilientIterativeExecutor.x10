@@ -30,7 +30,7 @@ import x10.xrx.Runtime;
  * -> no need to notify place death for collectives
  * */
 public class SPMDResilientIterativeExecutor {
-	private val resilientMap:SPMDResilientMap;
+	private val resilientMap:ResilientStore;
     private var placeTempData:PlaceLocalHandle[PlaceTempData];
     private var places:PlaceGroup;
     private var team:Team;
@@ -66,7 +66,7 @@ public class SPMDResilientIterativeExecutor {
     private val CHECKPOINT_OPERATION = 1;
     private val RESTORE_OPERATION = 2;
     
-    public def this(itersPerCheckpoint:Long, resilientMap:SPMDResilientMap, implicitStepSynchronization:Boolean) {
+    public def this(itersPerCheckpoint:Long, resilientMap:ResilientStore, implicitStepSynchronization:Boolean) {
     	this.resilientMap = resilientMap;
         this.itersPerCheckpoint = itersPerCheckpoint;
         this.implicitStepSynchronization = implicitStepSynchronization;
@@ -452,7 +452,7 @@ public class SPMDResilientIterativeExecutor {
         val excs = new GrowableRail[CheckedThrowable]();
         val startOperation = Timer.milliTime();
         var operationTime:Long = 0;
-        val trans = resilientMap.startSPMDTransaction();        
+        val trans = resilientMap.startLocalTransaction();        
         var vote:Long = 1;
         try{
             if (operation == CHECKPOINT_OPERATION) {
