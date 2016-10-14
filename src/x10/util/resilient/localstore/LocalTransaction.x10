@@ -71,6 +71,32 @@ public class LocalTransaction (plh:PlaceLocalHandle[LocalStore], id:Long, placeI
     /**
      * Dead slave is fatal
      **/
+    public def prepareAndCommit() {
+        assert(alive);
+        if (isReadOnlyTransaction()){
+            preparedToCommit = true;
+            alive = false;
+            return;
+        }
+        
+        val masterVirtualId = plh().virtualPlaceId;
+        plh().masterStore.epoch++;
+        val masterEpoch = plh().masterStore.epoch;
+        at (plh().slave) {
+            plh().slaveStore.addPendingTransaction(masterVirtualId, id, transLog, masterEpoch);
+            plh().slaveStore.commit(masterVirtualId, id, masterEpoch);
+        }
+        
+        //master commit
+        plh().masterStore.commit(id, transLog);
+        
+        preparedToCommit = true;
+        alive = false;
+    }
+    
+    /**
+     * Dead slave is fatal
+     **/
     public def prepare() {
     	assert(alive);
     	if (isReadOnlyTransaction()){
