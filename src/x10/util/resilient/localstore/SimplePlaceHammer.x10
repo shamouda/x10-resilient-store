@@ -1,5 +1,6 @@
 package x10.util.resilient.localstore;
 
+import x10.util.HashMap;
 public class SimplePlaceHammer {
     val map:HashMap[Long,Long] = new HashMap[Long,Long]();
     public def this(steps:String, places:String) {
