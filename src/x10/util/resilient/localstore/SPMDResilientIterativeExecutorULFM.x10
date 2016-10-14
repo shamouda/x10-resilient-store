@@ -50,8 +50,6 @@ public class SPMDResilientIterativeExecutorULFM {
     private val KILL_CHECKVOTING_PLACE = (System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_CHECKVOTING_PLACE")):-1;   
     private val KILL_RESTOREVOTING_INDEX = (System.getenv("EXECUTOR_KILL_RESTOREVOTING") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING")):-1;
     private val KILL_RESTOREVOTING_PLACE = (System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE") != null)?Long.parseLong(System.getenv("EXECUTOR_KILL_RESTOREVOTING_PLACE")):-1;   
-    private val DISABLE_ULFM_AGREEMENT = System.getenv("DISABLE_ULFM_AGREEMENT") != null && System.getenv("DISABLE_ULFM_AGREEMENT").equals("1");
-   
     
     private transient var remakeTimes:ArrayList[Double] = new ArrayList[Double]();
     private transient var appRemakeTimes:ArrayList[Double] = new ArrayList[Double]();
@@ -73,7 +71,7 @@ public class SPMDResilientIterativeExecutorULFM {
         this.simplePlaceHammer = new SimplePlaceHammer(HAMMER_STEPS, HAMMER_PLACES);
         if (itersPerCheckpoint > 0 && x10.xrx.Runtime.RESILIENT_MODE > 0) {
             isResilient = true;            
-            if (!DISABLE_ULFM_AGREEMENT && !x10.xrx.Runtime.x10rtAgreementSupport()){
+            if (!x10.xrx.Runtime.x10rtAgreementSupport()){
             	throw new UnsupportedOperationException("This executor requires an agreement algorithm from the transport layer ...");
         	}
             if (VERBOSE){         
@@ -512,7 +510,6 @@ public class SPMDResilientIterativeExecutorULFM {
         var commit:Boolean = true;
         try{
         	if (VERBOSE) Console.OUT.println(here+" Starting agree call in operation ["+op+"]");
-        	if (!DISABLE_ULFM_AGREEMENT)
         	    success = team.agree((vote as Int));
         	
         	if (success != 1N)
@@ -689,33 +686,4 @@ public class SPMDResilientIterativeExecutorULFM {
         }
         */
     }
-}
-
-class SimplePlaceHammer {
-	val map:HashMap[Long,Long] = new HashMap[Long,Long]();
-	public def this(steps:String, places:String) {
-	    if (steps != null && places != null) {
-	        val sRail = steps.split(",");
-		    val pRail = places.split(",");
-		
-		    if (sRail.size == pRail.size) {
-		    	for (var i:Long = 0; i < sRail.size ; i++) {
-		    		val step = Long.parseLong(sRail(i));
-		    		val place = Long.parseLong(pRail(i));
-		    		map.put(step, place);
-		    		Console.OUT.println("Hammer  step="+step+" place="+place);
-		    	}
-		    }
-	    }
-	}
-	
-	public def sayGoodBye(curStep:Long):Boolean {
-		val placeToKill = map.getOrElse(curStep,-1);
-		if (placeToKill == here.id) {
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
 }

@@ -103,8 +103,15 @@ public class SPMDResilientIterativeExecutor {
                 var tmpRestoreFlag:Boolean = false;
                 if (remakeRequired) {
                     tmpRestoreFlag = remake(app);
+                    if (tmpRestoreFlag) {
+                        globalIter = placeTempData().lastCheckpointIter;
+                    }
                     remakeRequired = false;
                 }
+                else {
+                    globalIter = placeTempData().globalIter;
+                }
+                
                 val restoreRequired = tmpRestoreFlag;
                 
                 /*** Checkpoint (save new version) ***/
@@ -118,6 +125,7 @@ public class SPMDResilientIterativeExecutor {
                 
                 val tmpGlobalIter = globalIter;
                 finish ateach(Dist.makeUnique(places)) {
+                    placeTempData().globalIter = tmpGlobalIter;
                 	Console.OUT.println("Starting all over again: stepCount = " + placeTempData().stat.stepTimes.size());
                 	
                 	/*** Checkpoint (delete old version) ***/
@@ -129,12 +137,13 @@ public class SPMDResilientIterativeExecutor {
                         restore(app);
                     }
                     
-                    var localIter:Long = tmpGlobalIter;
+                    var localIter:Long = 0;
                     
-                    while ( !app.isFinished() || localRestoreRequired) {
+                    while ( !app.isFinished_local() && 
+                            (!isResilient || (isResilient && localIter < itersPerCheckpoint)) ) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         	
-                    	if ( isResilient && simplePlaceHammer.sayGoodBye(localIter) ) {
+                    	if ( isResilient && simplePlaceHammer.sayGoodBye(placeTempData().globalIter) ) {
                     		executorKillHere("step()");
                     	}
 
@@ -209,9 +218,8 @@ public class SPMDResilientIterativeExecutor {
         app.remake(newPG, team, addedPlaces);
         appRemakeTimes.add(Timer.milliTime() - startAppRemake);                        
         
-        val lastCheckIter = placeTempData().lastCheckpointIter;
         places = newPG;
-        globalIter = lastCheckIter;
+        
         restoreRequired = true;
         remakeTimes.add(Timer.milliTime() - startRemake) ;                        
         Console.OUT.println("LocalViewResilientExecutor: All remake steps completed successfully ...");
@@ -562,35 +570,4 @@ public class SPMDResilientIterativeExecutor {
         	this.stepTimes = obj.stepTimes;
         }
     }
-}
-
-
-
-class SimplePlaceHammer {
-	val map:HashMap[Long,Long] = new HashMap[Long,Long]();
-	public def this(steps:String, places:String) {
-	    if (steps != null && places != null) {
-	        val sRail = steps.split(",");
-		    val pRail = places.split(",");
-		
-		    if (sRail.size == pRail.size) {
-		    	for (var i:Long = 0; i < sRail.size ; i++) {
-		    		val step = Long.parseLong(sRail(i));
-		    		val place = Long.parseLong(pRail(i));
-		    		map.put(step, place);
-		    		Console.OUT.println("Hammer  step="+step+" place="+place);
-		    	}
-		    }
-	    }
-	}
-	
-	public def sayGoodBye(curStep:Long):Boolean {
-		val placeToKill = map.getOrElse(curStep,-1);
-		if (placeToKill == here.id) {
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
 }
