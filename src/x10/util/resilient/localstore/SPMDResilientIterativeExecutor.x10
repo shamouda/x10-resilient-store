@@ -258,13 +258,13 @@ public class SPMDResilientIterativeExecutor {
     private def deleteOldCheckpointVersion(app:SPMDResilientIterativeApp, delCkptVer:Long) {
         val deleteOldVersionStart = Timer.milliTime();
         
-        placeTempData().ckptCommittedVer = tmpDelCkptVersion+1;
+        placeTempData().ckptCommittedVer = delCkptVer+1;
         try {
             val trans = resilientMap.startLocalTransaction();
             val chkKeys = app.getCheckpointAndRestoreKeys();
             if (chkKeys != null && chkKeys.size > 0) {
                 for (var i:Long = 0; i < chkKeys.size; i++){
-                    val key = chkKeys(i) +":v" + tmpDelCkptVersion;
+                    val key = chkKeys(i) +":v" + delCkptVer;
                     trans.delete(key);
                 }
             }
@@ -522,6 +522,7 @@ public class SPMDResilientIterativeExecutor {
     	val stat:PlaceStatistics;
     	val place0VictimsStats:HashMap[Long,PlaceStatistics];//key=victim_index value=its_old_statistics
     	var ckptCommittedVer:Long = -1;
+    	var globalIter:Long = 0;
         //used for initializing spare places with the same values from Place0
         private def this(otherStat:PlaceStatistics){
             this.stat = otherStat;
