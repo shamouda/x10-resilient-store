@@ -543,7 +543,6 @@ public class SPMDResilientIterativeExecutor {
     class PlaceStatistics {
 	    val ckptDeleteOldVersion:ArrayList[Long];
 	    val restoreTimes:ArrayList[Long];
-	    val restoreAgreementTimes:ArrayList[Long];
 	    val stepTimes:ArrayList[Long];
     
 	    var placeMaxCkptDeleteOldVersion:Rail[Long];
@@ -557,14 +556,12 @@ public class SPMDResilientIterativeExecutor {
         public def this() {
             ckptDeleteOldVersion = new ArrayList[Long]();
 	    	restoreTimes = new ArrayList[Long]();
-	    	restoreAgreementTimes = new ArrayList[Long]();
 	    	stepTimes = new ArrayList[Long]();
         }
         
         public def this(obj:PlaceStatistics) {
         	this.ckptDeleteOldVersion = obj.ckptDeleteOldVersion;
         	this.restoreTimes = obj.restoreTimes;
-        	this.restoreAgreementTimes = obj.restoreAgreementTimes;
         	this.stepTimes = obj.stepTimes;
         }
     }
