@@ -250,7 +250,7 @@ public class SPMDResilientIterativeExecutor {
         delCkptVer = ckptVersion;
         ckptVersion++;
          
-        lastCheckpointIter = placeTempData().globalIter;
+        placeTempData().lastCheckpointIter = placeTempData().globalIter;
         ckptSaveNewVersion.add(Timer.milliTime() - startCheckpoint);
         return delCkptVer;
     }
@@ -407,7 +407,7 @@ public class SPMDResilientIterativeExecutor {
         var calcTotal:Double = applicationInitializationTime + railSum(averageSteps);
         
         if (isResilient){
-        	calcTotal += (railSum(ckptSaveNewVersion.toRail())+railSum(averageCkptDeleteOldVersion.toRail()) ) + 
+        	calcTotal += (railSum(ckptSaveNewVersion.toRail())+railSum(averageCkptDeleteOldVersion) ) + 
                 (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) );
         }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
