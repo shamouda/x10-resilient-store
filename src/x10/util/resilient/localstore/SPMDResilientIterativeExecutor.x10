@@ -400,15 +400,15 @@ public class SPMDResilientIterativeExecutor {
             
             Console.OUT.println("RestoreData:"         + railToString(averageRestore));
             Console.OUT.println("   ---RestoreData:"    + railAverage(averageRestore));
-            Console.OUT.println(">>>>>>>>>>>>>>TotalRecovery:" + (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) ));
+            Console.OUT.println(">>>>>>>>>>>>>>TotalRecovery:" + (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) ));
         }
         Console.OUT.println("=============================");
         Console.OUT.println("Actual RunTime:" + runTime);
         var calcTotal:Double = applicationInitializationTime + railSum(averageSteps);
         
         if (isResilient){
-        	calcTotal += (railSum(averageCheckpoint)+railSum(averageCheckpointAgreement) ) + 
-                (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) + railSum(averageRestoreAgreement) );
+        	calcTotal += (railSum(ckptSaveNewVersion.toRail())+railSum(averageCkptDeleteOldVersion.toRail()) ) + 
+                (railSum(failureDetectionTimes.toRail()) + railSum(remakeTimes.toRail()) + railSum(averageRestore) );
         }
         Console.OUT.println("Calculated RunTime based on Averages:" + calcTotal 
             + "   ---Difference:" + (runTime-calcTotal));
@@ -416,7 +416,7 @@ public class SPMDResilientIterativeExecutor {
         Console.OUT.println("=========Counts============");
         Console.OUT.println("StepCount:"+averageSteps.size);
         if (isResilient){
-            Console.OUT.println("CheckpointCount:"+(averageCheckpoint==null?0:averageCheckpoint.size));
+            Console.OUT.println("CheckpointCount:"+(ckptSaveNewVersion==null?0:ckptSaveNewVersion.size));
             Console.OUT.println("RestoreCount:"+(averageRestore==null?0:averageRestore.size));
             Console.OUT.println("RemakeCount:"+remakeTimes.size());
             Console.OUT.println("FailureDetectionCount:"+failureDetectionTimes.size());
