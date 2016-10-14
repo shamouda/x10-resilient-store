@@ -139,7 +139,7 @@ public class SPMDResilientIterativeExecutor {
                     
                     var localIter:Long = 0;
                     
-                    while ( !app.isFinished_local() && 
+                    while ( !app.isFinished() && 
                             (!isResilient || (isResilient && localIter < itersPerCheckpoint)) ) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         	
@@ -287,10 +287,7 @@ public class SPMDResilientIterativeExecutor {
                 restoreDataMap.put(key, value);
             }
         }     
-        
         app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
-        
-        localRestoreRequired = false;
         trans.prepareAndCommit();
     }
     
