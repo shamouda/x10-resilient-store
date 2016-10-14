@@ -157,6 +157,7 @@ public class SPMDResilientIterativeExecutor {
                         
                         placeTempData().stat.stepTimes.add(Timer.milliTime()-stepStartTime);
                         
+                        placeTempData().globalIter ++;
                         localIter++;
                         
                     }//while !isFinished
