@@ -413,7 +413,7 @@ public class SPMDResilientIterativeExecutor {
         Console.OUT.println("=========Counts============");
         Console.OUT.println("StepCount:"+averageSteps.size);
         if (isResilient){
-            Console.OUT.println("CheckpointCount:"+(ckptSaveNewVersion==null?0:ckptSaveNewVersion.size));
+            Console.OUT.println("CheckpointCount:"+(ckptSaveNewVersion==null?0:ckptSaveNewVersion.size()));
             Console.OUT.println("RestoreCount:"+(averageRestore==null?0:averageRestore.size));
             Console.OUT.println("RemakeCount:"+remakeTimes.size());
             Console.OUT.println("FailureDetectionCount:"+failureDetectionTimes.size());
