@@ -272,7 +272,7 @@ public class SPMDResilientIterativeExecutor {
         
         }
         catch(ignoreEx:Exception) { }
-        placeTempData().ckptDeleteOldVersion.add(Timer.milliTime() - deleteOldVersionStart);
+        placeTempData().stat.ckptDeleteOldVersion.add(Timer.milliTime() - deleteOldVersionStart);
     }
     
     private def restore(app:SPMDResilientIterativeApp) {
