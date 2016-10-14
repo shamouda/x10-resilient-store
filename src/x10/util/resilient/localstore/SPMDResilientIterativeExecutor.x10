@@ -143,6 +143,7 @@ public class SPMDResilientIterativeExecutor {
                             (!isResilient || (isResilient && localIter < itersPerCheckpoint)) ) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         	
+                    Console.OUT.println(here+":"+placeTempData().globalIter);
                     	if ( isResilient && simplePlaceHammer.sayGoodBye(placeTempData().globalIter) ) {
                     		executorKillHere("step()");
                     	}
