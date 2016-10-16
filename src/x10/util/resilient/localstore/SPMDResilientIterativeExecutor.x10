@@ -126,7 +126,6 @@ public class SPMDResilientIterativeExecutor {
                 val tmpGlobalIter = globalIter;
                 finish ateach(Dist.makeUnique(places)) {
                     placeTempData().globalIter = tmpGlobalIter;
-                	Console.OUT.println("Starting all over again: stepCount = " + placeTempData().stat.stepTimes.size());
                 	
                 	/*** Checkpoint (delete old version) ***/
                 	if (oldCheckpoint != -1)
@@ -143,7 +142,6 @@ public class SPMDResilientIterativeExecutor {
                             (!isResilient || (isResilient && localIter < itersPerCheckpoint)) ) {
                     	var stepStartTime:Long = -1; // (-1) is used to differenciate between checkpoint exceptions and step exceptions
                         	
-                    Console.OUT.println(here+":"+placeTempData().globalIter);
                     	if ( isResilient && simplePlaceHammer.sayGoodBye(placeTempData().globalIter) ) {
                     		executorKillHere("step()");
                     	}
