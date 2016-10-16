@@ -56,6 +56,16 @@ public class ResilientStore {
                     Console.OUT.println("place ["+sparePlace.id+"] is replacing ["+p.id+"] since it is dead ");
                     group.add(sparePlace);
                     addedSparePlaces.put(sparePlace.id,virtualPlaceId);
+                    Console.OUT.println("=========================================================");
+                    Console.OUT.println("=========================================================");
+                    Console.OUT.println("=========================================================");
+                    Console.OUT.println("[         "+sparePlace.id+"       ,        "+virtualPlaceId+"         ]");
+                    Console.OUT.println("=========================================================");
+                    Console.OUT.println("=========================================================");
+                    Console.OUT.println("=========================================================");
+                    
+                    
+                    
                     allocated++;
                 }
                 else
