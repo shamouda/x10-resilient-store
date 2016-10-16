@@ -211,7 +211,9 @@ public class SPMDResilientIterativeExecutor {
             val virtualId = addedPlacesMap.getOrThrow(realId);
             val victimStat =  placeTempData().place0VictimsStats.getOrThrow(virtualId);
             addedPlaces.add(Place(realId));
-            PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat));
+            val p0CkptVer = placeTempData().ckptCommittedVer;
+            val p0GlobalIter = placeTempData().globalIter;
+            PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat, p0CkptVer, p0GlobalIter));
         }
 
         val startAppRemake = Timer.milliTime();
@@ -241,6 +243,7 @@ public class SPMDResilientIterativeExecutor {
                 val chkValues = app.getCheckpointValues();
                 for (var i:Long = 0; i < chkKeys.size; i++){
                     val key = chkKeys(i) +":v" + newVersion;
+                    Console.OUT.println(here + " checkpointing -> " + key);
                     val value = chkValues(i);
                     trans.put(key, value);
                 }
@@ -283,6 +286,7 @@ public class SPMDResilientIterativeExecutor {
         if (chkKeys != null && chkKeys.size > 0) {
             for (var i:Long = 0; i < chkKeys.size; i++) {
                 val key = chkKeys(i) +":v" + (placeTempData().ckptCommittedVer);
+                Console.OUT.println(here + " restoring -> " + key);
                 val value = trans.get(key);
                 restoreDataMap.put(key, value);
             }
@@ -500,10 +504,13 @@ public class SPMDResilientIterativeExecutor {
     }
     
     private def executorKillHere(op:String) {
+    	Console.OUT.println("Killing " + here);
     	val stat = placeTempData().stat;
     	val index = places.indexOf(here);
     	at(Place(0)) {
-			placeTempData().addVictim(index,stat);		
+    		Console.OUT.println("received victim stats");
+			placeTempData().addVictim(index,stat);
+			Console.OUT.println("received and added victim stats");
 		}
 		Console.OUT.println("[Hammer Log] Killing ["+here+"] before "+op+" ...");
 		System.killHere();
@@ -515,16 +522,19 @@ public class SPMDResilientIterativeExecutor {
                 && System.getenv("EXECUTOR_PLACE_LOCAL").equals("1"));
         //used by place hammer
         var place0KillPlaceTime:Long = -1;
-        var lastCheckpointIter:Long = -1;
-    	val stat:PlaceStatistics;
     	val place0VictimsStats:HashMap[Long,PlaceStatistics];//key=victim_index value=its_old_statistics
+    	
+        var lastCheckpointIter:Long = -1;
+    	val stat:PlaceStatistics;    	
     	var ckptCommittedVer:Long = -1;
     	var globalIter:Long = 0;
+    	
         //used for initializing spare places with the same values from Place0
-        private def this(otherStat:PlaceStatistics){
+        private def this(otherStat:PlaceStatistics, ckptVer:Long, gIter:Long){
             this.stat = otherStat;
             this.place0VictimsStats = here.id == 0? new HashMap[Long,PlaceStatistics]() : null;
-            
+            this.ckptCommittedVer = ckptVer;
+            this.globalIter = gIter;
         }
     
         public def this(){
