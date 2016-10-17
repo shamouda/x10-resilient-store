@@ -208,8 +208,9 @@ public class SPMDResilientIterativeExecutor {
         val iter = addedPlacesMap.keySet().iterator();
         while (iter.hasNext()) {
             val realId = iter.next();
+            Console.OUT.println("#################realid###############= " + realId);
             val virtualId = addedPlacesMap.getOrThrow(realId);
-            val victimStat =  placeTempData().place0VictimsStats.getOrThrow(virtualId);
+            val victimStat =  placeTempData().place0VictimsStats.getOrElse(virtualId, placeTempData().stat);
             addedPlaces.add(Place(realId));
             val p0CkptVer = placeTempData().ckptCommittedVer;
             val p0GlobalIter = placeTempData().globalIter;
