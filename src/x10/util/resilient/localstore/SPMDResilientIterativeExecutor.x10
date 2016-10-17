@@ -208,7 +208,6 @@ public class SPMDResilientIterativeExecutor {
         val iter = addedPlacesMap.keySet().iterator();
         while (iter.hasNext()) {
             val realId = iter.next();
-            Console.OUT.println("#################realid###############= " + realId);
             val virtualId = addedPlacesMap.getOrThrow(realId);
             val victimStat =  placeTempData().place0VictimsStats.getOrElse(virtualId, placeTempData().stat);
             addedPlaces.add(Place(realId));
@@ -243,8 +242,7 @@ public class SPMDResilientIterativeExecutor {
             if (chkKeys != null && chkKeys.size > 0) {
                 val chkValues = app.getCheckpointValues();
                 for (var i:Long = 0; i < chkKeys.size; i++){
-                    val key = chkKeys(i) +":v" + newVersion;
-                    Console.OUT.println(here + " checkpointing -> " + key);
+                    val key = chkKeys(i) +":v" + newVersion;                    
                     val value = chkValues(i);
                     trans.put(key, value);
                 }
@@ -287,9 +285,8 @@ public class SPMDResilientIterativeExecutor {
         if (chkKeys != null && chkKeys.size > 0) {
             for (var i:Long = 0; i < chkKeys.size; i++) {
                 val key = chkKeys(i) +":v" + (placeTempData().ckptCommittedVer);
-                Console.OUT.println(here + " restoring -> " + key);
                 val value = trans.get(key);
-                restoreDataMap.put(key, value);
+                restoreDataMap.put(chkKeys(i), value);
             }
         }     
         app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
@@ -504,14 +501,11 @@ public class SPMDResilientIterativeExecutor {
         return result;
     }
     
-    private def executorKillHere(op:String) {
-    	Console.OUT.println("Killing " + here);
+    private def executorKillHere(op:String) {    	
     	val stat = placeTempData().stat;
     	val index = places.indexOf(here);
-    	at(Place(0)) {
-    		Console.OUT.println("received victim stats");
+    	at(Place(0)) {    		
 			placeTempData().addVictim(index,stat);
-			Console.OUT.println("received and added victim stats");
 		}
 		Console.OUT.println("[Hammer Log] Killing ["+here+"] before "+op+" ...");
 		System.killHere();
