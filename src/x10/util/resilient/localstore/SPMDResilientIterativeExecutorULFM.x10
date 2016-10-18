@@ -104,57 +104,20 @@ public class SPMDResilientIterativeExecutorULFM {
         do{
             try {
             	/*** Starting a Restore Operation *****/
+            	
+            	/*** Remake ***/
+                var tmpRestoreFlag:Boolean = false;
                 if (remakeRequired) {
-                    if (placeTempData().lastCheckpointIter > -1) {
-                        if (VERBOSE) Console.OUT.println("Restoring to iter " + placeTempData().lastCheckpointIter);
-                        val startRemake = Timer.milliTime();                    
-                        
-                        
-                        val startResilientMapRecovery = Timer.milliTime(); 
-                        val addedPlacesMap = resilientMap.recoverDeadPlaces();
-                        resilientMapRecoveryTimes.add(Timer.milliTime() - startResilientMapRecovery);
-                        
-                        val newPG = resilientMap.getActivePlaces();
-                        if (VERBOSE){
-                            var str:String = "";
-                            for (p in newPG)
-                                str += p.id + ",";
-                            Console.OUT.println("Restore places are: " + str);
-                        } 
-                        val startTeamCreate = Timer.milliTime(); 
-                        team = new Team(newPG);
-                        reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
-                        
-                        val addedPlaces = new ArrayList[Place]();
-                        val iter = addedPlacesMap.keySet().iterator();
-                        while (iter.hasNext()) {
-                        	val realId = iter.next();
-                        	val virtualId = addedPlacesMap.getOrThrow(realId);
-                        	val victimStat =  placeTempData().place0VictimsStats.getOrThrow(virtualId);
-                        	addedPlaces.add(Place(realId));
-                        	PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat));
-                        }
-
-                        val startAppRemake = Timer.milliTime();
-                        app.remake(newPG, team, addedPlaces);
-                        appRemakeTimes.add(Timer.milliTime() - startAppRemake);                        
-                        
-                        val lastCheckIter = placeTempData().lastCheckpointIter;
-                        places = newPG;
-                        globalIter = lastCheckIter;
-                        remakeRequired = false;
-                        restoreRequired = true;
-                        remakeTimes.add(Timer.milliTime() - startRemake) ;                        
-                        Console.OUT.println("LocalViewResilientExecutor: All remake steps completed successfully ...");
-                    } else {
-                        throw new UnsupportedOperationException("process failure occurred but no valid checkpoint exists!");
+                    tmpRestoreFlag = remake(app);
+                    if (tmpRestoreFlag) {
+                        globalIter = placeTempData().lastCheckpointIter;
                     }
+                    remakeRequired = false;
                 }
-                
                 Console.OUT.println("LocalViewResilientExecutor: remakeRequired["+remakeRequired+"] restoreRequired["+restoreRequired+"] ...");           
                 
                 //to be copied to all places
-                val tmpRestoreRequired = restoreRequired;
+                val tmpRestoreRequired = tmpRestoreFlag;
                 val tmpGlobalIter = globalIter;
                 val placesCount = places.size();
                 finish ateach(Dist.makeUnique(places)) {
@@ -223,8 +186,54 @@ public class SPMDResilientIterativeExecutorULFM {
         
         
         calculateTimingStatistics();
+    }
+    
+    private def remake(app:SPMDResilientIterativeApp) {
+    	if (placeTempData().lastCheckpointIter == -1) {
+            throw new UnsupportedOperationException("process failure occurred but no valid checkpoint exists!");
+        }
+    	
+    	if (VERBOSE) Console.OUT.println("Restoring to iter " + placeTempData().lastCheckpointIter);
+    	var restoreRequired:Boolean = false;
+        val startRemake = Timer.milliTime();
         
+        val startResilientMapRecovery = Timer.milliTime(); 
+        val addedPlacesMap = resilientMap.recoverDeadPlaces();
+        resilientMapRecoveryTimes.add(Timer.milliTime() - startResilientMapRecovery);
+        
+        val newPG = resilientMap.getActivePlaces();
+        if (VERBOSE){
+            var str:String = "";
+            for (p in newPG)
+                str += p.id + ",";
+            Console.OUT.println("Restore places are: " + str);
+        } 
+        val startTeamCreate = Timer.milliTime(); 
+        team = new Team(newPG);
+        reconstructTeamTimes.add( Timer.milliTime() - startTeamCreate);
+        
+        val addedPlaces = new ArrayList[Place]();
+        val iter = addedPlacesMap.keySet().iterator();
+        while (iter.hasNext()) {
+        	val realId = iter.next();
+        	val virtualId = addedPlacesMap.getOrThrow(realId);
+        	val victimStat =  placeTempData().place0VictimsStats.getOrThrow(virtualId);
+        	addedPlaces.add(Place(realId));
+        	val p0AllCkptKeys = placeTempData().allCkptKeys;
+        	PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat, p0AllCkptKeys));
+        }
 
+        val startAppRemake = Timer.milliTime();
+        app.remake(newPG, team, addedPlaces);
+        appRemakeTimes.add(Timer.milliTime() - startAppRemake);                        
+        
+        val lastCheckIter = placeTempData().lastCheckpointIter;
+        places = newPG;
+        restoreRequired = true;
+        remakeTimes.add(Timer.milliTime() - startRemake) ;                        
+        Console.OUT.println("LocalViewResilientExecutor: All remake steps completed successfully ...");
+    
+        return restoreRequired;
     }
     
     private def calculateTimingStatistics(){
@@ -455,30 +464,29 @@ public class SPMDResilientIterativeExecutorULFM {
         try{
             if (operation == CHECKPOINT_OPERATION) {
                 val x = Timer.milliTime();
-                
-            	val chkKeys = app.getCheckpointAndRestoreKeys();
-            	if (chkKeys != null && chkKeys.size > 0) {
-            	    val chkValues = app.getCheckpointValues();
-            	    for (var i:Long = 0; i < chkKeys.size; i++){
-                        val key = chkKeys(i);
-                        val value = chkValues(i);
-                        trans.put(key, value);
-                    }
-            	}
+            	val ckptMap = app.getCheckpointData();
+                if (ckptMap != null) {
+                	val iter = ckptMap.keySet().iterator();
+                	while (iter.hasNext()) {
+                		val key = iter.next();
+                		val value = ckptMap.getOrThrow(key);
+                		trans.put(key, value);
+                		
+                		placeTempData().allCkptKeys.add(key);
+                	}
+                }
             	str += " put["+(Timer.milliTime() - x)+"]";
             }
             else {
                 val x = Timer.milliTime();
                 
                 val restoreDataMap = new HashMap[String,Cloneable]();
-                val chkKeys = app.getCheckpointAndRestoreKeys();
-                if (chkKeys != null && chkKeys.size > 0) {
-                	for (var i:Long = 0; i < chkKeys.size; i++) {
-                        val key = chkKeys(i);
-                	    val value = trans.get(key);
-                	    restoreDataMap.put(key, value);
-                    }
-                }     
+                val iter = placeTempData().allCkptKeys.iterator();
+                while (iter.hasNext()) {
+                	val key = iter.next();
+                	val value = trans.get(key);
+            	    restoreDataMap.put(key, value);
+                }
                 str += " get["+(Timer.milliTime() - x)+"]";
                 
                 val y = Timer.milliTime();
@@ -603,11 +611,13 @@ public class SPMDResilientIterativeExecutorULFM {
     	val stat:PlaceStatistics;
     	val place0VictimsStats:HashMap[Long,PlaceStatistics];//key=victim_index value=its_old_statistics
     	
+    	var allCkptKeys:HashSet[String] = new HashSet[String]();
+    	
         //used for initializing spare places with the same values from Place0
-        private def this(otherStat:PlaceStatistics){
+        private def this(otherStat:PlaceStatistics, allCkptKeys:HashSet[String]){
             this.stat = otherStat;
             this.place0VictimsStats = here.id == 0? new HashMap[Long,PlaceStatistics]() : null;
-            
+            this.allCkptKeys = allCkptKeys;
         }
     
         public def this(){

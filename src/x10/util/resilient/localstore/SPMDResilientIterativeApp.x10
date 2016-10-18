@@ -20,9 +20,7 @@ public interface SPMDResilientIterativeApp {
     
     public def step():void;
     
-    public def getCheckpointAndRestoreKeys():Rail[String];
-    
-    public def getCheckpointValues():Rail[Cloneable];    
+    public def getCheckpointData():HashMap[String,Cloneable];    
     
     public def remake(newPlaces:PlaceGroup, newTeam:Team, newAddedPlaces:ArrayList[Place]):void;
     

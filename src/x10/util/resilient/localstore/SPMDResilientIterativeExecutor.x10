@@ -213,7 +213,9 @@ public class SPMDResilientIterativeExecutor {
             addedPlaces.add(Place(realId));
             val p0CkptVer = placeTempData().ckptCommittedVer;
             val p0GlobalIter = placeTempData().globalIter;
-            PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat, p0CkptVer, p0GlobalIter));
+            val p0AllCkptKeys = placeTempData().allCkptKeys;
+            val p0LastCkptKeys = placeTempData().lastCkptKeys;
+            PlaceLocalHandle.addPlace[PlaceTempData](placeTempData, Place(realId), ()=>new PlaceTempData(victimStat, p0CkptVer, p0GlobalIter, p0LastCkptKeys, p0AllCkptKeys));
         }
 
         val startAppRemake = Timer.milliTime();
@@ -236,16 +238,20 @@ public class SPMDResilientIterativeExecutor {
         if (VERBOSE) Console.OUT.println("checkpointing at iter " + placeTempData().globalIter);
         val newVersion = ckptVersion+1;
         finish ateach(Dist.makeUnique(places)) {
+        	
+        	placeTempData().lastCkptKeys.clear();
             val trans = resilientMap.startLocalTransaction();
-            
-            val chkKeys = app.getCheckpointAndRestoreKeys();
-            if (chkKeys != null && chkKeys.size > 0) {
-                val chkValues = app.getCheckpointValues();
-                for (var i:Long = 0; i < chkKeys.size; i++){
-                    val key = chkKeys(i) +":v" + newVersion;                    
-                    val value = chkValues(i);
-                    trans.put(key, value);
-                }
+            val ckptMap = app.getCheckpointData();
+            if (ckptMap != null) {
+            	val iter = ckptMap.keySet().iterator();
+            	while (iter.hasNext()) {
+            		val appKey = iter.next();
+            		val key = appKey +":v" + newVersion;
+            		val value = ckptMap.getOrThrow(key);
+            		trans.put(key, value);
+            		placeTempData().lastCkptKeys.add(appKey);
+            		placeTempData().allCkptKeys.add(appKey);
+            	}            	
             }
             trans.prepareAndCommit();
         }
@@ -262,16 +268,15 @@ public class SPMDResilientIterativeExecutor {
         
         placeTempData().ckptCommittedVer = delCkptVer+1;
         try {
-            val trans = resilientMap.startLocalTransaction();
-            val chkKeys = app.getCheckpointAndRestoreKeys();
-            if (chkKeys != null && chkKeys.size > 0) {
-                for (var i:Long = 0; i < chkKeys.size; i++){
-                    val key = chkKeys(i) +":v" + delCkptVer;
-                    trans.delete(key);
-                }
-            }
+            val trans = resilientMap.startLocalTransaction();            
+            	
+        	val iter = placeTempData().lastCkptKeys.iterator();
+        	while (iter.hasNext()) {
+        		val appKey = iter.next();
+        		val key = appKey +":v" + delCkptVer;
+                trans.delete(key);
+        	}
             trans.prepareAndCommit();
-        
         }
         catch(ignoreEx:Exception) { }
         placeTempData().stat.ckptDeleteOldVersion.add(Timer.milliTime() - deleteOldVersionStart);
@@ -281,14 +286,14 @@ public class SPMDResilientIterativeExecutor {
         val trans = resilientMap.startLocalTransaction();
         
         val restoreDataMap = new HashMap[String,Cloneable]();
-        val chkKeys = app.getCheckpointAndRestoreKeys();
-        if (chkKeys != null && chkKeys.size > 0) {
-            for (var i:Long = 0; i < chkKeys.size; i++) {
-                val key = chkKeys(i) +":v" + (placeTempData().ckptCommittedVer);
-                val value = trans.get(key);
-                restoreDataMap.put(chkKeys(i), value);
-            }
-        }     
+        
+        val iter = placeTempData().allCkptKeys.iterator();
+        while (iter.hasNext()) {
+        	val appKey = iter.next();
+        	val key = appKey + ":v" + (placeTempData().ckptCommittedVer);
+            val value = trans.get(key);
+            restoreDataMap.put(appKey, value);
+        }            
         app.restore(restoreDataMap, placeTempData().lastCheckpointIter);
         trans.prepareAndCommit();
     }
@@ -524,12 +529,17 @@ public class SPMDResilientIterativeExecutor {
     	var ckptCommittedVer:Long = -1;
     	var globalIter:Long = 0;
     	
+    	var lastCkptKeys:HashSet[String] = new HashSet[String]();
+    	var allCkptKeys:HashSet[String] = new HashSet[String]();
+    	
         //used for initializing spare places with the same values from Place0
-        private def this(otherStat:PlaceStatistics, ckptVer:Long, gIter:Long){
+        private def this(otherStat:PlaceStatistics, ckptVer:Long, gIter:Long, lastCkptKeys:HashSet[String], allCkptKeys:HashSet[String]){
             this.stat = otherStat;
             this.place0VictimsStats = here.id == 0? new HashMap[Long,PlaceStatistics]() : null;
             this.ckptCommittedVer = ckptVer;
             this.globalIter = gIter;
+            this.lastCkptKeys = lastCkptKeys;
+            this.allCkptKeys = allCkptKeys;
         }
     
         public def this(){

@@ -26,7 +26,7 @@ public class ResilientStore {
     }
     
     public static def make(spare:Long):ResilientStore {
-    	val activePlaces = PlaceGroupBuilder.execludeSparePlaces(spare);
+    	val activePlaces = PlaceGroupBuilder.excludeSparePlaces(spare);
     	val slaveMap = new Rail[Long](activePlaces.size, (i:long) => { (i + 1) % activePlaces.size} );
     	val plh = PlaceLocalHandle.make[LocalStore](Place.places(), () => new LocalStore(spare, slaveMap));
         val sparePlaces = new ArrayList[Place]();
